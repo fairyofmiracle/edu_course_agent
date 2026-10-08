@@ -1,36 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Студия образовательных программ
 
-## Getting Started
+Веб-агент для методиста: чат слева собирает бриф, справа появляется комплект курса — структура, карта компетенций, тесты, семинары и слайды лекций.
 
-First, run the development server:
+## Запуск
+
+```bash
+cd edu-course-agent
+cp .env.example .env.local
+```
+
+Модель и голос — российские сервисы Сбера.
+
+Текст курса собирает [GigaChat](https://developers.sber.ru/docs/ru/gigachat/individuals-quickstart). В `.env.local` нужен ключ авторизации из личного кабинета, не короткий токен доступа: студия сама меняет ключ на токен.
+
+```
+GIGACHAT_CREDENTIALS=...
+GIGACHAT_SCOPE=GIGACHAT_API_PERS
+GIGACHAT_MODEL=GigaChat
+```
+
+Для ИП и юрлиц смените `GIGACHAT_SCOPE` на `GIGACHAT_API_B2B` или `GIGACHAT_API_CORP`.
+
+Слайды озвучивает [SaluteSpeech](https://developers.sber.ru/docs/ru/salutespeech/guides/synthesis/voices), голос Наталья (`Nec_24000`). Ключ этого проекта отдельный:
+
+```
+SALUTE_CREDENTIALS=...
+SALUTE_SCOPE=SALUTE_SPEECH_PERS
+SALUTE_VOICE=Nec_24000
+```
+
+Другие голоса: `May_24000` Марфа, `Ost_24000` Александра, `Bys_24000` Борис, `Tur_24000` Тарас, `Pon_24000` Сергей. Кнопка «Озвучить» на слайде читает заголовок, тезисы и заметки лектора.
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Откройте [http://localhost:3000](http://localhost:3000). Кнопка «Пример 24 ч» показывает заполненную студию без модели. Экспорт: разметка, данные и слайды.

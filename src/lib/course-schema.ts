@@ -1,0 +1,204 @@
+import { z } from "zod";
+
+export const bloomLevelSchema = z.enum([
+  "remember",
+  "understand",
+  "apply",
+  "analyze",
+  "evaluate",
+  "create",
+]);
+
+export const courseLevelSchema = z.enum(["beginner", "intermediate", "advanced"]);
+export const courseFormatSchema = z.enum(["lecture", "blended", "workshop"]);
+export const questionTypeSchema = z.enum(["mcq", "open"]);
+
+export const referenceSchema = z.object({
+  title: z.string().min(1).max(200),
+  source: z.string().max(500).optional(),
+  note: z.string().max(1500).optional(),
+});
+
+export const briefSchema = z.object({
+  title: z.string().max(180).default(""),
+  audience: z.string().max(400).default(""),
+  level: courseLevelSchema.default("intermediate"),
+  durationHours: z.number().min(0).max(400).default(0),
+  format: courseFormatSchema.default("blended"),
+  goals: z.array(z.string().min(1).max(300)).max(12).default([]),
+  constraints: z.array(z.string().min(1).max(300)).max(12).default([]),
+  references: z.array(referenceSchema).max(20).default([]),
+});
+
+export const competencyNodeSchema = z.object({
+  id: z.string().min(1).max(40),
+  name: z.string().min(1).max(180),
+  bloomLevel: bloomLevelSchema,
+  moduleIds: z.array(z.string().min(1).max(40)).max(12),
+  description: z.string().max(400).optional(),
+});
+
+export const competencyEdgeSchema = z.object({
+  from: z.string().min(1).max(40),
+  to: z.string().min(1).max(40),
+});
+
+export const competencyMapSchema = z.object({
+  nodes: z.array(competencyNodeSchema).max(24),
+  edges: z.array(competencyEdgeSchema).max(40),
+});
+
+export const moduleSchema = z.object({
+  id: z.string().min(1).max(40),
+  title: z.string().min(1).max(180),
+  hours: z.number().min(0.5).max(80),
+  topics: z.array(z.string().min(1).max(200)).min(1).max(10),
+  learningOutcomes: z.array(z.string().min(1).max(300)).min(1).max(8),
+  competencyIds: z.array(z.string().min(1).max(40)).min(1).max(12),
+});
+
+export const slideSchema = z.object({
+  title: z.string().min(1).max(140),
+  bullets: z.array(z.string().min(1).max(280)).min(2).max(6),
+  mermaid: z.string().max(1500).optional(),
+  visualPrompt: z.string().max(280).optional(),
+  speakerNotes: z.string().max(600).optional(),
+});
+
+export const lectureSchema = z.object({
+  moduleId: z.string().min(1).max(40),
+  durationMin: z.number().min(15).max(240),
+  outline: z.array(z.string().min(1).max(240)).min(3).max(10),
+  slides: z.array(slideSchema).min(4).max(10),
+});
+
+export const seminarTaskSchema = z.object({
+  title: z.string().min(1).max(180),
+  prompt: z.string().min(1).max(1200),
+  steps: z.array(z.string().min(1).max(280)).min(2).max(8),
+  timeMin: z.number().min(10).max(180),
+  criteria: z.array(z.string().min(1).max(240)).min(2).max(6),
+  competencyId: z.string().min(1).max(40),
+});
+
+export const seminarSchema = z.object({
+  moduleId: z.string().min(1).max(40),
+  tasks: z.array(seminarTaskSchema).min(1).max(4),
+});
+
+export const questionSchema = z.object({
+  type: questionTypeSchema,
+  stem: z.string().min(1).max(500),
+  options: z.array(z.string().min(1).max(240)).max(6).optional(),
+  answer: z.string().min(1).max(600),
+  explanation: z.string().min(1).max(600),
+  competencyId: z.string().min(1).max(40),
+});
+
+export const assessmentSchema = z.object({
+  moduleId: z.string().min(1).max(40),
+  questions: z.array(questionSchema).min(4).max(10),
+});
+
+export const courseDocumentSchema = z.object({
+  id: z.string().min(1),
+  updatedAt: z.string().min(1),
+  brief: briefSchema,
+  competencies: competencyMapSchema,
+  modules: z.array(moduleSchema).max(10),
+  lectures: z.array(lectureSchema).max(10),
+  seminars: z.array(seminarSchema).max(10),
+  assessments: z.array(assessmentSchema).max(10),
+});
+
+export type BloomLevel = z.infer<typeof bloomLevelSchema>;
+export type CourseLevel = z.infer<typeof courseLevelSchema>;
+export type CourseFormat = z.infer<typeof courseFormatSchema>;
+export type CourseBrief = z.infer<typeof briefSchema>;
+export type CompetencyMap = z.infer<typeof competencyMapSchema>;
+export type CourseModule = z.infer<typeof moduleSchema>;
+export type Lecture = z.infer<typeof lectureSchema>;
+export type Seminar = z.infer<typeof seminarSchema>;
+export type Assessment = z.infer<typeof assessmentSchema>;
+export type CourseDocument = z.infer<typeof courseDocumentSchema>;
+export type Slide = z.infer<typeof slideSchema>;
+
+export const BLOOM_LABELS: Record<BloomLevel, string> = {
+  remember: "Знать",
+  understand: "Понимать",
+  apply: "Применять",
+  analyze: "Анализировать",
+  evaluate: "Оценивать",
+  create: "Создавать",
+};
+
+export const LEVEL_LABELS: Record<CourseLevel, string> = {
+  beginner: "Начальный",
+  intermediate: "Средний",
+  advanced: "Продвинутый",
+};
+
+export const QUESTION_LABELS: Record<"mcq" | "open", string> = {
+  mcq: "Выбор",
+  open: "Открытый",
+};
+
+export const FORMAT_LABELS: Record<CourseFormat, string> = {
+  lecture: "Лекции",
+  blended: "Смешанный",
+  workshop: "Практикум",
+};
+
+export function createEmptyCourse(): CourseDocument {
+  return {
+    id:
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `course-${Date.now()}`,
+    updatedAt: new Date().toISOString(),
+    brief: {
+      title: "",
+      audience: "",
+      level: "intermediate",
+      durationHours: 0,
+      format: "blended",
+      goals: [],
+      constraints: [],
+      references: [],
+    },
+    competencies: { nodes: [], edges: [] },
+    modules: [],
+    lectures: [],
+    seminars: [],
+    assessments: [],
+  };
+}
+
+export function isCourseEmpty(course: CourseDocument): boolean {
+  return (
+    !course.brief.title &&
+    course.modules.length === 0 &&
+    course.competencies.nodes.length === 0
+  );
+}
+
+export function courseCompleteness(course: CourseDocument) {
+  const moduleCount = Math.max(course.modules.length, 1);
+  const checks = {
+    brief: Boolean(course.brief.title && course.brief.audience),
+    competencies: course.competencies.nodes.length > 0,
+    structure: course.modules.length > 0,
+    lectures: course.lectures.length / moduleCount,
+    seminars: course.seminars.length / moduleCount,
+    assessments: course.assessments.length / moduleCount,
+  };
+  const score =
+    (Number(checks.brief) +
+      Number(checks.competencies) +
+      Number(checks.structure) +
+      Math.min(1, checks.lectures) +
+      Math.min(1, checks.seminars) +
+      Math.min(1, checks.assessments)) /
+    6;
+  return { ...checks, score };
+}

@@ -6,6 +6,11 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { ChatPanel } from "@/components/ChatPanel";
 import { CourseWorkspace, type WorkspaceTab } from "@/components/CourseWorkspace";
 import { foldCourseFromMessages } from "@/lib/course-patches";
+import {
+  frameworkFingerprint,
+  frameworkItems,
+  isFrameworkApproved,
+} from "@/lib/framework-check";
 import { createEmptyCourse, isCourseEmpty, type CourseDocument } from "@/lib/course-schema";
 import {
   exportCourseJson,
@@ -66,6 +71,8 @@ function StudioSession({
     () => foldCourseFromMessages(messages, storedCourse),
     [messages, storedCourse],
   );
+  const frameworkReady = frameworkItems(course).every((item) => item.ok);
+  const frameworkApproved = isFrameworkApproved(course);
 
   useEffect(() => {
     courseRef.current = course;
@@ -100,6 +107,29 @@ function StudioSession({
     setTab("overview");
   };
 
+  const approveFramework = () => {
+    if (!frameworkReady) return;
+    const next = {
+      ...course,
+      frameworkApproved: true,
+      frameworkFingerprint: frameworkFingerprint(course),
+      updatedAt: new Date().toISOString(),
+    };
+    courseRef.current = next;
+    setStoredCourse(next);
+  };
+
+  const revokeFramework = () => {
+    const next = {
+      ...course,
+      frameworkApproved: false,
+      frameworkFingerprint: "",
+      updatedAt: new Date().toISOString(),
+    };
+    courseRef.current = next;
+    setStoredCourse(next);
+  };
+
   const loadSample = () => {
     const sample = {
       ...SAMPLE_COURSE,
@@ -115,7 +145,7 @@ function StudioSession({
     <div className="studio">
       <header className="topbar">
         <div>
-          <p className="kicker">Студия курса</p>
+          <p className="kicker">Слева пишут запрос. Справа появляется программа.</p>
           <h1>{course.brief.title || "Новая образовательная программа"}</h1>
         </div>
         <div className="top-actions">
@@ -125,6 +155,15 @@ function StudioSession({
           <button type="button" onClick={reset}>
             Новый курс
           </button>
+          {frameworkApproved ? (
+            <button type="button" onClick={revokeFramework}>
+              Снять утверждение
+            </button>
+          ) : (
+            <button type="button" disabled={!frameworkReady} onClick={approveFramework}>
+              Утвердить каркас
+            </button>
+          )}
           <button
             type="button"
             disabled={isCourseEmpty(course)}
@@ -154,6 +193,7 @@ function StudioSession({
           status={status}
           error={error}
           extraReferences={extraReferences}
+          frameworkApproved={frameworkApproved}
           onReferencesChange={setExtraReferences}
           onSend={send}
           onStop={() => stop()}

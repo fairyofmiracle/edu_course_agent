@@ -13,26 +13,24 @@ const TOOL_LABELS: Record<string, string> = {
   revise_section: "Правка",
 };
 
-const QUICK_ACTIONS = [
+const FRAMEWORK_ACTIONS = [
   {
-    id: "full",
-    label: "Собери весь комплект",
-    text: "Собери полный комплект курса по текущему брифу: update_brief при необходимости, затем set_competency_map, set_structure и для каждого модуля set_assessment, set_seminar и set_lecture.",
+    id: "framework",
+    label: "Собери каркас",
+    text: "Собери только каркас. Если не хватает аудитории, часов или целей — сначала задай вопросы. Иначе вызови update_brief, set_competency_map и set_structure. Сумма часов модулей должна точно равняться объёму. Тесты, задания и лекции не пиши.",
   },
+];
+
+const CONTENT_ACTIONS = [
   {
-    id: "structure",
-    label: "Собери структуру",
-    text: "По текущему брифу собери карту компетенций и модульную структуру. Вызови set_competency_map и set_structure.",
-  },
-  {
-    id: "module",
-    label: "Дополни первый модуль",
-    text: "Возьми первый модуль без полного комплекта и сгенерируй для него set_assessment, set_seminar и set_lecture.",
+    id: "kit",
+    label: "Собери комплект",
+    text: "Каркас утверждён. Для каждого модуля вызови set_assessment, set_seminar и set_lecture. Часы и список компетенций не меняй. Каждый вопрос привяжи к компетенции.",
   },
   {
     id: "tests",
     label: "Перегенерировать тесты",
-    text: "Пересобери тесты для всех модулей: вызови set_assessment для каждого moduleId. Вопросы должны быть новыми, с ключами и привязкой к компетенциям.",
+    text: "Каркас утверждён. Пересобери тесты для всех модулей: set_assessment для каждого moduleId. Вопросы новые, с ключами и привязкой к компетенциям.",
   },
 ];
 
@@ -41,6 +39,7 @@ type ChatPanelProps = {
   status: string;
   error?: Error;
   extraReferences: string;
+  frameworkApproved: boolean;
   onReferencesChange: (value: string) => void;
   onSend: (text: string) => void;
   onStop: () => void;
@@ -51,6 +50,7 @@ export function ChatPanel({
   status,
   error,
   extraReferences,
+  frameworkApproved,
   onReferencesChange,
   onSend,
   onStop,
@@ -111,8 +111,10 @@ export function ChatPanel({
   return (
     <aside className="chat">
       <header className="chat-head">
-        <p className="kicker light">Агент-методист</p>
-        <h1>Сборка программы</h1>
+        <h1>Запрос</h1>
+        <p className="kicker">
+          Тема, аудитория, часы и файлы. Если данных мало, агент сначала задаст вопросы.
+        </p>
       </header>
 
       <div className="messages" aria-live="polite">
@@ -148,7 +150,7 @@ export function ChatPanel({
       </div>
 
       <div className="quick">
-        {QUICK_ACTIONS.map((action) => (
+        {(frameworkApproved ? CONTENT_ACTIONS : FRAMEWORK_ACTIONS).map((action) => (
           <button
             key={action.id}
             type="button"
@@ -171,7 +173,7 @@ export function ChatPanel({
       </label>
       <div className="ref-actions">
         <button type="button" onClick={() => fileRef.current?.click()} disabled={busyFile}>
-          {busyFile ? "Читаю…" : "Файл txt/md/pdf"}
+          {busyFile ? "Читаю…" : "Файл docx/pdf/txt"}
         </button>
         <button type="button" onClick={() => void attachUrl()} disabled={busyFile}>
           URL
@@ -180,7 +182,7 @@ export function ChatPanel({
           ref={fileRef}
           type="file"
           hidden
-          accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf"
+          accept=".txt,.md,.pdf,.docx,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           onChange={(event) => {
             const file = event.target.files?.[0];
             if (file) void attachFile(file);

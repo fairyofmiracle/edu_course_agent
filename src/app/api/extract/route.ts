@@ -1,4 +1,5 @@
 import { extractText, getDocumentProxy } from "unpdf";
+import { docxToText } from "@/lib/docx-text";
 
 const MAX_CHARS = 12000;
 
@@ -51,6 +52,10 @@ export async function POST(req: Request) {
 
     const name = file.name.toLowerCase();
     const buffer = new Uint8Array(await file.arrayBuffer());
+
+    if (name.endsWith(".docx")) {
+      return Response.json({ title: file.name, text: clip(docxToText(buffer)) });
+    }
 
     if (name.endsWith(".pdf")) {
       const pdf = await getDocumentProxy(buffer);

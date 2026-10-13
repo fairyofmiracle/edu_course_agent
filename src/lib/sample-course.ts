@@ -3,12 +3,17 @@ import type { CourseDocument } from "@/lib/course-schema";
 export const SAMPLE_COURSE: CourseDocument = {
   id: "sample-ai-analysts-24h",
   updatedAt: new Date().toISOString(),
+  frameworkApproved: false,
+  frameworkFingerprint: "",
   brief: {
     title: "ИИ для аналитиков: от данных к решению",
     audience: "Бизнес- и дата-аналитики с Excel/SQL, без опыта обучения моделей",
     level: "intermediate",
     durationHours: 24,
     format: "blended",
+    programKind: "general",
+    attestationHours: 0,
+    attestationForm: "Защита мини-проекта",
     goals: [
       "Отличать задачи, где ИИ уместен, от задач, где достаточно правил и статистики",
       "Собрать пайплайн: вопрос → данные → прототип → проверка качества",
@@ -21,14 +26,10 @@ export const SAMPLE_COURSE: CourseDocument = {
     ],
     references: [
       {
-        title: "Google — People + AI Guidebook",
-        source: "https://pair.withgoogle.com/guidebook",
-        note: "Дизайн человеко-ИИ сценариев",
-      },
-      {
-        title: "OpenAI — Prompt engineering",
-        source: "https://platform.openai.com/docs/guides/prompt-engineering",
-        note: "Базовые паттерны промптов",
+        title:
+          "Приказ Минтруда России от 22.11.2023 № 821н «Об утверждении профессионального стандарта „Бизнес-аналитик“»",
+        source: "https://www.consultant.ru/document/cons_doc_LAW_466929/",
+        note: "Зарегистрирован в Минюсте 25.12.2023 № 76611. Трудовые функции бизнес-аналитика.",
       },
     ],
   },
@@ -40,6 +41,9 @@ export const SAMPLE_COURSE: CourseDocument = {
         bloomLevel: "understand",
         moduleIds: ["m1"],
         description: "Формулирует, что модель должна решить и чего не должна",
+        knowledge: ["Классы задач: прогноз, ранжирование, извлечение, генерация"],
+        skills: ["Отличает задачу для модели от задачи для правила"],
+        abilities: ["Пишет бриф: вход, выход, ограничения, метрика"],
       },
       {
         id: "c2",
@@ -47,6 +51,9 @@ export const SAMPLE_COURSE: CourseDocument = {
         bloomLevel: "analyze",
         moduleIds: ["m2"],
         description: "Находит смещения, утечки целевой переменной, дыры в разметке",
+        knowledge: ["Утечка целевой переменной, смещение, дрейф"],
+        skills: ["Собирает чеклист качества датасета"],
+        abilities: ["Выделяет эталонный набор для проверки"],
       },
       {
         id: "c3",
@@ -54,6 +61,9 @@ export const SAMPLE_COURSE: CourseDocument = {
         bloomLevel: "apply",
         moduleIds: ["m3"],
         description: "Собирает baseline и сравнивает с эвристикой",
+        knowledge: ["Разница эвристики, регрессии и дерева"],
+        skills: ["Считает модели на одном и том же разбиении"],
+        abilities: ["Объясняет ошибки модели без кода"],
       },
       {
         id: "c4",
@@ -61,6 +71,9 @@ export const SAMPLE_COURSE: CourseDocument = {
         bloomLevel: "evaluate",
         moduleIds: ["m4"],
         description: "Считает точность, отказ и стоимость на золотом наборе",
+        knowledge: ["Точность, отказ модели, стоимость запроса"],
+        skills: ["Считает метрики на золотом наборе"],
+        abilities: ["Останавливает сценарий, если цена ошибки высока"],
       },
       {
         id: "c5",
@@ -68,6 +81,9 @@ export const SAMPLE_COURSE: CourseDocument = {
         bloomLevel: "create",
         moduleIds: ["m4"],
         description: "Собирает мини-проект с метриками и ограничениями",
+        knowledge: ["Состав защиты: метрика, риск, стоимость, следующий шаг"],
+        skills: ["Собирает пайплайн с ручным контролем"],
+        abilities: ["Защищает кейс перед коллегами"],
       },
     ],
     edges: [
@@ -82,10 +98,19 @@ export const SAMPLE_COURSE: CourseDocument = {
       id: "m1",
       title: "Карта задач: где ИИ даёт эффект",
       hours: 5,
+      lectureHours: 2,
+      practiceHours: 2,
+      labHours: 0,
+      selfStudyHours: 1,
       topics: [
         "Типы задач: прогноз, ранжирование, извлечение, генерация",
         "Стоимость ошибки и человеческий контроль",
         "Бриф аналитического кейса",
+      ],
+      plan: [
+        { title: "Типы задач", lectureHours: 1, practiceHours: 0, labHours: 0, selfStudyHours: 0 },
+        { title: "Стоимость ошибки", lectureHours: 1, practiceHours: 1, labHours: 0, selfStudyHours: 0 },
+        { title: "Бриф кейса", lectureHours: 0, practiceHours: 1, labHours: 0, selfStudyHours: 1 },
       ],
       learningOutcomes: [
         "Классифицирует бизнес-вопрос по типу ИИ-задачи",
@@ -97,10 +122,19 @@ export const SAMPLE_COURSE: CourseDocument = {
       id: "m2",
       title: "Данные, которые нельзя скармливать вслепую",
       hours: 6,
+      lectureHours: 2,
+      practiceHours: 2,
+      labHours: 0,
+      selfStudyHours: 2,
       topics: [
         "Целевая переменная и разметка",
         "Утечки, смещения, дрейф",
         "Золотой набор для проверки",
+      ],
+      plan: [
+        { title: "Целевая переменная", lectureHours: 1, practiceHours: 0, labHours: 0, selfStudyHours: 1 },
+        { title: "Утечки и дрейф", lectureHours: 1, practiceHours: 1, labHours: 0, selfStudyHours: 0 },
+        { title: "Золотой набор", lectureHours: 0, practiceHours: 1, labHours: 0, selfStudyHours: 1 },
       ],
       learningOutcomes: [
         "Собирает чеклист качества датасета",
@@ -112,10 +146,19 @@ export const SAMPLE_COURSE: CourseDocument = {
       id: "m3",
       title: "Baseline без нейросетей",
       hours: 6,
+      lectureHours: 2,
+      practiceHours: 3,
+      labHours: 0,
+      selfStudyHours: 1,
       topics: [
         "Эвристика vs модель",
         "Простая классификация/регрессия",
         "Интерпретация ошибок",
+      ],
+      plan: [
+        { title: "Эвристика и модель", lectureHours: 1, practiceHours: 1, labHours: 0, selfStudyHours: 0 },
+        { title: "Классификация", lectureHours: 1, practiceHours: 1, labHours: 0, selfStudyHours: 0 },
+        { title: "Ошибки модели", lectureHours: 0, practiceHours: 1, labHours: 0, selfStudyHours: 1 },
       ],
       learningOutcomes: [
         "Сравнивает правило, логистическую регрессию и случайный лес на одном сплите",
@@ -127,10 +170,19 @@ export const SAMPLE_COURSE: CourseDocument = {
       id: "m4",
       title: "LLM как инструмент аналитика",
       hours: 7,
+      lectureHours: 2,
+      practiceHours: 3,
+      labHours: 0,
+      selfStudyHours: 2,
       topics: [
         "Промпт, контекст, отказ модели",
         "Оценка на золотом наборе",
         "Сборка и защита мини-проекта",
+      ],
+      plan: [
+        { title: "Промпт и отказ", lectureHours: 1, practiceHours: 1, labHours: 0, selfStudyHours: 0 },
+        { title: "Оценка", lectureHours: 1, practiceHours: 1, labHours: 0, selfStudyHours: 1 },
+        { title: "Защита", lectureHours: 0, practiceHours: 1, labHours: 0, selfStudyHours: 1 },
       ],
       learningOutcomes: [
         "Собирает LLM-пайплайн с ручным контролем",
@@ -447,6 +499,7 @@ export const SAMPLE_COURSE: CourseDocument = {
           answer: "Какие 20 тикетов поддержки разобрать первыми?",
           explanation: "Нужен порядок, а не метка класса или число.",
           competencyId: "c1",
+          learningOutcome: "Классифицирует бизнес-вопрос по типу ИИ-задачи",
         },
         {
           type: "mcq",

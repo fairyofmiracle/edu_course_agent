@@ -23,11 +23,13 @@ const reviseSectionSchema = z.object({
   data: z.any().describe("Полный JSON секции в той же форме, что у соответствующего setter")
 });
 
-export function createCourseTools() {
+const CONTENT_SECTIONS = new Set(["lecture", "seminar", "assessment"]);
+
+export function createCourseTools(allowContent = false) {
   return {
     update_brief: tool({
       description:
-        "Обновляет бриф курса: название, аудитория, уровень, часы, формат, цели, ограничения, референсы. Можно передать только изменившиеся поля.",
+        "Обновляет бриф: название, аудитория, часы, programKind (general или qualification), attestationHours, форма аттестации, цели, референсы.",
       inputSchema: briefSchema.partial(),
       execute: async (brief): Promise<CoursePatch> => ({
         type: "update_brief",
@@ -36,7 +38,7 @@ export function createCourseTools() {
     }),
     set_competency_map: tool({
       description:
-        "Записывает карту компетенций: узлы с Bloom-уровнем и moduleIds, рёбра предпосылок from→to.",
+        "Записывает карту компетенций. У каждого узла есть knowledge, skills, abilities и moduleIds. Для повышения квалификации укажи laborFunctionCode, если он есть во входном профстандарте.",
       inputSchema: competencyMapSchema,
       execute: async (competencies): Promise<CoursePatch> => ({
         type: "set_competency_map",
@@ -45,52 +47,63 @@ export function createCourseTools() {
     }),
     set_structure: tool({
       description:
-        "Записывает модульную структуру целиком: id, название, часы, темы, результаты обучения, competencyIds.",
+        "Записывает учебный план. У модуля hours равен сумме lectureHours, practiceHours, labHours и selfStudyHours. plan — те же виды часов по темам, их сумма равна модулю. Сумма модулей и attestationHours равна durationHours.",
       inputSchema: z.object({
-        modules: z.array(moduleSchema).min(3).max(8),
+        modules: z.array(moduleSchema).min(1).max(24),
       }),
       execute: async ({ modules }): Promise<CoursePatch> => ({
         type: "set_structure",
         modules,
       }),
     }),
-    set_lecture: tool({
-      description:
-        "Записывает план лекции и слайды для одного модуля. Вызывай отдельно для каждого moduleId.",
-      inputSchema: lectureSchema,
-      execute: async (lecture): Promise<CoursePatch> => ({
-        type: "set_lecture",
-        lecture,
-      }),
-    }),
-    set_seminar: tool({
-      description:
-        "Записывает семинарские задания для одного модуля: промпт, шаги, время, критерии, competencyId.",
-      inputSchema: seminarSchema,
-      execute: async (seminar): Promise<CoursePatch> => ({
-        type: "set_seminar",
-        seminar,
-      }),
-    }),
-    set_assessment: tool({
-      description:
-        "Записывает тест модуля: mcq и открытые вопросы с ответами, пояснениями и competencyId.",
-      inputSchema: assessmentSchema,
-      execute: async (assessment): Promise<CoursePatch> => ({
-        type: "set_assessment",
-        assessment,
-      }),
-    }),
+    ...(allowContent
+      ? {
+          set_lecture: tool({
+            description:
+              "Записывает план лекции и слайды для одного модуля. Вызывай отдельно для каждого moduleId. Только после утверждения каркаса.",
+            inputSchema: lectureSchema,
+            execute: async (lecture): Promise<CoursePatch> => ({
+              type: "set_lecture",
+              lecture,
+            }),
+          }),
+          set_seminar: tool({
+            description:
+              "Записывает семинарские задания для одного модуля: промпт, шаги, время, критерии, competencyId. Только после утверждения каркаса.",
+            inputSchema: seminarSchema,
+            execute: async (seminar): Promise<CoursePatch> => ({
+              type: "set_seminar",
+              seminar,
+            }),
+          }),
+          set_assessment: tool({
+            description:
+              "Записывает тест модуля. У каждого вопроса есть ключ answer, competencyId и learningOutcome — дословный результат обучения из модуля. Только после утверждения каркаса.",
+            inputSchema: assessmentSchema,
+            execute: async (assessment): Promise<CoursePatch> => ({
+              type: "set_assessment",
+              assessment,
+            }),
+          }),
+        }
+      : {}),
     revise_section: tool({
       description:
         "Точечно заменяет секцию документа. data — валидный JSON этой секции. Для lecture, seminar и assessment можно передать moduleId отдельно, если его нет внутри data. Для structure подойдёт массив модулей или объект { modules }.",
       inputSchema: reviseSectionSchema,
-      execute: async ({ section, moduleId, data }): Promise<CoursePatch> => ({
-        type: "revise_section",
-        section,
-        moduleId,
-        data,
-      }),
+      execute: async ({ section, moduleId, data }): Promise<CoursePatch> => {
+        if (!allowContent && CONTENT_SECTIONS.has(section)) {
+          throw new Error(
+            "Каркас ещё не утверждён. Методист должен проверить часы и компетенции и нажать «Утвердить каркас».",
+          );
+        }
+        return {
+          type: "revise_section",
+          section,
+          moduleId,
+          data,
+        };
+      },
     }),
   };
 }

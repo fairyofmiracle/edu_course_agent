@@ -4,10 +4,12 @@ import { CompetencyMap } from "@/components/CompetencyMap";
 import { LectureDeck } from "@/components/LectureDeck";
 import { MermaidBlock } from "@/components/MermaidBlock";
 import { structureMermaid } from "@/lib/export";
+import { contentGaps, frameworkItems, isFrameworkApproved, outcomeGaps } from "@/lib/framework-check";
 import {
   BLOOM_LABELS,
   FORMAT_LABELS,
   LEVEL_LABELS,
+  PROGRAM_KIND_LABELS,
   QUESTION_LABELS,
   courseCompleteness,
   isCourseEmpty,
@@ -22,13 +24,13 @@ export type WorkspaceTab =
   | "seminars"
   | "tests";
 
-const TABS: { id: WorkspaceTab; label: string }[] = [
-  { id: "overview", label: "Обзор" },
-  { id: "structure", label: "Структура" },
-  { id: "competencies", label: "Компетенции" },
-  { id: "lectures", label: "Лекции" },
-  { id: "seminars", label: "Семинары" },
-  { id: "tests", label: "Тесты" },
+const TABS: { id: WorkspaceTab; label: string; hint: string }[] = [
+  { id: "overview", label: "Обзор", hint: "Шаблон, аудитория и проверка часов. Каркас утверждают здесь." },
+  { id: "structure", label: "План", hint: "Модули и темы: лекции, практика, лабораторные, самостоятельная работа." },
+  { id: "competencies", label: "Компетенции", hint: "Знания, умения и навыки. Каждая компетенция входит в модуль." },
+  { id: "lectures", label: "Лекции", hint: "Планы и слайды. Появляются после кнопки «Утвердить каркас»." },
+  { id: "seminars", label: "Семинары", hint: "Задания с критериями. Тоже после утверждения каркаса." },
+  { id: "tests", label: "Тесты", hint: "Вопросы с ключами и привязкой к результату обучения." },
 ];
 
 type CourseWorkspaceProps = {
@@ -55,6 +57,7 @@ export function CourseWorkspace({ course, tab, onTabChange }: CourseWorkspacePro
           </button>
         ))}
       </nav>
+      <p className="kicker section-hint">{TABS.find((item) => item.id === tab)?.hint}</p>
 
       <div className="workspace-body">
         {empty && tab === "overview" ? (
@@ -80,15 +83,49 @@ function EmptyState() {
       <p className="kicker">Студия методиста</p>
       <h2>Курс ещё не собран</h2>
       <p>
-        Опишите в чате аудиторию, объём и ограничения — агент сначала зафиксирует бриф,
-        затем компетенции, оценку и только потом лекции.
+        Опишите в чате тему, аудиторию, часы и источники. Агент сначала задаст
+        недостающие вопросы и соберёт каркас. Тесты, задания и лекции появятся
+        только после того, как вы утвердите каркас.
       </p>
       <ol>
-        <li>Бриф и референсы</li>
-        <li>Карта компетенций и модули</li>
-        <li>Тесты, семинары, слайды</li>
+        <li>Запрос и уточняющие вопросы</li>
+        <li>Каркас: компетенции и учебный план, часы сходятся</li>
+        <li>После утверждения — программа, тесты, задания и слайды</li>
       </ol>
     </div>
+  );
+}
+
+function FrameworkCheck({ course }: { course: CourseDocument }) {
+  const items = frameworkItems(course);
+  const approved = isFrameworkApproved(course);
+  const gaps = contentGaps(course);
+  return (
+    <article>
+      <h3>Проверка каркаса</h3>
+      <ul className="check-list">
+        {items.map((item) => (
+          <li key={item.id} className={item.ok ? "ok" : "bad"}>
+            {item.label}
+          </li>
+        ))}
+      </ul>
+      <p className="muted">
+        {approved
+          ? "Каркас утверждён. Можно собирать тесты, задания и лекции."
+          : "Содержание откроется после кнопки «Утвердить каркас»."}
+      </p>
+      {course.assessments.length > 0 && gaps.length > 0 ? (
+        <p className="voice-error">
+          Вопросы не закрывают компетенции: {gaps.join(", ")}
+        </p>
+      ) : null}
+      {course.assessments.length > 0 && outcomeGaps(course).length > 0 ? (
+        <p className="voice-error">
+          Нет вопроса на результат: {outcomeGaps(course).join("; ")}
+        </p>
+      ) : null}
+    </article>
   );
 }
 
@@ -120,7 +157,44 @@ function Overview({ course, score }: { course: CourseDocument; score: number }) 
           <dt>Формат</dt>
           <dd>{FORMAT_LABELS[brief.format]}</dd>
         </div>
+        <div>
+          <dt>Шаблон</dt>
+          <dd>{PROGRAM_KIND_LABELS[brief.programKind]}</dd>
+        </div>
+        <div>
+          <dt>Аттестация</dt>
+          <dd>
+            {brief.attestationHours ? `${brief.attestationHours} ч` : "0 ч"}
+            {brief.attestationForm ? ` · ${brief.attestationForm}` : ""}
+          </dd>
+        </div>
       </dl>
+      {course.modules.length > 0 ? (
+        <table className="hours-table">
+          <thead>
+            <tr>
+              <th>Модуль</th>
+              <th>Лекции</th>
+              <th>Практика</th>
+              <th>Лаб.</th>
+              <th>Самост.</th>
+              <th>Всего</th>
+            </tr>
+          </thead>
+          <tbody>
+            {course.modules.map((courseModule) => (
+              <tr key={courseModule.id}>
+                <td>{courseModule.title}</td>
+                <td>{courseModule.lectureHours}</td>
+                <td>{courseModule.practiceHours}</td>
+                <td>{courseModule.labHours}</td>
+                <td>{courseModule.selfStudyHours}</td>
+                <td>{courseModule.hours}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
       <div className="two-col">
         <article>
           <h3>Цели</h3>
@@ -139,6 +213,7 @@ function Overview({ course, score }: { course: CourseDocument; score: number }) 
           </ul>
         </article>
       </div>
+      <FrameworkCheck course={course} />
       <article>
         <h3>Референсы</h3>
         <ul>
@@ -178,8 +253,19 @@ function Structure({ course }: { course: CourseDocument }) {
             <p className="muted">Компетенции: {courseModule.competencyIds.join(", ")}</p>
             <h4>Темы</h4>
             <ul>
-              {courseModule.topics.map((topic) => (
-                <li key={topic}>{topic}</li>
+              {(courseModule.plan.length ? courseModule.plan : courseModule.topics.map((topic) => ({
+                title: topic,
+                lectureHours: 0,
+                practiceHours: 0,
+                labHours: 0,
+                selfStudyHours: 0,
+              }))).map((topic) => (
+                <li key={topic.title}>
+                  {topic.title}
+                  {courseModule.plan.length
+                    ? ` — л ${topic.lectureHours}, п ${topic.practiceHours}, лаб ${topic.labHours}, срс ${topic.selfStudyHours}`
+                    : ""}
+                </li>
               ))}
             </ul>
             <h4>Результаты</h4>
@@ -268,6 +354,9 @@ function Tests({ course }: { course: CourseDocument }) {
                     <p className="answer">Ответ: {question.answer}</p>
                   )}
                   <p className="muted">
+                    Ключ: {question.answer}
+                    {question.learningOutcome ? ` · результат: ${question.learningOutcome}` : ""}
+                    {" · "}
                     {question.explanation} · {BLOOM_LABELS[
                       course.competencies.nodes.find((node) => node.id === question.competencyId)
                         ?.bloomLevel ?? "apply"

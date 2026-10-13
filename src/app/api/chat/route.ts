@@ -7,6 +7,7 @@ import {
 import { buildSystemPrompt } from "@/lib/agent/prompts";
 import { getLanguageModel } from "@/lib/agent/model";
 import { createCourseTools } from "@/lib/agent/tools";
+import { isFrameworkApproved } from "@/lib/framework-check";
 import {
   courseDocumentSchema,
   createEmptyCourse,
@@ -32,9 +33,9 @@ export async function POST(req: Request) {
   const course = parsedCourse.success ? parsedCourse.data : createEmptyCourse();
 
   try {
-    const tools = createCourseTools();
+    const tools = createCourseTools(isFrameworkApproved(course));
     const result = streamText({
-      model: await getLanguageModel(),
+      model: getLanguageModel(),
       system: buildSystemPrompt(course, body.extraReferences),
       messages: await convertToModelMessages(body.messages ?? [], { tools }),
       tools,

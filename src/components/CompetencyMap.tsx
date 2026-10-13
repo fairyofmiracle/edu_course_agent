@@ -127,7 +127,10 @@ export function CompetencyMap({ course }: CompetencyMapProps) {
         {nodes.map((node) => (
           <li key={node.id}>
             <strong>{node.id}</strong> {node.name}
-            {node.description ? ` — ${node.description}` : ""}
+            {node.laborFunctionCode ? ` · ${node.laborFunctionCode}` : ""}
+            {node.knowledge.length ? ` · знания: ${node.knowledge.join("; ")}` : ""}
+            {node.skills.length ? ` · умения: ${node.skills.join("; ")}` : ""}
+            {node.abilities.length ? ` · навыки: ${node.abilities.join("; ")}` : ""}
           </li>
         ))}
       </ul>

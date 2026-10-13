@@ -1,16 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --ink: #1a2744;
-  --ink-soft: #3d4a66;
-  --paper: #f3eee4;
-  --panel: #fffdf8;
-  --chat: #141c2e;
-  --chat-soft: #1d2740;
-  --line: #d6ccbc;
-  --accent: #b85c38;
-  --accent-2: #2f6b4f;
-  --warn: #8f2d2d;
+  --ink: #111;
+  --ink-soft: #444;
+  --paper: #fff;
+  --panel: #fff;
+  --chat: #fff;
+  --chat-soft: #fafafa;
+  --line: #ccc;
+  --accent: #111;
+  --accent-2: #111;
+  --warn: #111;
   --font-sans: var(--font-ibm-sans), "Segoe UI", sans-serif;
   --font-serif: var(--font-source-serif), Georgia, serif;
   --font-mono: var(--font-ibm-mono), ui-monospace, monospace;
@@ -83,10 +83,8 @@ button {
 
 .kicker {
   margin: 0;
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--accent);
+  font-size: 14px;
+  color: var(--ink-soft);
 }
 
 .kicker.light {
@@ -141,9 +139,10 @@ button {
   display: grid;
   grid-template-rows: auto 1fr auto auto auto auto;
   min-width: 0;
-  background: var(--chat);
-  color: #f3eee4;
+  background: #fff;
+  color: var(--ink);
   padding: 18px 16px 14px;
+  border-right: 1px solid var(--line);
 }
 
 .chat-head h1 {
@@ -171,7 +170,7 @@ button {
 .chat-empty,
 .pending,
 .chat-error {
-  color: #cfc6b6;
+  color: var(--ink-soft);
   font-size: 14px;
   line-height: 1.5;
 }
@@ -191,24 +190,22 @@ button {
 }
 
 .bubble.user {
-  background: #2a334c;
+  background: #f6f6f6;
   padding: 10px 12px;
-  border-left: 2px solid var(--accent);
+  border-left: 2px solid #111;
 }
 
 .bubble.assistant {
-  color: #f7f1e6;
+  color: var(--ink);
 }
 
 .tool-chip {
   display: inline-block;
   margin: 0 6px 6px 0;
   padding: 2px 8px;
-  border: 1px solid #6d644f;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #d7c8a8;
+  border: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--ink-soft);
 }
 
 .tool-chip.output-available {
@@ -237,8 +234,8 @@ button {
 
 .quick button,
 .ref-actions button {
-  color: #f3eee4;
-  border-color: #3c4660;
+  color: var(--ink);
+  border-color: var(--line);
 }
 
 .refs,
@@ -247,9 +244,7 @@ button {
   flex-direction: column;
   gap: 6px;
   font-size: 12px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #cfc6b6;
+  color: var(--ink-soft);
 }
 
 .refs textarea,
@@ -260,7 +255,7 @@ button {
   font-size: 14px;
   color: var(--ink);
   background: var(--panel);
-  border: 1px solid #3c4660;
+  border: 1px solid var(--line);
   padding: 8px;
   border-radius: 2px;
   resize: vertical;
@@ -272,17 +267,17 @@ button {
 
 .composer button {
   align-self: end;
-  background: var(--accent);
-  color: #fffdf8;
-  border-color: var(--accent);
+  background: #111;
+  color: #fff;
+  border-color: #111;
   padding: 8px 16px;
 }
 
 .workspace {
   min-width: 0;
   display: grid;
-  grid-template-rows: auto 1fr;
-  background: var(--paper);
+  grid-template-rows: auto auto 1fr;
+  background: #fff;
 }
 
 .tabs {
@@ -307,6 +302,10 @@ button {
   border-bottom-color: var(--accent);
 }
 
+.section-hint {
+  margin: 0;
+  padding: 8px 22px 0;
+}
 .workspace-body {
   overflow: auto;
   padding: 22px 28px 40px;
@@ -351,6 +350,43 @@ button {
   font-family: var(--font-serif);
   font-size: 28px;
   margin: 0;
+}
+
+.hours-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  margin: 8px 0 16px;
+}
+.hours-table th,
+.hours-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line, #ddd);
+}
+.check-list {  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+}
+
+.check-list li {
+  padding: 4px 0 4px 16px;
+  position: relative;
+}
+
+.check-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 11px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+.check-list li.ok::before {
+  background: var(--accent-2);
 }
 
 .meta-grid {

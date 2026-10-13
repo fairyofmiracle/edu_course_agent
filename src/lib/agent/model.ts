@@ -1,24 +1,21 @@
 import { createOpenAI } from "@ai-sdk/openai";
-import { getSberAccessToken } from "@/lib/sber-auth";
 
-export async function getLanguageModel() {
-  const credentials = process.env.GIGACHAT_CREDENTIALS?.trim();
-  if (!credentials) {
+const DEFAULT_BASE_URL = "https://foundation-models.api.cloud.ru/v1";
+const DEFAULT_MODEL = "t-tech/T-pro-it-2.0";
+
+export function getLanguageModel() {
+  const apiKey = process.env.CLOUDRU_API_KEY?.trim();
+  if (!apiKey) {
     throw new Error(
-      "Не задан GIGACHAT_CREDENTIALS. Добавьте ключ авторизации GigaChat в .env.local — см. .env.example.",
+      "Не задан CLOUDRU_API_KEY. Добавьте ключ Foundation Models из Cloud.ru Evolution в .env.local — см. .env.example.",
     );
   }
 
-  const accessToken = await getSberAccessToken({
-    credentials,
-    scope: process.env.GIGACHAT_SCOPE?.trim() || "GIGACHAT_API_PERS",
+  const cloud = createOpenAI({
+    name: "cloudru",
+    apiKey,
+    baseURL: process.env.CLOUDRU_BASE_URL?.trim() || DEFAULT_BASE_URL,
   });
 
-  const gigachat = createOpenAI({
-    name: "gigachat",
-    apiKey: accessToken,
-    baseURL: process.env.GIGACHAT_BASE_URL?.trim() || "https://api.giga.chat/v1",
-  });
-
-  return gigachat.chat(process.env.GIGACHAT_MODEL?.trim() || "GigaChat");
+  return cloud.chat(process.env.CLOUDRU_MODEL?.trim() || DEFAULT_MODEL);
 }

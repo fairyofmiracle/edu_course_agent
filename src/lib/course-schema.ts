@@ -11,6 +11,7 @@ export const bloomLevelSchema = z.enum([
 
 export const courseLevelSchema = z.enum(["beginner", "intermediate", "advanced"]);
 export const courseFormatSchema = z.enum(["lecture", "blended", "workshop"]);
+export const programKindSchema = z.enum(["unset", "general", "qualification"]);
 export const questionTypeSchema = z.enum(["mcq", "open"]);
 
 export const referenceSchema = z.object({
@@ -23,8 +24,11 @@ export const briefSchema = z.object({
   title: z.string().max(180).default(""),
   audience: z.string().max(400).default(""),
   level: courseLevelSchema.default("intermediate"),
-  durationHours: z.number().min(0).max(400).default(0),
+  durationHours: z.number().min(0).max(500).default(0),
   format: courseFormatSchema.default("blended"),
+  programKind: programKindSchema.default("unset"),
+  attestationHours: z.number().min(0).max(80).default(0),
+  attestationForm: z.string().max(180).default(""),
   goals: z.array(z.string().min(1).max(300)).max(12).default([]),
   constraints: z.array(z.string().min(1).max(300)).max(12).default([]),
   references: z.array(referenceSchema).max(20).default([]),
@@ -34,8 +38,12 @@ export const competencyNodeSchema = z.object({
   id: z.string().min(1).max(40),
   name: z.string().min(1).max(180),
   bloomLevel: bloomLevelSchema,
-  moduleIds: z.array(z.string().min(1).max(40)).max(12),
+  moduleIds: z.array(z.string().min(1).max(40)).max(24),
   description: z.string().max(400).optional(),
+  knowledge: z.array(z.string().min(1).max(240)).max(8).default([]),
+  skills: z.array(z.string().min(1).max(240)).max(8).default([]),
+  abilities: z.array(z.string().min(1).max(240)).max(8).default([]),
+  laborFunctionCode: z.string().max(40).optional(),
 });
 
 export const competencyEdgeSchema = z.object({
@@ -44,16 +52,29 @@ export const competencyEdgeSchema = z.object({
 });
 
 export const competencyMapSchema = z.object({
-  nodes: z.array(competencyNodeSchema).max(24),
-  edges: z.array(competencyEdgeSchema).max(40),
+  nodes: z.array(competencyNodeSchema).max(40),
+  edges: z.array(competencyEdgeSchema).max(80),
+});
+
+export const topicPlanSchema = z.object({
+  title: z.string().min(1).max(200),
+  lectureHours: z.number().min(0).max(500).default(0),
+  practiceHours: z.number().min(0).max(500).default(0),
+  labHours: z.number().min(0).max(500).default(0),
+  selfStudyHours: z.number().min(0).max(500).default(0),
 });
 
 export const moduleSchema = z.object({
   id: z.string().min(1).max(40),
   title: z.string().min(1).max(180),
-  hours: z.number().min(0.5).max(80),
-  topics: z.array(z.string().min(1).max(200)).min(1).max(10),
-  learningOutcomes: z.array(z.string().min(1).max(300)).min(1).max(8),
+  hours: z.number().min(0.5).max(500),
+  lectureHours: z.number().min(0).max(500).default(0),
+  practiceHours: z.number().min(0).max(500).default(0),
+  labHours: z.number().min(0).max(500).default(0),
+  selfStudyHours: z.number().min(0).max(500).default(0),
+  topics: z.array(z.string().min(1).max(200)).min(1).max(20),
+  plan: z.array(topicPlanSchema).max(20).default([]),
+  learningOutcomes: z.array(z.string().min(1).max(300)).min(1).max(12),
   competencyIds: z.array(z.string().min(1).max(40)).min(1).max(12),
 });
 
@@ -93,6 +114,7 @@ export const questionSchema = z.object({
   answer: z.string().min(1).max(600),
   explanation: z.string().min(1).max(600),
   competencyId: z.string().min(1).max(40),
+  learningOutcome: z.string().max(300).optional(),
 });
 
 export const assessmentSchema = z.object({
@@ -105,10 +127,12 @@ export const courseDocumentSchema = z.object({
   updatedAt: z.string().min(1),
   brief: briefSchema,
   competencies: competencyMapSchema,
-  modules: z.array(moduleSchema).max(10),
-  lectures: z.array(lectureSchema).max(10),
-  seminars: z.array(seminarSchema).max(10),
-  assessments: z.array(assessmentSchema).max(10),
+  modules: z.array(moduleSchema).max(24),
+  lectures: z.array(lectureSchema).max(24),
+  seminars: z.array(seminarSchema).max(24),
+  assessments: z.array(assessmentSchema).max(24),
+  frameworkApproved: z.boolean().default(false),
+  frameworkFingerprint: z.string().max(12000).default(""),
 });
 
 export type BloomLevel = z.infer<typeof bloomLevelSchema>;
@@ -149,6 +173,15 @@ export const FORMAT_LABELS: Record<CourseFormat, string> = {
   workshop: "Практикум",
 };
 
+export const PROGRAM_KIND_LABELS: Record<
+  z.infer<typeof programKindSchema>,
+  string
+> = {
+  unset: "Шаблон не выбран",
+  general: "Общеразвивающая",
+  qualification: "Повышение квалификации",
+};
+
 export function createEmptyCourse(): CourseDocument {
   return {
     id:
@@ -162,6 +195,9 @@ export function createEmptyCourse(): CourseDocument {
       level: "intermediate",
       durationHours: 0,
       format: "blended",
+      programKind: "unset",
+      attestationHours: 0,
+      attestationForm: "",
       goals: [],
       constraints: [],
       references: [],
@@ -171,6 +207,8 @@ export function createEmptyCourse(): CourseDocument {
     lectures: [],
     seminars: [],
     assessments: [],
+    frameworkApproved: false,
+    frameworkFingerprint: "",
   };
 }
 

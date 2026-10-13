@@ -35,7 +35,11 @@ npm run dev
 
 Откройте [http://localhost:3000](http://localhost:3000). Кнопка «Пример 24 ч» показывает заполненную студию без модели.
 
-Материалы кейса: `materials/program-general-24h.docx`, `materials/program-qualification-248h.docx`, `materials/open-cases.docx`.
+Материалы кейса лежат отдельной папкой `materials/`. У каждого документа два файла: исходный `.docx` и текст `.txt`.
+
+- `program-general-24h` — интенсив, 24 часа
+- `program-qualification-248h` — стажировка, 248 часов
+- `open-cases` — пять открытых запросов и чек-листы
 
 Ноутбук запускается из папки `notebooks` обычным Python, без дополнительных пакетов:
 

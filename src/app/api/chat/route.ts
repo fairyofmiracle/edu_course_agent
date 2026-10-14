@@ -1,17 +1,10 @@
-import {
-  convertToModelMessages,
-  stepCountIs,
-  streamText,
-  type UIMessage,
-  isToolUIPart,
-  getToolName,
-} from "ai";
-import { buildSystemPrompt } from "@/lib/agent/prompts";
+import { convertToModelMessages, streamText, type UIMessage } from "ai";
 import { getLanguageModel } from "@/lib/agent/model";
 import { sanitizeMessagesForCloudRu } from "@/lib/agent/chat-messages";
-import { createCourseTools } from "@/lib/agent/tools";
+import { createTurn, toolErrors } from "@/lib/agent/turn";
+import { messageText } from "@/lib/session-log";
+import { appendServerLog, describeError } from "@/lib/server-log";
 import { applyPatch, foldCourseFromMessages } from "@/lib/course-patches";
-import { isFrameworkApproved } from "@/lib/framework-check";
 import {
   briefSchema,
   courseDocumentSchema,
@@ -20,7 +13,7 @@ import {
   type CourseDocument,
 } from "@/lib/course-schema";
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 export async function POST(req: Request) {
   let body: {
@@ -33,69 +26,53 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return Response.json({ error: "Некорректный JSON запроса" }, { status: 400 });
+    return Response.json({ error: "РќРµРєРѕСЂСЂРµРєС‚РЅС‹Р№ JSON Р·Р°РїСЂРѕСЃР°" }, { status: 400 });
   }
 
   const parsedCourse = courseDocumentSchema.safeParse(body.course);
-  const incoming = parsedCourse.success ? parsedCourse.data : createEmptyCourse();
   const messages = body.messages ?? [];
-  let course = foldCourseFromMessages(messages, incoming);
+  let course = parsedCourse.success
+    ? parsedCourse.data
+    : foldCourseFromMessages(messages, createEmptyCourse());
   const brief = briefSchema.partial().safeParse(body.brief);
-  if (brief.success && Object.keys(brief.data).length > 0) {
-    course = applyPatch(course, { type: "update_brief", brief: brief.data });
-  }
-  const userTurns = messages.filter((message) => message.role === "user").length;
+  const formBrief = brief.success && Object.keys(brief.data).length > 0 ? brief.data : undefined;
+  if (formBrief) course = applyPatch(course, { type: "update_brief", brief: formBrief });
+  const userTexts = messages.filter((message) => message.role === "user").map(messageText);
 
   try {
-    const tools = createCourseTools(isFrameworkApproved(course), course);
+    const turn = createTurn({ course, userTexts, extraReferences: body.extraReferences, formBrief });
     const history = sanitizeMessagesForCloudRu(messages);
-    //  ==========================================================
-    //  БЛОК ДЕТАЛЬНОГО ЛОГИРОВАНИЯ ИСТОРИИ
-    //  ==========================================================
-    console.log("\n=== 🕵️ ОТЛАДКА: История сообщений перед streamText ===");
-    history.forEach((msg, i) => {
-      console.log(`[MSG ${i}] role: ${msg.role}`);
-      
-      if (msg.parts && msg.parts.length > 0) {
-        msg.parts.forEach((part, j) => {
-          if (isToolUIPart(part)) {
-            const name = getToolName(part);
-            // Безопасно извлекаем toolCallId и state, так как структура может меняться между версиями AI SDK
-            const callId = (part as any).toolCallId || (part as any).toolInvocation?.toolCallId || 'N/A';
-            const state = (part as any).state || (part as any).toolInvocation?.state || 'unknown';
-            console.log(`  ├─ part[${j}]: 🛠️ TOOL [${name}] | state: ${state} | callId: ${callId}`);
-          } else if (part.type === 'text') {
-            const textPreview = String((part as any).text || '').substring(0, 60).replace(/\n/g, ' ');
-            console.log(`  ├─ part[${j}]: 📝 TEXT "${textPreview}..."`);
-          } else {
-            console.log(`  ├─ part[${j}]: 📦 ${part.type}`);
-          }
-        });
-      } else {
-        console.log(`  └─ (пустое сообщение без parts)`);
-      }
-    });
-    console.log("=======================================================\n");
-    //  ==========================================================
-    //  КОНЕЦ БЛОКА ЛОГИРОВАНИЯ
-    //  ==========================================================
+    console.log(`[chat] СЂРµР¶РёРј ${turn.mode}, СЂРµРїР»РёРє ${userTexts.length}, СЃРѕРѕР±С‰РµРЅРёР№ ${history.length}`);
 
     const result = streamText({
       model: getLanguageModel("writer"),
-      system: buildSystemPrompt(course, body.extraReferences, userTurns),
-      messages: await convertToModelMessages(history, { tools }),
-      tools,
-      stopWhen: stepCountIs(20),
+      system: turn.system,
+      messages: await convertToModelMessages(history, { tools: turn.tools }),
+      tools: turn.tools,
+      stopWhen: turn.stopWhen,
+      prepareStep: turn.prepareStep,
+      onError: ({ error }) => {
+        console.error("[chat] РѕС€РёР±РєР° РјРѕРґРµР»Рё:", error);
+        void appendServerLog({ text: describeError(error), mode: turn.mode, steps: turn.planned });
+      },
+      onFinish: ({ steps }) => {
+        const failed = toolErrors(steps);
+        void appendServerLog({
+          text: `РҐРѕРґ Р·Р°РІРµСЂС€С‘РЅ: ${steps.length} С€Р°РіРѕРІ`,
+          mode: turn.mode,
+          steps: turn.planned,
+          toolErrors: failed.length ? failed : undefined,
+        });
+      },
     });
 
     return result.toUIMessageStreamResponse({
       onError: (error) =>
-        error instanceof Error ? error.message : "Не удалось сгенерировать курс",
+        error instanceof Error ? error.message : "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРіРµРЅРµСЂРёСЂРѕРІР°С‚СЊ РєСѓСЂСЃ",
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Не удалось подключить модель";
-    console.error("❌ Ошибка в CHAT ROUTE:", error);
+    console.error("[chat] РѕС€РёР±РєР° РјР°СЂС€СЂСѓС‚Р°:", error);
+    const message = error instanceof Error ? error.message : "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕРґРєР»СЋС‡РёС‚СЊ РјРѕРґРµР»СЊ";
     return Response.json({ error: message }, { status: 500 });
   }
 }

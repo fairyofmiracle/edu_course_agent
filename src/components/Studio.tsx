@@ -27,6 +27,7 @@ import {
   actionEntry,
   entryFromMessage,
   errorEntry,
+  messageText,
   persistLog,
 } from "@/lib/session-log";
 import {
@@ -130,11 +131,12 @@ function StudioSession({
 
   useEffect(() => {
     if (!error) return;
-    const key = error.message;
+    const lastUser = [...messages].reverse().find((item) => item.role === "user");
+    const key = `${lastUser?.id ?? ""}:${error.message}`;
     if (loggedErrors.current.has(key)) return;
     loggedErrors.current.add(key);
     persistLog(errorEntry(sessionRef.current, error.message));
-  }, [error]);
+  }, [error, messages]);
 
   const send = (text: string, brief?: Partial<CourseBrief>) => {
     let latest = foldCourseFromMessages(messages, storedCourse);
@@ -143,6 +145,10 @@ function StudioSession({
       setStoredCourse(latest);
     }
     courseRef.current = latest;
+    const last = messages[messages.length - 1];
+    if (last?.role === "user" && messageText(last) === text.trim()) {
+      setMessages(messages.slice(0, -1));
+    }
     void sendMessage(
       { text },
       {

@@ -2,7 +2,6 @@ import { jsonSchema, tool } from "ai";
 import { z } from "zod";
 import {
   assessmentSchema,
-  briefSchema,
   lectureSchema,
   seminarSchema,
   type CourseDocument,
@@ -11,6 +10,25 @@ import {
 import type { CoursePatch } from "@/lib/course-patches";
 import { fillModulePlan } from "@/lib/hours-balance";
 import { russianZodError } from "@/lib/zod-ru";
+import { dropEmptyFields, guardBrief, type BriefGuardContext } from "@/lib/agent/brief-guard";
+import type { CourseBrief } from "@/lib/course-schema";
+
+// Без default: иначе модель копирует "" и 0 из схемы и затирает бриф.
+const briefInputSchema = z.object({
+  title: z.string().max(180).optional().describe("Название программы"),
+  audience: z.string().max(400).optional().describe("Кто слушатели и их входной уровень"),
+  level: z.enum(["beginner", "intermediate", "advanced"]).optional(),
+  durationHours: z.coerce.number().min(0).max(500).optional().describe("Объём в академических часах"),
+  format: z.enum(["lecture", "blended", "workshop"]).optional(),
+  programKind: z
+    .enum(["general", "qualification"])
+    .optional()
+    .describe("general — общеразвивающая с сертификатом, qualification — повышение квалификации с удостоверением"),
+  attestationHours: z.coerce.number().min(0).max(80).optional(),
+  attestationForm: z.string().max(180).optional(),
+  goals: z.array(z.string().min(1).max(300)).max(12).optional(),
+  constraints: z.array(z.string().min(1).max(300)).max(12).optional(),
+});
 
 const bloom = z.enum([
   "remember",
@@ -49,6 +67,13 @@ const looseTopic = z.object({
   selfStudyHours: z.coerce.number().min(0).max(500).default(0),
 });
 
+const looseLines = (max: number) =>
+  z
+    .array(z.string())
+    .max(max)
+    .default([])
+    .transform((values) => values.map((value) => value.trim()).filter(Boolean));
+
 const looseModule = z.object({
   id: z.string().min(1).max(40),
   title: z.string().min(1).max(180),
@@ -57,9 +82,9 @@ const looseModule = z.object({
   practiceHours: z.coerce.number().min(0).max(500).default(0),
   labHours: z.coerce.number().min(0).max(500).default(0),
   selfStudyHours: z.coerce.number().min(0).max(500).default(0),
-  topics: z.array(z.string()).max(20).default([]),
+  topics: looseLines(20),
   plan: z.array(looseTopic).max(20).default([]),
-  learningOutcomes: z.array(z.string()).max(12).default([]),
+  learningOutcomes: looseLines(12),
   competencyIds: z.array(z.string()).max(12).default([]),
 });
 
@@ -131,28 +156,70 @@ function contentBlocked() {
   };
 }
 
-function withZun(node: z.infer<typeof looseNode>) {
+function shortId(value: string, fallback: string) {
+  const clean = value.trim().replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+  const base = (clean || fallback).slice(0, 40);
+  return base || fallback.slice(0, 40);
+}
+
+function withZun(node: z.infer<typeof looseNode>, index: number) {
   const fallback = node.name;
   return {
     ...node,
+    id: shortId(node.id, `c${index + 1}`),
     knowledge: node.knowledge.length ? node.knowledge : [`Знает: ${fallback}`],
     skills: node.skills.length ? node.skills : [`Умеет применить: ${fallback}`],
     abilities: node.abilities.length ? node.abilities : [`Владеет: ${fallback}`],
-    moduleIds: node.moduleIds.length ? node.moduleIds : [],
+    moduleIds: node.moduleIds.map((id) => shortId(id, id)).filter(Boolean),
   };
 }
 
-export function createCourseTools(_allowContent = false, _course?: CourseDocument) {
-  const allowContent = _allowContent;
+export type ToolGate = { locked: boolean };
+
+function gateTools<T extends Record<string, { execute?: (...args: never[]) => unknown }>>(
+  tools: T,
+  gate?: ToolGate,
+): T {
+  if (!gate) return tools;
+  const wrapped = Object.entries(tools).map(([name, item]) => {
+    const execute = item.execute as ((...args: unknown[]) => unknown) | undefined;
+    return [
+      name,
+      {
+        ...item,
+        execute: async (...args: unknown[]) =>
+          gate.locked
+            ? {
+                type: "tool_error" as const,
+                message: "На этом шаге инструменты не нужны. Ответь методисту текстом.",
+              }
+            : execute?.(...args),
+      },
+    ];
+  });
+  return Object.fromEntries(wrapped) as T;
+}
+
+export function createCourseTools(
+  allowContent = false,
+  course?: CourseDocument,
+  guard?: BriefGuardContext,
+  gate?: ToolGate,
+) {
+  return gateTools(courseTools(allowContent, course, guard), gate);
+}
+
+function courseTools(allowContent: boolean, course?: CourseDocument, guard?: BriefGuardContext) {
   return {
     update_brief: tool({
       description:
-        "Обновляет бриф: название, аудитория, часы, programKind (general или qualification), attestationHours, форма аттестации, цели, референсы.",
-      inputSchema: briefSchema.partial(),
-      execute: async (brief): Promise<CoursePatch> => ({
-        type: "update_brief",
-        brief,
-      }),
+        "Обновляет бриф: title, audience, durationHours, programKind (general или qualification), attestationHours, attestationForm, goals, constraints. Объём и шаблон — только если их назвал методист.",
+      inputSchema: briefInputSchema,
+      execute: async (raw): Promise<CoursePatch> => {
+        const brief = dropEmptyFields(raw as Partial<CourseBrief>);
+        if (!course || !guard) return { type: "update_brief", brief };
+        return { type: "update_brief", brief: guardBrief(brief, course.brief, guard).brief };
+      },
     }),
     set_competency_map: tool({
       description:
@@ -170,7 +237,10 @@ export function createCourseTools(_allowContent = false, _course?: CourseDocumen
           type: "set_competency_map",
           competencies: {
             nodes: parsed.data.nodes.map(withZun),
-            edges: parsed.data.edges,
+            edges: parsed.data.edges.map((edge) => ({
+              from: shortId(edge.from, edge.from),
+              to: shortId(edge.to, edge.to),
+            })),
           },
         };
       },
@@ -179,19 +249,29 @@ export function createCourseTools(_allowContent = false, _course?: CourseDocumen
       description:
         "Записывает учебный план, 3–8 модулей. Часы только целые академические. Сервер доведёт сумму модулей до durationHours минус аттестация без десятых. plan можно не заполнять.",
       inputSchema: z.object({
-        modules: z.array(looseModule).min(1).max(12),
+        modules: z.array(looseModule).min(1).max(8),
       }),
       execute: async ({
         modules,
       }): Promise<CoursePatch | { type: "tool_error"; message: string }> => {
-        const parsed = z.array(looseModule).min(1).max(12).safeParse(modules);
+        const parsed = z.array(looseModule).min(1).max(8).safeParse(modules);
         if (!parsed.success) {
           return {
             type: "tool_error",
-            message: `Учебный план не принят: ${russianZodError(parsed.error)}. Нужен массив modules с id, title, hours или видами часов, topics.`,
+            message: `Учебный план не принят: ${russianZodError(parsed.error)}. Нужен массив modules с id, title, hours или видами часов, topics. Не больше 8 модулей.`,
           };
         }
-        const filled = parsed.data.map((module) => fillModulePlan(module as CourseModule));
+        const seen = new Set<string>();
+        const filled = parsed.data.map((row, index) => {
+          let id = shortId(row.id, `m${index + 1}`);
+          if (seen.has(id)) id = shortId(`${id}-${index + 1}`, `m${index + 1}`);
+          seen.add(id);
+          return fillModulePlan({
+            ...row,
+            id,
+            competencyIds: row.competencyIds.map((cid) => shortId(cid, cid)),
+          } as CourseModule);
+        });
         return { type: "set_structure", modules: filled };
       },
     }),

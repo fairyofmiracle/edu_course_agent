@@ -186,22 +186,26 @@ function placeKindsOnTopics(titles: string[], kinds: KindHours): TopicHours[] {
   return plan;
 }
 
+function cleanLines(values: string[], fallback: string) {
+  const next = values.map((value) => value.trim()).filter(Boolean);
+  return next.length > 0 ? next : [fallback];
+}
+
 export function fillModulePlan(module: CourseModule): CourseModule {
-  const titles =
+  const title = module.title.trim() || "Модуль";
+  const titles = cleanLines(
     module.topics.length > 0
       ? module.topics
-      : module.plan.length > 0
-        ? module.plan.map((row) => row.title)
-        : [module.title || "Тема"];
+      : module.plan.map((row) => row.title),
+    title,
+  );
   const hours = academicHours(module.hours) || kindSum(module);
   const kinds = scaleKinds(module, hours || 1);
-  const outcomes =
-    module.learningOutcomes.length > 0
-      ? module.learningOutcomes
-      : [`Осваивает: ${module.title}`];
+  const outcomes = cleanLines(module.learningOutcomes, `Осваивает: ${title}`);
   const keepPlan = planMatches(module.plan, kinds);
   return {
     ...module,
+    title,
     ...kinds,
     topics: titles,
     learningOutcomes: outcomes,
@@ -215,6 +219,56 @@ export function fillModulePlan(module: CourseModule): CourseModule {
         }))
       : placeKindsOnTopics(titles, kinds),
   };
+}
+
+type LinkNode = { id: string; moduleIds: string[] };
+
+/**
+ * Модель путает регистр id («c1» против «C1») и забывает связи.
+ * Неизвестные id убираем, каждую компетенцию кладём хотя бы в один модуль.
+ */
+export function linkCompetencies<N extends LinkNode>(
+  nodes: N[],
+  modules: CourseModule[],
+): { nodes: N[]; modules: CourseModule[] } {
+  if (nodes.length === 0 || modules.length === 0) return { nodes, modules };
+  const nodeKey = new Map(nodes.map((node) => [node.id.trim().toLowerCase(), node.id]));
+  const moduleKey = new Map(modules.map((module) => [module.id.trim().toLowerCase(), module.id]));
+  const resolve = (map: Map<string, string>, ids: string[]) => [
+    ...new Set(ids.flatMap((id) => map.get(id.trim().toLowerCase()) ?? [])),
+  ];
+
+  const linkedModules = modules.map((module) => ({
+    ...module,
+    competencyIds: resolve(nodeKey, module.competencyIds),
+  }));
+  const linkedNodes = nodes.map((node) => ({
+    ...node,
+    moduleIds: resolve(moduleKey, node.moduleIds),
+  }));
+
+  linkedNodes.forEach((node, index) => {
+    const targets = node.moduleIds.length
+      ? node.moduleIds
+      : linkedModules.some((module) => module.competencyIds.includes(node.id))
+        ? []
+        : [linkedModules[index % linkedModules.length].id];
+    for (const target of targets) {
+      const host = linkedModules.find((item) => item.id === target);
+      if (host && !host.competencyIds.includes(node.id)) host.competencyIds.push(node.id);
+    }
+  });
+  linkedModules.forEach((module, index) => {
+    if (module.competencyIds.length === 0) {
+      module.competencyIds = [linkedNodes[index % linkedNodes.length].id];
+    }
+  });
+  for (const node of linkedNodes) {
+    node.moduleIds = linkedModules
+      .filter((module) => module.competencyIds.includes(node.id))
+      .map((module) => module.id);
+  }
+  return { nodes: linkedNodes, modules: linkedModules };
 }
 
 export function attachCompetencyIds(modules: CourseModule[], competencyIds: string[]) {

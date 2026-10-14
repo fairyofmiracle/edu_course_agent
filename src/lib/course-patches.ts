@@ -14,7 +14,7 @@ import {
   type Lecture,
   type Seminar,
 } from "@/lib/course-schema";
-import { attachCompetencyIds, balanceModules } from "@/lib/hours-balance";
+import { attachCompetencyIds, balanceModules, linkCompetencies } from "@/lib/hours-balance";
 
 export type CoursePatch =
   | { type: "update_brief"; brief: Partial<CourseBrief> }
@@ -52,12 +52,18 @@ function touch(course: CourseDocument): CourseDocument {
 }
 
 function withBalancedModules(course: CourseDocument): CourseDocument {
-  if (course.modules.length === 0 || course.brief.durationHours <= 0) return course;
-  const ids = course.competencies.nodes.map((node) => node.id);
+  if (course.modules.length === 0) return course;
+  const linked = linkCompetencies(course.competencies.nodes, course.modules);
+  const competencies = { ...course.competencies, nodes: linked.nodes };
+  if (course.brief.durationHours <= 0) {
+    return { ...course, competencies, modules: linked.modules };
+  }
+  const ids = linked.nodes.map((node) => node.id);
   return {
     ...course,
+    competencies,
     modules: balanceModules(
-      attachCompetencyIds(course.modules, ids),
+      attachCompetencyIds(linked.modules, ids),
       course.brief.durationHours,
       course.brief.attestationHours,
     ),
@@ -211,5 +217,11 @@ export function foldCourseFromMessages(
     }
   }
 
-  return applied ? course : fallback;
+  return applied ? rebalanceCourse(course) : fallback;
+}
+
+/** Если объём появился после плана, или модель вызвала tools не по порядку — выровнять часы. */
+export function rebalanceCourse(course: CourseDocument): CourseDocument {
+  if (course.modules.length === 0 || course.brief.durationHours <= 0) return course;
+  return withBalancedModules(course);
 }

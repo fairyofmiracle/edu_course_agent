@@ -4,6 +4,7 @@ import { CompetencyMap } from "@/components/CompetencyMap";
 import { LectureDeck } from "@/components/LectureDeck";
 import { MermaidBlock } from "@/components/MermaidBlock";
 import { structureMermaid } from "@/lib/export";
+import { validateCourseHours } from "@/lib/course-validation";
 import { contentGaps, frameworkItems, isFrameworkApproved, outcomeGaps } from "@/lib/framework-check";
 import {
   BLOOM_LABELS,
@@ -99,6 +100,7 @@ function FrameworkCheck({ course }: { course: CourseDocument }) {
   const items = frameworkItems(course);
   const approved = isFrameworkApproved(course);
   const gaps = contentGaps(course);
+  const hourErrors = validateCourseHours(course);
   return (
     <article>
       <h3>Проверка каркаса</h3>
@@ -124,6 +126,27 @@ function FrameworkCheck({ course }: { course: CourseDocument }) {
           Нет вопроса на результат: {outcomeGaps(course).join("; ")}
         </p>
       ) : null}
+      {course.brief.durationHours > 0 && course.modules.length > 0 && (
+        <div>
+          <h4>Проверка учебных часов</h4>
+
+          {hourErrors.length === 0 ? (
+            <p className="muted">
+              ✓ Баланс учебных часов соблюдён.
+            </p>
+          ) : (
+            <ul className="check-list">
+              {hourErrors.map((error, index) => (
+                <li key={`${index}-${error}`} className="bad">
+                  {error}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+
     </article>
   );
 }

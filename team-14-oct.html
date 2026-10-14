@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>not_idea — что есть к 15 октября</title>
+  <style>
+    :root {
+      --blue: #1d4ed8;
+      --navy: #1b2a4a;
+      --muted: #5c6770;
+      --card: #1d4ed8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #fff;
+      color: var(--navy);
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    }
+    .who {
+      position: fixed;
+      top: 18px;
+      left: 28px;
+      z-index: 2;
+      color: var(--navy);
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .who span { color: var(--muted); font-weight: 500; }
+    .top {
+      position: fixed;
+      top: 18px;
+      right: 28px;
+      z-index: 2;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    nav {
+      position: fixed;
+      left: 28px;
+      bottom: 18px;
+      z-index: 2;
+      display: flex;
+      gap: 8px;
+    }
+    nav button {
+      width: 28px;
+      height: 6px;
+      padding: 0;
+      border: 0;
+      border-radius: 99px;
+      background: #d5dbe3;
+      cursor: pointer;
+    }
+    nav button[aria-current="true"] { background: var(--blue); }
+    section {
+      display: none;
+      min-height: 100vh;
+      padding: 72px 72px 64px;
+    }
+    section.active { display: flex; flex-direction: column; justify-content: center; }
+    .head { display: flex; align-items: flex-start; gap: 22px; margin-bottom: 18px; }
+    .num {
+      font-size: 84px;
+      line-height: 0.85;
+      font-weight: 800;
+      color: var(--blue);
+      letter-spacing: -2px;
+    }
+    h1 {
+      margin: 6px 0 0;
+      font-size: 34px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .date { margin: 6px 0 0; font-size: 20px; font-weight: 700; }
+    .rule { height: 5px; width: min(640px, 100%); background: var(--blue); border: 0; margin: 8px 0 28px; }
+    p, li { font-size: 20px; line-height: 1.4; color: var(--muted); }
+    p { margin: 0 0 16px; max-width: 860px; }
+    ul { margin: 0; padding-left: 22px; max-width: 860px; }
+    li { margin: 0 0 8px; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+    .two { grid-template-columns: 1fr 1fr; }
+    .card {
+      background: var(--card);
+      border-radius: 18px;
+      padding: 22px 22px 18px;
+      min-height: 200px;
+    }
+    .card .when {
+      margin: 0 0 10px;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #fff;
+    }
+    .card h2 { margin: 0 0 12px; font-size: 26px; line-height: 1.15; font-weight: 800; color: #fff; }
+    .card p { color: #fff; font-size: 16px; }
+    .card p:last-child { margin-bottom: 0; }
+    .rows { display: grid; gap: 10px; }
+    .row { display: grid; grid-template-columns: 240px 1fr; gap: 16px; }
+    .row b { color: var(--navy); font-size: 18px; }
+    .row span { color: var(--muted); font-size: 18px; line-height: 1.35; }
+    @media (max-width: 900px) {
+      section { padding: 64px 22px 72px; }
+      .num { font-size: 56px; }
+      h1 { font-size: 24px; }
+      .cards, .two, .row { grid-template-columns: 1fr; }
+      .card { min-height: 0; }
+    }
+  </style>
+</head>
+<body>
+  <p class="who">not_idea <span>внутренний разбор, не для заказчика</span></p>
+  <p class="top" id="counter">1 / 7</p>
+  <nav>
+    <button type="button" data-slide="0" aria-label="Два чекпоинта"></button>
+    <button type="button" data-slide="1" aria-label="Что сдать"></button>
+    <button type="button" data-slide="2" aria-label="Есть"></button>
+    <button type="button" data-slide="3" aria-label="Нет"></button>
+    <button type="button" data-slide="4" aria-label="Пять запросов"></button>
+    <button type="button" data-slide="5" aria-label="Звонок"></button>
+    <button type="button" data-slide="6" aria-label="Кто жмёт"></button>
+  </nav>
+  <main>
+    <section>
+      <div class="head">
+        <div class="num">01</div>
+        <div>
+          <h1>Два разных чекпоинта</h1>
+          <p class="date">не путаем</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <div class="cards two">
+        <article class="card">
+          <p class="when">15 октября</p>
+          <h2>Продуктовый</h2>
+          <p>Бриф и прототип. Смотрят, поняли ли мы методиста, пользу и план по пяти запросам. Мягкий отсев.</p>
+        </article>
+        <article class="card">
+          <p class="when">Позже, технический</p>
+          <h2>Репозиторий и звонок</h2>
+          <p>Автопрогон репозитория в Gitea. Эксперт кейса созванивается, смотрит код и пишет комментарии на сводке.</p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <div class="head">
+        <div class="num">02</div>
+        <div>
+          <h1>Что кладём сегодня</h1>
+          <p class="date">сводка хаба</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <div class="cards">
+        <article class="card">
+          <p class="when">Бриф</p>
+          <h2>checkpoint-15-oct.html</h2>
+          <p>Эту страницу заказчику не отдаём. Заказчику — слайды студии методиста.</p>
+        </article>
+        <article class="card">
+          <p class="when">Прототип</p>
+          <h2>Студия</h2>
+          <p>Кнопка «Пример 24 ч». Слева запрос, справа программа, 24 из 24.</p>
+        </article>
+        <article class="card">
+          <p class="when">Карточка решения</p>
+          <h2>Описание и ссылка</h2>
+          <p>Капитан заполняет блок «Решение» на сводке. Для нашего хакатона это не ML: нужны текст и ссылка.</p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <div class="head">
+        <div class="num">03</div>
+        <div>
+          <h1>В студии уже есть</h1>
+          <p class="date">можно показать пальцем</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <ul>
+        <li>Два шаблона: общеразвивающая и повышение квалификации.</li>
+        <li>Целые часы, сумма сверяется. 19 локальных тестов зелёные.</li>
+        <li>Файл docx, pdf и текст попадают в референс.</li>
+        <li>Кнопка «Утвердить каркас» открывает тесты, семинары и лекции.</li>
+        <li>В примере есть ключ вопроса и критерии семинара.</li>
+        <li>Скачиваются JSON и текст. Ошибку строки на 248 часах в новую программу не копируем, если нули уже сходятся.</li>
+      </ul>
+    </section>
+
+    <section>
+      <div class="head">
+        <div class="num">04</div>
+        <div>
+          <h1>Этого на экране нет</h1>
+          <p class="date">к утру 16 октября</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <div class="rows">
+        <div class="row"><b>Запрос про колледж</b><span>В промпте «примерно месяц» само становится 72 часами. На показе эту фразу не набираем. Чиним: вопросы, не больше пяти, объём не выдумывать.</span></div>
+        <div class="row"><b>Два задания на результат</b><span>В примере один результат закрыт одним вопросом.</span></div>
+        <div class="row"><b>docx и pptx</b><span>Бланк академии и слайды модуля ещё не выгружаются.</span></div>
+        <div class="row"><b>Адрес прогона</b><span>Утренний прогон ждёт текст на вход и JSON на выход. Сейчас есть только чат экрана.</span></div>
+        <div class="row"><b>Живая модель</b><span>Ключ в .env можно положить. На продуктовом показе пример идёт без чата модели.</span></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="head">
+        <div class="num">05</div>
+        <div>
+          <h1>Пять запросов на словах</h1>
+          <p class="date">если спросят</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <div class="rows">
+        <div class="row"><b>Python, 16 ч</b><span>Сертификат, практики от 8 часов, 8 занятий по 2 часа, тест на 10 вопросов, слайды 1–2.</span></div>
+        <div class="row"><b>Учителя, 36 ч</b><span>Удостоверение, коды «Педагога» только из файла, сервисы из России, портфолио из трёх работ.</span></div>
+        <div class="row"><b>Банк, 72 ч</b><span>pandas, визуализация, SQL, статистика, вводный Python, текст образца не копируем.</span></div>
+        <div class="row"><b>Колледж</b><span>Сначала вопросы. Итог начальный, не «готовый специалист».</span></div>
+        <div class="row"><b>DevOps, 256 ч</b><span>254 часа самостоятельной работы, 2 часа защиты, нули лекций. Строку на 248 часах не переносим.</span></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="head">
+        <div class="num">06</div>
+        <div>
+          <h1>Звонок с экспертом</h1>
+          <p class="date">это технический этап</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <p>Когда организатор откроет запись, на сводке появится карточка «Звонок с экспертом». Жмём «Записаться» один раз на команду. В слоте — короткая демонстрация студии и вопросы. Ссылку присылает эксперт, за час приходит напоминание. Комментарии потом лежат на сводке и в «Моей команде».</p>
+      <p>Код на этом звонке смотрят в Gitea. Репозиторий должен быть тот, который пойдёт в зачётный прогон.</p>
+    </section>
+
+    <section>
+      <div class="head">
+        <div class="num">07</div>
+        <div>
+          <h1>Кто что делает сегодня</h1>
+          <p class="date">not_idea</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <div class="cards">
+        <article class="card">
+          <p class="when">Капитан</p>
+          <h2>Сводка</h2>
+          <p>Блок «Решение»: короткое описание студии и ссылка. Запись на звонок, когда откроют слоты, нажимает один человек.</p>
+        </article>
+        <article class="card">
+          <p class="when">На показе</p>
+          <h2>Два окна</h2>
+          <p>Слайды checkpoint-15-oct.html и студия на «Пример 24 ч». Файл интенсива через кнопку «Файл».</p>
+        </article>
+        <article class="card">
+          <p class="when">Не говорим</p>
+          <h2>Что ещё пишем</h2>
+          <p>docx, pptx и живой чат модели на продуктовом показе не обещаем. Это слайд 06 заказчику, одной фразой.</p>
+        </article>
+      </div>
+    </section>
+  </main>
+  <script>
+    const sections = [...document.querySelectorAll("main section")];
+    const buttons = [...document.querySelectorAll("nav button")];
+    const counter = document.getElementById("counter");
+    const show = (index) => {
+      const next = (index + sections.length) % sections.length;
+      sections.forEach((section, i) => section.classList.toggle("active", i === next));
+      buttons.forEach((button, i) => button.setAttribute("aria-current", i === next ? "true" : "false"));
+      counter.textContent = `${next + 1} / ${sections.length}`;
+      history.replaceState(null, "", "#" + next);
+    };
+    buttons.forEach((button) => button.addEventListener("click", () => show(Number(button.dataset.slide))));
+    document.addEventListener("keydown", (event) => {
+      const current = sections.findIndex((section) => section.classList.contains("active"));
+      if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {
+        if (event.key === " ") event.preventDefault();
+        show(current + 1);
+      }
+      if (event.key === "ArrowLeft" || event.key === "PageUp") show(current - 1);
+    });
+    show(Number(location.hash.replace("#", "")) || 0);
+  </script>
+</body>
+</html>

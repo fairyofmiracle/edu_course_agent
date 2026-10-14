@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Мы — методисту академии</title>
+  <style>
+    :root {
+      --blue: #1d4ed8;
+      --navy: #1b2a4a;
+      --muted: #5c6770;
+      --card: #1d4ed8;
+      --line: #1d4ed8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #fff;
+      color: var(--navy);
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    }
+    .who {
+      position: fixed;
+      top: 18px;
+      left: 28px;
+      z-index: 2;
+      color: var(--navy);
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .who span { color: var(--muted); font-weight: 500; }
+    .top {
+      position: fixed;
+      top: 18px;
+      right: 28px;
+      z-index: 2;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    nav {
+      position: fixed;
+      left: 28px;
+      bottom: 18px;
+      z-index: 2;
+      display: flex;
+      gap: 8px;
+    }
+    nav button {
+      width: 28px;
+      height: 6px;
+      padding: 0;
+      border: 0;
+      border-radius: 99px;
+      background: #d5dbe3;
+      cursor: pointer;
+    }
+    nav button[aria-current="true"] { background: var(--blue); }
+    section {
+      display: none;
+      min-height: 100vh;
+      padding: 72px 72px 64px;
+    }
+    section.active { display: flex; flex-direction: column; justify-content: center; }
+    .head {
+      display: flex;
+      align-items: flex-start;
+      gap: 22px;
+      margin-bottom: 18px;
+    }
+    .num {
+      font-size: 84px;
+      line-height: 0.85;
+      font-weight: 800;
+      color: var(--blue);
+      letter-spacing: -2px;
+    }
+    h1 {
+      margin: 6px 0 0;
+      font-size: 34px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .date { margin: 6px 0 0; font-size: 20px; font-weight: 700; }
+    .rule { height: 5px; width: min(640px, 100%); background: var(--line); border: 0; margin: 8px 0 28px; }
+    .kicker {
+      margin: 0 0 6px;
+      color: var(--blue);
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    p, li { font-size: 20px; line-height: 1.4; color: var(--muted); }
+    p { margin: 0 0 16px; max-width: 820px; }
+    ul, ol { margin: 0; padding-left: 22px; max-width: 860px; }
+    li { margin: 0 0 8px; }
+    li strong { color: var(--navy); }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+      margin-top: 8px;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 18px;
+      padding: 22px 22px 18px;
+      min-height: 220px;
+    }
+    .card .when {
+      margin: 0 0 10px;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #fff;
+    }
+    .card h2 {
+      margin: 0 0 12px;
+      font-size: 26px;
+      line-height: 1.15;
+      font-weight: 800;
+      color: #fff;
+    }
+    .card p, .card li { color: #fff; font-size: 16px; }
+    .card p:last-child { margin-bottom: 0; }
+    .two { grid-template-columns: 1fr 1fr; }
+    .rows { display: grid; gap: 10px; margin-top: 8px; }
+    .row {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    .row b { color: var(--navy); font-size: 18px; }
+    .row span { color: var(--muted); font-size: 18px; line-height: 1.35; }
+    @media (max-width: 900px) {
+      section { padding: 64px 22px 72px; }
+      .num { font-size: 56px; }
+      h1 { font-size: 24px; }
+      .cards, .two, .row { grid-template-columns: 1fr; }
+      .card { min-height: 0; }
+    }
+  </style>
+</head>
+<body>
+  <p class="who">not_idea <span>для методиста академии</span></p>
+  <p class="top" id="counter">1 / 7</p>
+  <nav>
+    <button type="button" data-slide="0" aria-label="Сдача"></button>
+    <button type="button" data-slide="1" aria-label="Методист"></button>
+    <button type="button" data-slide="2" aria-label="Польза"></button>
+    <button type="button" data-slide="3" aria-label="Прототип"></button>
+    <button type="button" data-slide="4" aria-label="Пять запросов"></button>
+    <button type="button" data-slide="5" aria-label="Дальше"></button>
+    <button type="button" data-slide="6" aria-label="Экран"></button>
+  </nav>
+  <main>
+    <section>
+      <div class="head">
+        <div class="num">01</div>
+        <div>
+          <h1>Студия методиста</h1>
+          <p class="date">два файла в сдачу</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <div class="cards two">
+        <article class="card">
+          <p class="when">Бриф</p>
+          <h2>Эти слайды</h2>
+          <p>Кто собирает программу, зачем студия и как проходим пять открытых запросов.</p>
+        </article>
+        <article class="card">
+          <p class="when">Прототип</p>
+          <h2>Экран рядом</h2>
+          <p>Слева запрос, справа программа. Пример на 24 часа уже собран, часы сходятся.</p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <div class="head">
+        <div class="num">02</div>
+        <div>
+          <h1>Методист, не слушатель</h1>
+          <p class="date">Академия цифрового развития</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <div class="cards">
+        <article class="card">
+          <p class="when">Два бланка</p>
+          <h2>Сертификат и удостоверение</h2>
+          <p>Общеразвивающая программа и повышение квалификации. Студия выбирает бланк по запросу.</p>
+        </article>
+        <article class="card">
+          <p class="when">Часы</p>
+          <h2>Сумма обязана сойтись</h2>
+          <p>Тема, модуль и программа вместе с аттестацией. В стажировке на 248 часов итоговая строка врёт. В новую программу она не попадает.</p>
+        </article>
+        <article class="card">
+          <p class="when">Решение</p>
+          <h2>Кнопка человека</h2>
+          <p>Тесты, семинары и лекции появляются после «Утвердить каркас». Приказ, фамилии и подписи остаются пустыми.</p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <div class="head">
+        <div class="num">03</div>
+        <div>
+          <h1>Час методиста уходит в проверку</h1>
+          <p class="date">сборка больше не ручная</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <div class="cards">
+        <article class="card">
+          <p class="when">Было</p>
+          <h2>Сводят часы сами</h2>
+          <p>Ошибка из образца переезжает в новую программу. Компетенции живут отдельно от тем и вопросов.</p>
+        </article>
+        <article class="card">
+          <p class="when">Стало</p>
+          <h2>Каркас за минуты</h2>
+          <p>Целые часы, знания, умения, навыки и связь с модулем. Сумма видна до того, как написан текст лекции.</p>
+        </article>
+        <article class="card">
+          <p class="when">Остаётся у вас</p>
+          <h2>Источники и подпись</h2>
+          <p>Приказы и коды профстандартов берутся из ваших файлов. Чего в файле нет, студия не выдумывает.</p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <div class="head">
+        <div class="num">04</div>
+        <div>
+          <h1>Прототип уже открыт</h1>
+          <p class="date">пример 24 часа</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <div class="cards">
+        <article class="card">
+          <p class="when">Обзор</p>
+          <h2>24 из 24</h2>
+          <p>Общеразвивающая программа. Лекции, практика, лабораторные, самостоятельная работа и аттестация.</p>
+        </article>
+        <article class="card">
+          <p class="when">Каркас</p>
+          <h2>Знания и план</h2>
+          <p>У каждой компетенции знания, умения и навыки. В тесте есть ключ, у семинара критерии.</p>
+        </article>
+        <article class="card">
+          <p class="when">Кнопка</p>
+          <h2>Утвердить каркас</h2>
+          <p>До неё комплекта нет. После нее слева «Собрать комплект». Сняли утверждение — содержание снова закрыто.</p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <div class="head">
+        <div class="num">05</div>
+        <div>
+          <h1>Пять запросов, пять проходов</h1>
+          <p class="date">план тест-кейсов</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <div class="rows">
+        <div class="row"><b>Python, 16 ч</b><span>Сертификат. Практики не меньше 8 часов. Восемь занятий по 2 часа. Тест на 10 вопросов. Слайды только занятий 1 и 2. Профстандарта нет.</span></div>
+        <div class="row"><b>Учителя, 36 ч</b><span>Удостоверение. Коды «Педагога» из приложенного стандарта. Сервисы, которые открываются в России. Зачёт по трём материалам. Программирования от учителя нет.</span></div>
+        <div class="row"><b>Банк, 72 ч</b><span>Четыре темы отдельно: pandas, визуализация, SQL, статистика. Сначала Python для Excel. Текст образца не копируем. Слайды модуля pandas.</span></div>
+        <div class="row"><b>Колледж, месяц</b><span>Сначала вопросы: тип, часы, уровень, форма, аттестация. Не больше пяти. «Примерно месяц» объёмом не считаем. Итог — начальный уровень на 72 часа, не готовый специалист.</span></div>
+        <div class="row"><b>DevOps, 256 ч</b><span>254 часа самостоятельной работы, 2 часа защиты. Лекции, практики и лабораторные — нули. Ошибку строки на 248 часах показываем и в новую программу не кладём.</span></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="head">
+        <div class="num">06</div>
+        <div>
+          <h1>К прогонам с 16 октября</h1>
+          <p class="date">та же студия</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <div class="cards two">
+        <article class="card">
+          <p class="when">Уже в прототипе</p>
+          <h2>Каркас держится</h2>
+          <p>Два шаблона, целые часы, файл docx, pdf и текст, кнопка утверждения. 19 проверок сумм зелёные.</p>
+        </article>
+        <article class="card">
+          <p class="when">Закрываем к утру</p>
+          <h2>Комплект и прогон</h2>
+          <p>Вопросы на дырявом запросе. Два задания на каждый результат. Программа docx и pptx одного модуля. Адрес: текст запроса на вход, JSON на выход.</p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <div class="head">
+        <div class="num">07</div>
+        <div>
+          <h1>Открываем пример</h1>
+          <p class="date">кнопка «Пример 24 ч»</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <p>Слева запрос. Справа общеразвивающая программа, 24 из 24. Дальше ваш бланк интенсива через «Файл»: текст встаёт в референс, приказ из воздуха не появляется.</p>
+    </section>
+  </main>
+  <script>
+    const sections = [...document.querySelectorAll("main section")];
+    const buttons = [...document.querySelectorAll("nav button")];
+    const counter = document.getElementById("counter");
+    const show = (index) => {
+      const next = (index + sections.length) % sections.length;
+      sections.forEach((section, i) => section.classList.toggle("active", i === next));
+      buttons.forEach((button, i) => button.setAttribute("aria-current", i === next ? "true" : "false"));
+      counter.textContent = `${next + 1} / ${sections.length}`;
+      history.replaceState(null, "", "#" + next);
+    };
+    buttons.forEach((button) => button.addEventListener("click", () => show(Number(button.dataset.slide))));
+    document.addEventListener("keydown", (event) => {
+      const current = sections.findIndex((section) => section.classList.contains("active"));
+      if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {
+        if (event.key === " ") event.preventDefault();
+        show(current + 1);
+      }
+      if (event.key === "ArrowLeft" || event.key === "PageUp") show(current - 1);
+    });
+    show(Number(location.hash.replace("#", "")) || 0);
+  </script>
+</body>
+</html>

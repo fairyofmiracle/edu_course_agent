@@ -14,6 +14,7 @@ import {
   type Lecture,
   type Seminar,
 } from "@/lib/course-schema";
+import { attachCompetencyIds, balanceModules } from "@/lib/hours-balance";
 
 export type CoursePatch =
   | { type: "update_brief"; brief: Partial<CourseBrief> }
@@ -50,20 +51,39 @@ function touch(course: CourseDocument): CourseDocument {
   return { ...course, updatedAt: new Date().toISOString() };
 }
 
+function withBalancedModules(course: CourseDocument): CourseDocument {
+  if (course.modules.length === 0 || course.brief.durationHours <= 0) return course;
+  const ids = course.competencies.nodes.map((node) => node.id);
+  return {
+    ...course,
+    modules: balanceModules(
+      attachCompetencyIds(course.modules, ids),
+      course.brief.durationHours,
+      course.brief.attestationHours,
+    ),
+  };
+}
+
 export function applyPatch(
   course: CourseDocument,
   patch: CoursePatch,
 ): CourseDocument {
   switch (patch.type) {
     case "update_brief":
-      return touch({
-        ...course,
-        brief: { ...course.brief, ...patch.brief },
-      });
+      return touch(
+        withBalancedModules({
+          ...course,
+          brief: { ...course.brief, ...patch.brief },
+        }),
+      );
     case "set_competency_map":
-      return touch({ ...course, competencies: patch.competencies });
+      return touch(
+        withBalancedModules({ ...course, competencies: patch.competencies }),
+      );
     case "set_structure":
-      return touch({ ...course, modules: patch.modules });
+      return touch(
+        withBalancedModules({ ...course, modules: patch.modules }),
+      );
     case "set_lecture":
       return touch({
         ...course,

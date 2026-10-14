@@ -12,8 +12,7 @@ Holix читает этот файл на каждом ходе. Это спра
 
 - Next.js 16, React 19, TypeScript
 - Vercel AI SDK (`streamText`, tools) — агент курса
-- Cloud.ru Evolution Foundation Models (`CLOUDRU_API_KEY` в `.env.local`)
-- SaluteSpeech, голос `Nec_24000` — озвучка слайдов
+- Cloud.ru Evolution Foundation Models (`CLOUDRU_API_KEY` в `.env`)
 - Zod-схема документа, mermaid на слайдах, unpdf для PDF-референсов
 
 ## Команды
@@ -37,7 +36,6 @@ npm run lint
 | `src/lib/course-patches.ts` | Как tool-вызовы складываются в документ |
 | `src/lib/storage.ts` | Курс и сообщения только в `localStorage` браузера |
 | `src/components/Studio.tsx` | Чат + правая панель |
-| `src/app/api/speech/route.ts` | Озвучка |
 | `src/app/api/extract/route.ts` | Текст из URL или PDF |
 
 ## Как помогать

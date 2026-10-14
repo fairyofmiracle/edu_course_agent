@@ -6,28 +6,18 @@
 
 ```bash
 cd edu-course-agent
-cp .env.example .env.local
+cp .env.example .env
 ```
 
-Модель курса — [Foundation Models в Cloud.ru Evolution](https://cloud.ru/docs/foundation-models/ug/topics/api-ref). В `.env.local` нужен API-ключ из личного кабинета. Организаторы выдают доступ 16 октября. До ключа работают пример, проверка часов и приём файлов.
+Модель курса — [Foundation Models в Cloud.ru Evolution](https://cloud.ru/docs/foundation-models/ug/topics/api-ref). В `.env` нужен API-ключ из личного кабинета. Без ключа работают пример, проверка часов и приём файлов.
 
 ```
 CLOUDRU_API_KEY=...
 CLOUDRU_BASE_URL=https://foundation-models.api.cloud.ru/v1
-CLOUDRU_MODEL=t-tech/T-pro-it-2.0
+CLOUDRU_MODEL=ai-sage/GigaChat3-10B-A1.8B
 ```
 
 Агент сначала собирает каркас: компетенции и учебный план, сумма часов равна объёму. Кнопка «Утвердить каркас» открывает тесты, задания и лекции. Источники агент берёт только из текста методиста и не выдумывает приказы и профстандарты.
-
-Слайды по желанию озвучивает [SaluteSpeech](https://developers.sber.ru/docs/ru/salutespeech/guides/synthesis/voices), голос Наталья (`Nec_24000`). Ключ этого проекта отдельный:
-
-```
-SALUTE_CREDENTIALS=...
-SALUTE_SCOPE=SALUTE_SPEECH_PERS
-SALUTE_VOICE=Nec_24000
-```
-
-Другие голоса: `May_24000` Марфа, `Ost_24000` Александра, `Bys_24000` Борис, `Tur_24000` Тарас, `Pon_24000` Сергей. Кнопка «Озвучить» на слайде читает заголовок, тезисы и заметки лектора.
 
 ```bash
 npm run dev

@@ -6,11 +6,15 @@ import {
 } from "ai";
 import { buildSystemPrompt } from "@/lib/agent/prompts";
 import { getLanguageModel } from "@/lib/agent/model";
+import { sanitizeMessagesForCloudRu } from "@/lib/agent/chat-messages";
 import { createCourseTools } from "@/lib/agent/tools";
+import { applyPatch, foldCourseFromMessages } from "@/lib/course-patches";
 import { isFrameworkApproved } from "@/lib/framework-check";
 import {
+  briefSchema,
   courseDocumentSchema,
   createEmptyCourse,
+  type CourseBrief,
   type CourseDocument,
 } from "@/lib/course-schema";
 
@@ -21,6 +25,7 @@ export async function POST(req: Request) {
     messages?: UIMessage[];
     course?: CourseDocument;
     extraReferences?: string;
+    brief?: Partial<CourseBrief>;
   };
 
   try {
@@ -30,14 +35,22 @@ export async function POST(req: Request) {
   }
 
   const parsedCourse = courseDocumentSchema.safeParse(body.course);
-  const course = parsedCourse.success ? parsedCourse.data : createEmptyCourse();
+  const incoming = parsedCourse.success ? parsedCourse.data : createEmptyCourse();
+  const messages = body.messages ?? [];
+  let course = foldCourseFromMessages(messages, incoming);
+  const brief = briefSchema.partial().safeParse(body.brief);
+  if (brief.success && Object.keys(brief.data).length > 0) {
+    course = applyPatch(course, { type: "update_brief", brief: brief.data });
+  }
+  const userTurns = messages.filter((message) => message.role === "user").length;
 
   try {
-    const tools = createCourseTools(isFrameworkApproved(course));
+    const tools = createCourseTools(isFrameworkApproved(course), course);
+    const history = sanitizeMessagesForCloudRu(messages);
     const result = streamText({
-      model: getLanguageModel(),
-      system: buildSystemPrompt(course, body.extraReferences),
-      messages: await convertToModelMessages(body.messages ?? [], { tools }),
+      model: getLanguageModel("writer"),
+      system: buildSystemPrompt(course, body.extraReferences, userTurns),
+      messages: await convertToModelMessages(history, { tools }),
       tools,
       stopWhen: stepCountIs(20),
     });

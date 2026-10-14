@@ -7,6 +7,7 @@ import type { UIMessage } from "ai";
 
 const COURSE_KEY = "edu-course-agent:course";
 const MESSAGES_KEY = "edu-course-agent:messages";
+const SESSION_KEY = "edu-course-agent:session";
 
 export function loadStoredCourse(): CourseDocument {
   if (typeof window === "undefined") return createEmptyCourse();
@@ -42,8 +43,25 @@ export function saveMessages(messages: UIMessage[]) {
   window.localStorage.setItem(MESSAGES_KEY, JSON.stringify(messages));
 }
 
+export function loadSessionId() {
+  if (typeof window === "undefined") return "session";
+  const existing = window.localStorage.getItem(SESSION_KEY);
+  if (existing) return existing;
+  const id = crypto.randomUUID();
+  window.localStorage.setItem(SESSION_KEY, id);
+  return id;
+}
+
+export function newSessionId() {
+  if (typeof window === "undefined") return "session";
+  const id = crypto.randomUUID();
+  window.localStorage.setItem(SESSION_KEY, id);
+  return id;
+}
+
 export function clearStudioStorage() {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(COURSE_KEY);
   window.localStorage.removeItem(MESSAGES_KEY);
+  window.localStorage.removeItem(SESSION_KEY);
 }

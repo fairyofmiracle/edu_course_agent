@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MermaidBlock } from "@/components/MermaidBlock";
 import type { CourseDocument, Lecture } from "@/lib/course-schema";
 
@@ -12,11 +12,6 @@ export function LectureDeck({ course }: LectureDeckProps) {
   const lectures = course.lectures;
   const [moduleId, setModuleId] = useState(lectures[0]?.moduleId ?? "");
   const [slideIndex, setSlideIndex] = useState(0);
-  const [voiceState, setVoiceState] = useState<"idle" | "loading" | "playing">("idle");
-  const [voiceError, setVoiceError] = useState("");
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const voiceAbortRef = useRef<AbortController | null>(null);
-  const skipVoiceReset = useRef(true);
 
   const lecture: Lecture | undefined = useMemo(
     () => lectures.find((item) => item.moduleId === moduleId) ?? lectures[0],
@@ -24,22 +19,6 @@ export function LectureDeck({ course }: LectureDeckProps) {
   );
   const maxIndex = Math.max(0, (lecture?.slides.length ?? 1) - 1);
   const safeIndex = Math.min(slideIndex, maxIndex);
-
-  useEffect(() => {
-    if (skipVoiceReset.current) {
-      skipVoiceReset.current = false;
-      return;
-    }
-    voiceAbortRef.current?.abort();
-    const audio = audioRef.current;
-    if (audio) {
-      audio.pause();
-      if (audio.src.startsWith("blob:")) URL.revokeObjectURL(audio.src);
-      audio.src = "";
-    }
-    setVoiceState("idle");
-    setVoiceError("");
-  }, [lecture?.moduleId, safeIndex]);
 
   useEffect(() => {
     if (!lecture) return;
@@ -75,54 +54,6 @@ export function LectureDeck({ course }: LectureDeckProps) {
 
   const courseModule = course.modules.find((item) => item.id === lecture.moduleId);
   const slide = lecture.slides[safeIndex] ?? lecture.slides[0];
-
-  const speak = async () => {
-    if (voiceState === "loading") {
-      voiceAbortRef.current?.abort();
-      setVoiceState("idle");
-      return;
-    }
-    if (voiceState === "playing") {
-      audioRef.current?.pause();
-      setVoiceState("idle");
-      return;
-    }
-
-    const text = [slide.title, ...slide.bullets, slide.speakerNotes].filter(Boolean).join("\n");
-    const controller = new AbortController();
-    voiceAbortRef.current = controller;
-    setVoiceState("loading");
-    setVoiceError("");
-    try {
-      const response = await fetch("/api/speech", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-        signal: controller.signal,
-      });
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(payload?.error || "Не удалось озвучить слайд");
-      }
-      const blob = await response.blob();
-      if (controller.signal.aborted) return;
-      const url = URL.createObjectURL(blob);
-      const audio = audioRef.current ?? new Audio();
-      audioRef.current = audio;
-      if (audio.src.startsWith("blob:")) URL.revokeObjectURL(audio.src);
-      audio.src = url;
-      audio.onended = () => {
-        URL.revokeObjectURL(url);
-        setVoiceState("idle");
-      };
-      await audio.play();
-      if (!controller.signal.aborted) setVoiceState("playing");
-    } catch (error) {
-      if (controller.signal.aborted) return;
-      setVoiceState("idle");
-      setVoiceError(error instanceof Error ? error.message : "Не удалось озвучить слайд");
-    }
-  };
 
   return (
     <div className="deck">
@@ -190,15 +121,7 @@ export function LectureDeck({ course }: LectureDeckProps) {
           >
             Дальше
           </button>
-          <button
-            type="button"
-            className={voiceState === "playing" ? "speaking" : undefined}
-            onClick={() => void speak()}
-          >
-            {voiceState === "loading" ? "Готовлю голос…" : voiceState === "playing" ? "Стоп" : "Озвучить"}
-          </button>
         </div>
-        {voiceError ? <p className="voice-error">{voiceError}</p> : null}
       </article>
     </div>
   );

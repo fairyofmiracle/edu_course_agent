@@ -43,4 +43,3 @@ user-invocable: true
 
 - Не подключай `/v1/chat/completions` Holix вместо `getLanguageModel()`.
 - Не жди, что курс есть в файле: сейчас он только в `localStorage` (`src/lib/storage.ts`).
-- Озвучку SaluteSpeech не переноси в Holix.

@@ -75,7 +75,7 @@ export const moduleSchema = z.object({
   topics: z.array(z.string().min(1).max(200)).min(1).max(20),
   plan: z.array(topicPlanSchema).max(20).default([]),
   learningOutcomes: z.array(z.string().min(1).max(300)).min(1).max(12),
-  competencyIds: z.array(z.string().min(1).max(40)).min(1).max(12),
+  competencyIds: z.array(z.string().min(1).max(40)).max(12).default([]),
 });
 
 export const slideSchema = z.object({

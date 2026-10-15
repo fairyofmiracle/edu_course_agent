@@ -3,6 +3,7 @@
 import { CompetencyMap } from "@/components/CompetencyMap";
 import { LectureDeck } from "@/components/LectureDeck";
 import { MermaidBlock } from "@/components/MermaidBlock";
+import { auditCourse, type AuditSection, type AuditStatus } from "@/lib/course-audit";
 import { structureMermaid } from "@/lib/export";
 import { validateCourseHours } from "@/lib/course-validation";
 import { contentGaps, frameworkItems, isFrameworkApproved, outcomeGaps } from "@/lib/framework-check";
@@ -23,7 +24,8 @@ export type WorkspaceTab =
   | "competencies"
   | "lectures"
   | "seminars"
-  | "tests";
+  | "tests"
+  | "checks";
 
 const TABS: { id: WorkspaceTab; label: string; hint: string }[] = [
   { id: "overview", label: "Обзор", hint: "Шаблон, аудитория и проверка часов. Каркас утверждают здесь." },
@@ -32,6 +34,7 @@ const TABS: { id: WorkspaceTab; label: string; hint: string }[] = [
   { id: "lectures", label: "Лекции", hint: "Планы и слайды. Появляются после кнопки «Утвердить каркас»." },
   { id: "seminars", label: "Семинары", hint: "Задания с критериями. Тоже после утверждения каркаса." },
   { id: "tests", label: "Тесты", hint: "Вопросы с ключами и привязкой к результату обучения." },
+  { id: "checks", label: "Проверка", hint: "Часы, связи, комплект, источники и оценивание каждого результата." },
 ];
 
 type CourseWorkspaceProps = {
@@ -71,10 +74,62 @@ export function CourseWorkspace({ course, tab, onTabChange }: CourseWorkspacePro
             {tab === "lectures" ? <LectureDeck course={course} /> : null}
             {tab === "seminars" ? <Seminars course={course} /> : null}
             {tab === "tests" ? <Tests course={course} /> : null}
+            {tab === "checks" ? <AuditPanel course={course} /> : null}
           </>
         )}
       </div>
     </section>
+  );
+}
+
+const AUDIT_STATUS: Record<AuditStatus, string> = {
+  pass: "Пройдено",
+  warning: "Проверить вручную",
+  fail: "Не выполнено",
+};
+
+const AUDIT_SECTIONS: Array<{ id: AuditSection; label: string }> = [
+  { id: "framework", label: "Каркас" },
+  { id: "content", label: "Полный комплект" },
+  { id: "sources", label: "Источники" },
+  { id: "case", label: "Условия запроса" },
+];
+
+function AuditPanel({ course }: { course: CourseDocument }) {
+  const report = auditCourse(course);
+  return (
+    <div className="audit">
+      <header className="overview-head">
+        <div>
+          <p className="kicker">Автопроверка</p>
+          <h2>Отчёт по программе</h2>
+        </div>
+        <p className="score">
+          {report.summary.pass} / {report.items.length}
+        </p>
+      </header>
+      <p className="muted">
+        Пройдено: {report.summary.pass}. Не выполнено: {report.summary.fail}. Проверить вручную:{" "}
+        {report.summary.warning}.
+      </p>
+      {AUDIT_SECTIONS.map((section) => {
+        const items = report.items.filter((entry) => entry.section === section.id);
+        if (items.length === 0) return null;
+        return (
+          <article key={section.id}>
+            <h3>{section.label}</h3>
+            <ul className="audit-list">
+              {items.map((entry) => (
+                <li key={entry.id} className={entry.status}>
+                  <strong>{AUDIT_STATUS[entry.status]}:</strong> {entry.label}
+                  {entry.details ? <span>{entry.details}</span> : null}
+                </li>
+              ))}
+            </ul>
+          </article>
+        );
+      })}
+    </div>
   );
 }
 
@@ -322,6 +377,9 @@ function Seminars({ course }: { course: CourseDocument }) {
                     {task.timeMin} мин · {task.competencyId}
                   </span>
                 </header>
+                {task.learningOutcome ? (
+                  <p className="muted">Результат обучения: {task.learningOutcome}</p>
+                ) : null}
                 <p>{task.prompt}</p>
                 <h5>Ход</h5>
                 <ol>

@@ -523,6 +523,39 @@ button.primary {
   background: var(--accent-2);
 }
 
+.audit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.audit-list li {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--line);
+  background: var(--chat-soft);
+  line-height: 1.4;
+}
+
+.audit-list li.pass {
+  border-left-color: #2f6f4e;
+}
+
+.audit-list li.warning {
+  border-left-color: #9a6a16;
+}
+
+.audit-list li.fail {
+  border-left-color: #8a1f1f;
+}
+
+.audit-list li span {
+  display: block;
+  margin-top: 3px;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
 .meta-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

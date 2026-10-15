@@ -6,6 +6,7 @@ import {
   type CourseDocument,
   type Lecture,
 } from "@/lib/course-schema";
+import { auditCourse, type OpenCaseId } from "@/lib/course-audit";
 
 function download(filename: string, content: string, type: string) {
   const blob = new Blob([content], { type });
@@ -26,6 +27,14 @@ export function exportCourseJson(course: CourseDocument) {
   download(
     `${slug(course.brief.title)}.json`,
     JSON.stringify(course, null, 2),
+    "application/json",
+  );
+}
+
+export function exportCourseAudit(course: CourseDocument, caseId?: OpenCaseId) {
+  download(
+    `${slug(course.brief.title)}-audit.json`,
+    JSON.stringify(auditCourse(course, caseId), null, 2),
     "application/json",
   );
 }
@@ -107,6 +116,7 @@ export function courseToMarkdown(course: CourseDocument): string {
     lines.push(`### ${courseModule?.title ?? seminar.moduleId}`);
     for (const task of seminar.tasks) {
       lines.push(`#### ${task.title} (${task.timeMin} мин, ${task.competencyId})`);
+      if (task.learningOutcome) lines.push(`Результат обучения: ${task.learningOutcome}`);
       lines.push(task.prompt);
       lines.push("Шаги:");
       lines.push(...task.steps.map((item, index) => `${index + 1}. ${item}`));
@@ -128,6 +138,7 @@ export function courseToMarkdown(course: CourseDocument): string {
       lines.push(`Ответ: ${question.answer}`);
       lines.push(`Пояснение: ${question.explanation}`);
       lines.push(`Компетенция: ${question.competencyId}`);
+      if (question.learningOutcome) lines.push(`Результат обучения: ${question.learningOutcome}`);
       lines.push("");
     });
   }

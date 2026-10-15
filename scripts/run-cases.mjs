@@ -55,6 +55,7 @@ for (const item of CASES.filter((entry) => only.includes(entry.id))) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        caseId: item.id,
         request: item.request,
         answers: item.answers,
         references: item.references ? await item.references() : undefined,
@@ -73,6 +74,9 @@ for (const item of CASES.filter((entry) => only.includes(entry.id))) {
   }
   const { course, report, transcript, error } = payload;
   const failed = (report?.checks ?? []).filter((check) => !check.ok).map((check) => check.label);
+  const auditFailed = (report?.audit?.items ?? [])
+    .filter((check) => check.status === "fail")
+    .map((check) => check.label);
   const sum = course.modules.reduce((total, module) => total + module.hours, 0) + course.brief.attestationHours;
   console.log(`${seconds} с${error ? `, ошибка: ${error}` : ""}`);
   console.log(
@@ -81,6 +85,7 @@ for (const item of CASES.filter((entry) => only.includes(entry.id))) {
       `  тестов ${course.assessments.length}, семинаров ${course.seminars.length}, лекций ${course.lectures.length}`,
       `  вопросы до каркаса: ${report?.askedQuestions ? "да" : "нет"}`,
       failed.length ? `  не прошли: ${failed.join("; ")}` : "  проверки каркаса зелёные",
+      auditFailed.length ? `  не прошли аудит: ${auditFailed.join("; ")}` : "  аудит без ошибок",
       report?.modulesWithoutKit?.length ? `  модули без комплекта: ${report.modulesWithoutKit.join(", ")}` : "",
       ...(transcript ?? []).map(
         (turn, index) =>

@@ -118,8 +118,22 @@ export function guardBrief(
   }
 
   if (!current.attestationForm.trim() && !brief.attestationForm?.trim()) {
-    const form = attestationFromText(texts);
-    if (form) brief.attestationForm = form;
+    const attest = attestationFromText(texts);
+    if (attest) brief.attestationForm = attest;
+  }
+
+  if ((!brief.goals || brief.goals.length === 0) && current.goals.length === 0) {
+    const title = brief.title || current.title;
+    if (title) brief.goals = [`Освоить программу «${title}»`];
+  }
+
+  if (
+    brief.attestationHours === undefined &&
+    current.attestationHours <= 0 &&
+    (brief.attestationForm || current.attestationForm)
+  ) {
+    const hours = attestationHoursFromText(texts);
+    if (hours) brief.attestationHours = hours;
   }
 
   return { brief, dropped };
@@ -127,12 +141,25 @@ export function guardBrief(
 
 export function audienceFromText(texts: string[]): string | null {
   for (let index = texts.length - 1; index >= 0; index -= 1) {
-    const labeled = texts[index].match(
-      /слушател\S*\s*[:—-]\s*([^\n.]{8,200})/i,
-    );
+    const text = texts[index];
+    const labeled = text.match(/слушател\S*\s*[:—-]\s*([^\n.]{8,200})/i);
     if (labeled) return labeled[1].trim().replace(/\s+/g, " ").slice(0, 400);
-    const forWhom = texts[index].match(/для\s+([а-яёa-z0-9 «»"'-]{8,120}?)(?:,|\.|$)/i);
+    const sentence = text.match(
+      /слушател\S*\s+([^\n.]{8,200}?)(?=\.\s|Итоговая|Срок|Возьмите|$)/i,
+    );
+    if (sentence) return `Слушатели ${sentence[1].trim()}`.replace(/\s+/g, " ").slice(0, 400);
+    const forWhom = text.match(/для\s+([а-яёa-z0-9 «»"'-]{8,120}?)(?:,|\.|$)/i);
     if (forWhom) return forWhom[1].trim().replace(/\s+/g, " ").slice(0, 400);
+  }
+  return null;
+}
+
+export function attestationHoursFromText(texts: string[]): number | null {
+  for (let index = texts.length - 1; index >= 0; index -= 1) {
+    const match = texts[index].match(
+      /(?:аттестаци\S*|защит\S*)[^.]*?(\d{1,2})\s*(?:академическ\S*\s+|ак\.?\s*)?(?:час|ч(?![а-яё]))/i,
+    );
+    if (match) return Number(match[1]);
   }
   return null;
 }

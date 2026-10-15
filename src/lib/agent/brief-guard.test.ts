@@ -55,5 +55,18 @@ describe("guardBrief", () => {
     );
     expect(brief.durationHours).toBe(72);
     expect(brief.programKind).toBe("qualification");
+    expect(brief.audience).toMatch(/студенты 3 курса/i);
+  });
+
+  it("из полного запроса DevOps достаёт название, аудиторию и 256 часов", () => {
+    const request =
+      "Нужна программа повышения квалификации в форме стажировки «DevOps-инженер от Linux до CI/CD» на 256 часов. Слушатели проходят стажировку в ИТ-компаниях региона, вся работа самостоятельная под руководством наставника от компании, аудиторных занятий нет. Итоговая аттестация занимает 2 часа и проходит в форме защиты отчёта о стажировке.";
+    const { brief } = guardBrief({}, createEmptyCourse().brief, { userTexts: [request] });
+    expect(brief.title).toBe("DevOps-инженер от Linux до CI/CD");
+    expect(brief.durationHours).toBe(256);
+    expect(brief.programKind).toBe("qualification");
+    expect(brief.audience).toMatch(/стажировку в ИТ-компаниях/i);
+    expect(brief.attestationHours).toBe(2);
+    expect(brief.goals?.length).toBeGreaterThan(0);
   });
 });

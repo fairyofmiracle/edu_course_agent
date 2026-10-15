@@ -67,12 +67,14 @@ describe("applyPatch structure", () => {
         },
       ],
     });
-    const sum = roundHours(course.modules.reduce((total, module) => total + module.hours, 0));
+    const sum = roundHours(
+      course.modules.reduce((total, courseModule) => total + courseModule.hours, 0),
+    );
     expect(sum).toBe(70);
     expect(course.modules[1].competencyIds).toEqual(["c1"]);
-    for (const module of course.modules) {
-      expect(kindSum(module)).toBe(module.hours);
-      expect(module.plan.length).toBeGreaterThan(0);
+    for (const courseModule of course.modules) {
+      expect(kindSum(courseModule)).toBe(courseModule.hours);
+      expect(courseModule.plan.length).toBeGreaterThan(0);
     }
   });
 

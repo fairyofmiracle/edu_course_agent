@@ -100,9 +100,9 @@ describe("balanceModules", () => {
     const next = balanceModules(modules, 72, 2);
     const sum = roundHours(next.reduce((total, module) => total + module.hours, 0));
     expect(sum).toBe(70);
-    for (const module of next) {
-      expectWhole(module.hours);
-      expect(kindSum(module)).toBe(module.hours);
+    for (const courseModule of next) {
+      expectWhole(courseModule.hours);
+      expect(kindSum(courseModule)).toBe(courseModule.hours);
     }
   });
 

@@ -18,10 +18,13 @@ import {
   type CourseDocument,
 } from "@/lib/course-schema";
 import {
+  exportCourseAudit,
   exportCourseJson,
   exportCourseMarkdown,
   exportLectureHtml,
 } from "@/lib/export";
+import { exportCourseDocx } from "@/lib/export-docx";
+import { exportCoursePptx } from "@/lib/export-pptx";
 import { SAMPLE_COURSE } from "@/lib/sample-course";
 import {
   actionEntry,
@@ -52,11 +55,12 @@ export function Studio() {
   if (!isClient) {
     return <div className="boot">Открываю студию…</div>;
   }
+  const showSample = new URLSearchParams(window.location.search).get("sample") === "1";
   return (
     <StudioSession
-      initialCourse={loadStoredCourse()}
-      initialMessages={loadStoredMessages()}
-      initialSessionId={loadSessionId()}
+      initialCourse={showSample ? SAMPLE_COURSE : loadStoredCourse()}
+      initialMessages={showSample ? [] : loadStoredMessages()}
+      initialSessionId={showSample ? newSessionId() : loadSessionId()}
     />
   );
 }
@@ -200,6 +204,20 @@ function StudioSession({
     persistLog(actionEntry(sessionRef.current, "Утверждение каркаса снято"));
   };
 
+  const addReference = (reference: CourseBrief["references"][number]) => {
+    const latest = courseRef.current;
+    const duplicate = latest.brief.references.some(
+      (item) => item.title === reference.title && item.source === reference.source,
+    );
+    if (duplicate) return;
+    const next = applyPatch(latest, {
+      type: "update_brief",
+      brief: { references: [...latest.brief.references, reference].slice(-20) },
+    });
+    courseRef.current = next;
+    setStoredCourse(next);
+  };
+
   const loadSample = () => {
     const sample = {
       ...SAMPLE_COURSE,
@@ -251,6 +269,7 @@ function StudioSession({
           extraReferences={extraReferences}
           frameworkApproved={frameworkApproved}
           onReferencesChange={setExtraReferences}
+          onReferenceAdd={addReference}
           onSend={send}
           onStop={() => stop()}
         />
@@ -290,10 +309,31 @@ function StudioSession({
               </button>
               <button
                 type="button"
+                disabled={isCourseEmpty(course)}
+                onClick={() => exportCourseAudit(course)}
+              >
+                Отчёт
+              </button>
+              <button
+                type="button"
+                disabled={isCourseEmpty(course)}
+                onClick={() => void exportCourseDocx(course)}
+              >
+                DOCX
+              </button>
+              <button
+                type="button"
                 disabled={course.lectures.length === 0}
                 onClick={() => exportLectureHtml(course)}
               >
-                Слайды
+                HTML
+              </button>
+              <button
+                type="button"
+                disabled={course.lectures.length === 0}
+                onClick={() => void exportCoursePptx(course)}
+              >
+                PPTX
               </button>
             </div>
           </header>

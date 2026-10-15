@@ -22,6 +22,7 @@ type ChatPanelProps = {
   extraReferences: string;
   frameworkApproved: boolean;
   onReferencesChange: (value: string) => void;
+  onReferenceAdd: (reference: CourseBrief["references"][number]) => void;
   onSend: (text: string, brief?: Partial<CourseBrief>) => void;
   onStop: () => void;
 };
@@ -33,6 +34,7 @@ export function ChatPanel({
   extraReferences,
   frameworkApproved,
   onReferencesChange,
+  onReferenceAdd,
   onSend,
   onStop,
 }: ChatPanelProps) {
@@ -89,6 +91,7 @@ export function ChatPanel({
         frameworkApproved={frameworkApproved}
         pending={pending}
         onReferencesChange={onReferencesChange}
+        onReferenceAdd={onReferenceAdd}
         onSend={onSend}
         onStop={onStop}
       />

@@ -100,6 +100,7 @@ export const seminarTaskSchema = z.object({
   timeMin: z.number().min(10).max(180),
   criteria: z.array(z.string().min(1).max(240)).min(2).max(6),
   competencyId: z.string().min(1).max(40),
+  learningOutcome: z.string().max(300).optional(),
 });
 
 export const seminarSchema = z.object({

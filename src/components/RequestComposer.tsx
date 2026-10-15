@@ -93,6 +93,7 @@ type RequestComposerProps = {
   frameworkApproved: boolean;
   pending: boolean;
   onReferencesChange: (value: string) => void;
+  onReferenceAdd: (reference: CourseBrief["references"][number]) => void;
   onSend: (text: string, brief?: Partial<CourseBrief>) => void;
   onStop: () => void;
 };
@@ -102,6 +103,7 @@ export function RequestComposer({
   frameworkApproved,
   pending,
   onReferencesChange,
+  onReferenceAdd,
   onSend,
   onStop,
 }: RequestComposerProps) {
@@ -127,6 +129,11 @@ export function RequestComposer({
       if (!response.ok) throw new Error(payload.error || "Не удалось прочитать файл");
       const chunk = `[${payload.title}]\n${payload.text ?? ""}`;
       onReferencesChange(extraReferences ? `${extraReferences}\n\n${chunk}` : chunk);
+      onReferenceAdd({
+        title: payload.title || file.name,
+        source: file.name,
+        note: "Файл загружен методистом",
+      });
       setShowRefs(true);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Ошибка файла");
@@ -149,6 +156,11 @@ export function RequestComposer({
       if (!response.ok) throw new Error(payload.error || "Не удалось скачать страницу");
       const chunk = `[${payload.title} | ${url}]\n${payload.text ?? ""}`;
       onReferencesChange(extraReferences ? `${extraReferences}\n\n${chunk}` : chunk);
+      onReferenceAdd({
+        title: payload.title || url,
+        source: url,
+        note: "Ссылка добавлена методистом",
+      });
       setShowRefs(true);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Ошибка URL");

@@ -11,6 +11,7 @@ import {
   frameworkItems,
   outcomeGaps,
 } from "@/lib/framework-check";
+import { auditCourse, type OpenCaseId } from "@/lib/course-audit";
 
 export const maxDuration = 800;
 
@@ -23,6 +24,8 @@ type RunBody = {
   references?: string;
   /** РЈС‚РІРµСЂРґРёС‚СЊ РєР°СЂРєР°СЃ Р±РµР· С‡РµР»РѕРІРµРєР°, С‡С‚РѕР±С‹ РїСЂРѕРіРѕРЅ РґРѕС€С‘Р» РґРѕ РєРѕРјРїР»РµРєС‚Р°. РџРѕ СѓРјРѕР»С‡Р°РЅРёСЋ РґР°. */
   autoApprove?: boolean;
+  /** Номер открытого запроса для его специальных проверок. */
+  caseId?: OpenCaseId;
 };
 
 type TurnLog = {
@@ -116,6 +119,10 @@ export async function POST(req: Request) {
         .map((row) => row.id),
       askedQuestions,
       approvedBy,
+      audit: auditCourse(
+        course,
+        [1, 2, 3, 4, 5].includes(Number(body.caseId)) ? body.caseId : undefined,
+      ),
     };
     void appendServerLog({ text: `Прогон /api/run: ${request.slice(0, 120)}`, report });
     return Response.json({ course, report, transcript });

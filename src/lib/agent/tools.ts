@@ -286,7 +286,7 @@ function courseTools(allowContent: boolean, course?: CourseDocument, guard?: Bri
     }),
     set_seminar: tool({
       description:
-        "Записывает семинарские задания для одного модуля: промпт, шаги, время, критерии, competencyId. Только после утверждения каркаса.",
+        "Записывает семинарские задания для одного модуля: промпт, шаги, время, критерии, competencyId и learningOutcome — дословный результат обучения из модуля. Каждое задание проверяет один результат. Только после утверждения каркаса.",
       inputSchema: seminarSchema,
       execute: async (seminar): Promise<CoursePatch | ReturnType<typeof contentBlocked>> => {
         if (!allowContent) return contentBlocked();

@@ -95,7 +95,7 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return Response.json({ error: "РќРµРєРѕСЂСЂРµРєС‚РЅС‹Р№ JSON Р·Р°РїСЂРѕСЃР°" }, { status: 400 });
+    return Response.json({ error: "Некорректный запрос" }, { status: 400 });
   }
 
   const parsedCourse = courseDocumentSchema.safeParse(body.course);
@@ -123,7 +123,7 @@ export async function POST(req: Request) {
 
     const turn = createTurn({ course, userTexts, extraReferences: body.extraReferences, formBrief });
     const history = sanitizeMessagesForCloudRu(messages);
-    console.log(`[chat] СЂРµР¶РёРј ${turn.mode}, СЂРµРїР»РёРє ${userTexts.length}, СЃРѕРѕР±С‰РµРЅРёР№ ${history.length}`);
+    console.log(`[chat] режим ${turn.mode}, реплик ${userTexts.length}, сообщений ${history.length}`);
 
     const result = streamText({
       model: getLanguageModel("writer"),
@@ -133,13 +133,13 @@ export async function POST(req: Request) {
       stopWhen: turn.stopWhen,
       prepareStep: turn.prepareStep,
       onError: ({ error }) => {
-        console.error("[chat] РѕС€РёР±РєР° РјРѕРґРµР»Рё:", error);
+        console.error("[chat] ошибка модели:", error);
         void appendServerLog({ text: describeError(error), mode: turn.mode, steps: turn.planned });
       },
       onFinish: ({ steps }) => {
         const failed = toolErrors(steps);
         void appendServerLog({
-          text: `РҐРѕРґ Р·Р°РІРµСЂС€С‘РЅ: ${steps.length} С€Р°РіРѕРІ`,
+          text: `Ход завершён: ${steps.length} шагов`,
           mode: turn.mode,
           steps: turn.planned,
           toolErrors: failed.length ? failed : undefined,
@@ -149,11 +149,11 @@ export async function POST(req: Request) {
 
     return result.toUIMessageStreamResponse({
       onError: (error) =>
-        error instanceof Error ? error.message : "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРіРµРЅРµСЂРёСЂРѕРІР°С‚СЊ РєСѓСЂСЃ",
+        error instanceof Error ? error.message : "Не удалось собрать программу",
     });
   } catch (error) {
-    console.error("[chat] РѕС€РёР±РєР° РјР°СЂС€СЂСѓС‚Р°:", error);
-    const message = error instanceof Error ? error.message : "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕРґРєР»СЋС‡РёС‚СЊ РјРѕРґРµР»СЊ";
+    console.error("[chat] ошибка маршрута:", error);
+    const message = error instanceof Error ? error.message : "Не удалось подключить модель";
     return Response.json({ error: message }, { status: 500 });
   }
 }

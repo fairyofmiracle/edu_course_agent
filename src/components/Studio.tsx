@@ -4,19 +4,13 @@ import { DefaultChatTransport, type UIMessage } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ChatPanel } from "@/components/ChatPanel";
-import { CourseLibrary } from "@/components/CourseLibrary";
 import { CourseWorkspace, type WorkspaceTab } from "@/components/CourseWorkspace";
+import { SiteFrame } from "@/components/SiteFrame";
 import {
   hasBackendStorage,
   loadCourseFromBackend,
   saveCourseToBackend,
 } from "@/lib/backend-storage";
-import {
-  adaptCourseCopy,
-  type CopyAdaptation,
-  loadLibraryCourse,
-  rememberCourse,
-} from "@/lib/course-library";
 import { applyPatch, foldCourseFromMessages } from "@/lib/course-patches";
 import {
   frameworkFingerprint,
@@ -55,7 +49,6 @@ import {
   saveCourse,
   saveMessages,
 } from "@/lib/storage";
-import { applyTheme, readTheme, storeTheme, type Theme } from "@/lib/theme";
 
 function useIsClient() {
   return useSyncExternalStore(
@@ -97,7 +90,6 @@ function StudioSession({
   const [saveState, setSaveState] = useState<"local" | "saving" | "synced" | "offline">(
     hasBackendStorage() ? "saving" : "local",
   );
-  const [theme, setTheme] = useState<Theme>("light");
   const courseRef = useRef(storedCourse);
   const refsRef = useRef("");
   const sessionRef = useRef(initialSessionId);
@@ -121,12 +113,6 @@ function StudioSession({
   const frameworkApproved = isFrameworkApproved(course);
   const stage = frameworkApproved ? "kit" : course.modules.length ? "framework" : "ask";
   const missingChecks = checks.filter((item) => !item.ok).map((item) => item.label);
-
-  useEffect(() => {
-    const stored = readTheme(window.localStorage);
-    setTheme(stored);
-    applyTheme(stored);
-  }, []);
 
   useEffect(() => {
     courseRef.current = course;
@@ -224,62 +210,6 @@ function StudioSession({
     );
   };
 
-  const switchTo = (nextCourse: CourseDocument, nextMessages: UIMessage[]) => {
-    const nextSession = newSessionId();
-    seenMessages.current = new Set(nextMessages.map((item) => item.id));
-    loggedErrors.current = new Set();
-    sessionRef.current = nextSession;
-    setSessionId(nextSession);
-    setStoredCourse(nextCourse);
-    setMessages(nextMessages);
-    setExtraReferences("");
-    setTab("overview");
-    saveCourse(nextCourse, nextMessages);
-  };
-
-  const openSaved = async (courseId: string) => {
-    if (courseId === course.id) return;
-    let next = loadLibraryCourse(window.localStorage, courseId);
-    if (hasBackendStorage()) {
-      try {
-        const stored = await loadCourseFromBackend(courseId);
-        if (stored) next = { course: stored.course, messages: stored.messages };
-      } catch {
-        setSaveState("offline");
-      }
-    }
-    if (!next) return;
-    switchTo(next.course, next.messages);
-    persistLog(actionEntry(sessionRef.current, "Открыт сохранённый курс"));
-  };
-
-  const copySaved = async (courseId: string, adaptation: CopyAdaptation) => {
-    let source =
-      courseId === course.id ? course : loadLibraryCourse(window.localStorage, courseId)?.course;
-    if (!source && hasBackendStorage()) {
-      try {
-        const stored = await loadCourseFromBackend(courseId);
-        if (stored) source = stored.course;
-      } catch {
-        setSaveState("offline");
-      }
-    }
-    if (!source) return "Курс не найден.";
-    const adapted = adaptCourseCopy(source, adaptation);
-    if (!adapted.ok) return adapted.error;
-    if (courseId === course.id) rememberCourse(course, messages, window.localStorage);
-    if (hasBackendStorage()) {
-      try {
-        await saveCourseToBackend(adapted.course, [], "copy");
-        setSaveState("synced");
-      } catch {
-        setSaveState("offline");
-      }
-    }
-    switchTo(adapted.course, []);
-    persistLog(actionEntry(sessionRef.current, "Создана копия под новую аудиторию и объём"));
-  };
-
   const reset = () => {
     const empty = createEmptyCourse();
     const nextSession = newSessionId();
@@ -352,21 +282,35 @@ function StudioSession({
   };
 
   return (
-    <div className="studio">
-      <header className="topbar">
+    <SiteFrame
+      actions={
+        <>
+          <a href="/courses">Мои курсы</a>
+          <button type="button" onClick={loadSample}>
+            Пример 24 ч
+          </button>
+          <button type="button" onClick={reset}>
+            Новый курс
+          </button>
+        </>
+      }
+    >
+      <div className="topbar">
         <div>
           <p className="kicker">
-            Опишите задачу слева — каркас программы и проверки появятся справа.
+            {stage === "ask"
+              ? "1. Запрос. Слева напишите, для кого программа и сколько в ней часов."
+              : stage === "framework"
+                ? "2. Каркас. Справа сверьте часы и компетенции, затем утвердите каркас."
+                : "3. Комплект. Каркас утверждён: можно собирать лекции, задания и тесты."}
           </p>
           <h1>{course.brief.title || "Новая образовательная программа"}</h1>
           <p className="save-state" aria-live="polite">
             {saveState === "synced"
-              ? "Сохранено в Python backend"
+              ? "Сохранено"
               : saveState === "saving"
-                ? "Сохраняю изменения…"
-                : saveState === "offline"
-                  ? "Сохранено локально — backend недоступен"
-                  : "Сохранено в этом браузере"}
+                ? "Сохраняю…"
+                : "Сохранено на этом компьютере"}
           </p>
         </div>
         <ol className="stages" aria-label="Шаги">
@@ -376,32 +320,7 @@ function StudioSession({
           </li>
           <li className={stage === "kit" ? "current" : ""}>Комплект</li>
         </ol>
-        <div className="top-actions">
-          <button
-            type="button"
-            onClick={() => {
-              const next = theme === "dark" ? "light" : "dark";
-              setTheme(next);
-              applyTheme(next);
-              storeTheme(window.localStorage, next);
-            }}
-          >
-            {theme === "dark" ? "Светлая" : "Тёмная"}
-          </button>
-          <CourseLibrary
-            currentId={course.id}
-            revision={course.updatedAt}
-            onOpen={openSaved}
-            onCopy={copySaved}
-          />
-          <button type="button" onClick={loadSample}>
-            Пример 24 ч
-          </button>
-          <button type="button" onClick={reset}>
-            Новый курс
-          </button>
-        </div>
-      </header>
+      </div>
       <div className="studio-body">
         <ChatPanel
           messages={messages}
@@ -421,7 +340,13 @@ function StudioSession({
             <p className="pane-label">2. Результат</p>
             <h2>Документ программы</h2>
             <p className="kicker">
-              Проверьте каркас и часы, затем подтвердите переход к полному комплекту.
+              {frameworkApproved
+                ? "Каркас утверждён. Соберите содержание или выгрузите программу."
+                : frameworkReady
+                  ? "Часы и связи сходятся. Утвердите каркас, чтобы открыть лекции, задания и тесты."
+                  : stage === "ask"
+                    ? "Документ появится здесь после запроса с аудиторией и часами."
+                    : `Пока рано утверждать: ${missingChecks.slice(0, 2).join("; ")}.`}
             </p>
             <div className="pane-actions">
               {frameworkApproved ? (
@@ -446,23 +371,23 @@ function StudioSession({
               <details className="export-menu">
                 <summary>Выгрузить</summary>
                 <div>
-                  <button type="button" disabled={isCourseEmpty(course)} onClick={() => exportCourseJson(course)}>
-                    JSON
+                  <button type="button" title="Данные программы" disabled={isCourseEmpty(course)} onClick={() => exportCourseJson(course)}>
+                    Данные
                   </button>
-                  <button type="button" disabled={isCourseEmpty(course)} onClick={() => exportCourseMarkdown(course)}>
+                  <button type="button" title="Программа обычным текстом" disabled={isCourseEmpty(course)} onClick={() => exportCourseMarkdown(course)}>
                     Текст
                   </button>
-                  <button type="button" disabled={isCourseEmpty(course)} onClick={() => exportCourseAudit(course)}>
+                  <button type="button" title="Отчёт проверки" disabled={isCourseEmpty(course)} onClick={() => exportCourseAudit(course)}>
                     Отчёт
                   </button>
-                  <button type="button" disabled={isCourseEmpty(course)} onClick={() => void exportCourseDocx(course)}>
-                    DOCX
+                  <button type="button" title="Программа Word" disabled={isCourseEmpty(course)} onClick={() => void exportCourseDocx(course)}>
+                    Программа
                   </button>
-                  <button type="button" disabled={course.lectures.length === 0} onClick={() => exportLectureHtml(course)}>
-                    HTML
+                  <button type="button" title="Слайды в браузере" disabled={course.lectures.length === 0} onClick={() => exportLectureHtml(course)}>
+                    Слайды
                   </button>
-                  <button type="button" disabled={course.lectures.length === 0} onClick={() => void exportCoursePptx(course)}>
-                    PPTX
+                  <button type="button" title="Слайды PowerPoint" disabled={course.lectures.length === 0} onClick={() => void exportCoursePptx(course)}>
+                    Презентация
                   </button>
                   <div className="export-tests">
                     <span>Тесты</span>
@@ -498,6 +423,6 @@ function StudioSession({
           <CourseWorkspace course={course} tab={tab} onTabChange={setTab} />
         </div>
       </div>
-    </div>
+    </SiteFrame>
   );
 }

@@ -1,9 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { hasBackendStorage, listCoursesFromBackend } from "@/lib/backend-storage";
-import { listLibrary, type CopyAdaptation, type CourseSummary } from "@/lib/course-library";
+import { SiteFrame } from "@/components/SiteFrame";
+import {
+  deleteCourseFromBackend,
+  hasBackendStorage,
+  listCoursesFromBackend,
+  loadCourseFromBackend,
+  saveCourseToBackend,
+} from "@/lib/backend-storage";
+import {
+  adaptCourseCopy,
+  listLibrary,
+  loadLibraryCourse,
+  rememberCourse,
+  type CopyAdaptation,
+  type CourseSummary,
+} from "@/lib/course-library";
 import { PROGRAM_KIND_LABELS, type CourseDocument } from "@/lib/course-schema";
+import { dropStoredCourse, saveCourse } from "@/lib/storage";
 
 type LibraryItem = CourseSummary & { where: "server" | "browser" };
 
@@ -13,20 +28,13 @@ function formatWhen(iso: string) {
   return date.toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" });
 }
 
-export function CourseLibrary({
-  currentId,
-  revision,
-  onOpen,
-  onCopy,
-}: {
-  currentId: string;
-  revision: string;
-  onOpen: (courseId: string) => Promise<void>;
-  onCopy: (courseId: string, adaptation: CopyAdaptation) => Promise<string | void>;
-}) {
+export function CourseCatalog() {
   const [items, setItems] = useState<LibraryItem[]>([]);
   const [note, setNote] = useState("");
+  const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const [pendingDelete, setPendingDelete] = useState("");
   const [draft, setDraft] = useState({
     id: "",
     audience: "",
@@ -65,117 +73,236 @@ export function CourseLibrary({
     return () => {
       active = false;
     };
-  }, [currentId, revision]);
+  }, [revision]);
 
-  async function run(task: () => Promise<void>) {
-    setBusy(true);
-    try {
-      await task();
-    } finally {
-      setBusy(false);
+  const needle = query.trim().toLowerCase();
+  const visible = items.filter((item) => {
+    if (!item.title.trim() && !item.audience.trim()) return false;
+    if (!needle) return true;
+    return `${item.title} ${item.audience}`.toLowerCase().includes(needle);
+  });
+
+  async function openCourse(courseId: string) {
+    let next = loadLibraryCourse(window.localStorage, courseId);
+    if (hasBackendStorage()) {
+      try {
+        const stored = await loadCourseFromBackend(courseId);
+        if (stored) next = { course: stored.course, messages: stored.messages };
+      } catch {
+        setNote("Сервер не ответил. Открываю копию из этого браузера.");
+      }
     }
+    if (!next) {
+      setNote("Курс не найден.");
+      return;
+    }
+    saveCourse(next.course, next.messages);
+    window.location.href = "/";
+  }
+
+  async function copyCourse(courseId: string, adaptation: CopyAdaptation) {
+    let source = loadLibraryCourse(window.localStorage, courseId)?.course;
+    if (hasBackendStorage()) {
+      try {
+        const stored = await loadCourseFromBackend(courseId);
+        if (stored) source = stored.course;
+      } catch {
+        setNote("Сервер не ответил. Копия собирается из курса в этом браузере.");
+      }
+    }
+    if (!source) return "Курс не найден.";
+    const adapted = adaptCourseCopy(source, adaptation);
+    if (!adapted.ok) return adapted.error;
+    rememberCourse(source, loadLibraryCourse(window.localStorage, courseId)?.messages ?? [], window.localStorage);
+    rememberCourse(adapted.course, [], window.localStorage);
+    if (hasBackendStorage()) {
+      try {
+        await saveCourseToBackend(adapted.course, [], "copy");
+      } catch {
+        setNote("Копия записана в этом браузере. Сервер её не принял.");
+      }
+    }
+    setRevision((value) => value + 1);
+    setNote("Копия создана. Исходный курс остался в списке.");
+    return;
+  }
+
+  async function removeCourse(courseId: string) {
+    if (hasBackendStorage()) {
+      try {
+        await deleteCourseFromBackend(courseId);
+      } catch {
+        setNote("Сервер курс не удалил. Он остался в списке.");
+        return;
+      }
+    }
+    const wasOpen = dropStoredCourse(courseId);
+    setPendingDelete("");
+    setRevision((value) => value + 1);
+    setNote(
+      wasOpen
+        ? "Курс удалён. В студии откроется пустая программа."
+        : "Курс удалён.",
+    );
   }
 
   return (
-    <details className="course-library">
-      <summary>Мои курсы</summary>
-      <div>
-        <p>{note}</p>
-        {items.length === 0 ? (
-          <p>Пока нет сохранённых курсов. Текущая программа запишется сама.</p>
+    <SiteFrame
+      actions={
+        <a href="/">К программе</a>
+      }
+    >
+      <section className="catalog-page">
+        <p className="pane-label">Библиотека</p>
+        <h1>Мои курсы</h1>
+        <p className="kicker">{note}</p>
+        <input
+          className="catalog-search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Найти по названию или аудитории"
+        />
+        {visible.length === 0 ? (
+          <p className="kicker">
+            {needle
+              ? "В списке нет курсов по этому запросу."
+              : "Пока нет сохранённых курсов. Программа запишется, когда вы начнёте её в студии."}
+          </p>
         ) : (
-          <ul>
-            {items
-              .filter((item) => item.id === currentId || item.title.trim() || item.audience.trim())
-              .map((item) => {
+          <ul className="catalog-list">
+            {visible.map((item) => {
               const kind =
                 PROGRAM_KIND_LABELS[item.programKind as CourseDocument["brief"]["programKind"]] ??
                 item.programKind;
-              const opened = item.id === currentId;
               return (
                 <li key={item.id}>
-                  <strong>{item.title.trim() || "Новая образовательная программа"}</strong>
-                  <span>
-                    {item.audience.trim() || "Аудитория не указана"}
-                    {" · "}
-                    {kind}
-                    {" · "}
-                    {formatWhen(item.updatedAt)}
-                  </span>
-                  {draft.id === item.id ? (
-                    <form
-                      className="copy-form"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        const durationHours = Number(draft.duration.trim().replace(",", "."));
-                        const attestationHours = Number(draft.attestation.trim().replace(",", "."));
-                        void run(async () => {
-                          const error = await onCopy(item.id, {
+                  <div>
+                    <strong>{item.title.trim() || "Новая образовательная программа"}</strong>
+                    <span>
+                      {item.audience.trim() || "Аудитория не указана"}
+                      {" · "}
+                      {kind}
+                      {" · "}
+                      {item.durationHours ? `${item.durationHours} ч` : "объём не задан"}
+                      {" · "}
+                      {formatWhen(item.updatedAt)}
+                    </span>
+                    {draft.id === item.id ? (
+                      <form
+                        className="copy-form"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          const durationHours = Number(draft.duration.trim().replace(",", "."));
+                          const attestationHours = Number(draft.attestation.trim().replace(",", "."));
+                          setBusy(true);
+                          void copyCourse(item.id, {
                             audience: draft.audience,
                             durationHours,
                             attestationHours,
-                          });
-                          if (error) setDraft((current) => ({ ...current, error }));
-                          else setDraft({ id: "", audience: "", duration: "", attestation: "", error: "" });
-                        });
-                      }}
-                    >
-                      <label>
-                        Новая аудитория
-                        <input
-                          value={draft.audience}
-                          onChange={(event) => setDraft((current) => ({ ...current, audience: event.target.value, error: "" }))}
-                        />
-                      </label>
-                      <label>
-                        Новый объём, ч
-                        <input
-                          inputMode="decimal"
-                          value={draft.duration}
-                          onChange={(event) => setDraft((current) => ({ ...current, duration: event.target.value, error: "" }))}
-                        />
-                      </label>
-                      <label>
-                        Аттестация, ч
-                        <input
-                          inputMode="decimal"
-                          value={draft.attestation}
-                          onChange={(event) => setDraft((current) => ({ ...current, attestation: event.target.value, error: "" }))}
-                        />
-                      </label>
-                      {draft.error ? <p>{draft.error}</p> : null}
-                      <span className="library-actions">
-                        <button type="submit" className="primary" disabled={busy}>
-                          Создать копию
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => setDraft({ id: "", audience: "", duration: "", attestation: "", error: "" })}
-                        >
-                          Отмена
-                        </button>
-                      </span>
-                    </form>
-                  ) : (
+                          })
+                            .then((error) => {
+                              if (error) setDraft((current) => ({ ...current, error }));
+                              else setDraft({ id: "", audience: "", duration: "", attestation: "", error: "" });
+                            })
+                            .finally(() => setBusy(false));
+                        }}
+                      >
+                        <label>
+                          Новая аудитория
+                          <input
+                            value={draft.audience}
+                            onChange={(event) =>
+                              setDraft((current) => ({ ...current, audience: event.target.value, error: "" }))
+                            }
+                          />
+                        </label>
+                        <label>
+                          Новый объём, ч
+                          <input
+                            inputMode="decimal"
+                            value={draft.duration}
+                            onChange={(event) =>
+                              setDraft((current) => ({ ...current, duration: event.target.value, error: "" }))
+                            }
+                          />
+                        </label>
+                        <label>
+                          Аттестация, ч
+                          <input
+                            inputMode="decimal"
+                            value={draft.attestation}
+                            onChange={(event) =>
+                              setDraft((current) => ({ ...current, attestation: event.target.value, error: "" }))
+                            }
+                          />
+                        </label>
+                        {draft.error ? <p>{draft.error}</p> : null}
+                        <span className="library-actions">
+                          <button type="submit" className="primary" disabled={busy}>
+                            Создать копию
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => setDraft({ id: "", audience: "", duration: "", attestation: "", error: "" })}
+                          >
+                            Отмена
+                          </button>
+                        </span>
+                      </form>
+                    ) : null}
+                    {pendingDelete === item.id ? (
+                      <div className="copy-form">
+                        <p>Курс пропадёт из списка. Вернуть его нельзя.</p>
+                        <span className="library-actions">
+                          <button
+                            type="button"
+                            className="primary"
+                            disabled={busy}
+                            onClick={() => {
+                              setBusy(true);
+                              void removeCourse(item.id).finally(() => setBusy(false));
+                            }}
+                          >
+                            Удалить
+                          </button>
+                          <button type="button" disabled={busy} onClick={() => setPendingDelete("")}>
+                            Отмена
+                          </button>
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+                  {draft.id === item.id || pendingDelete === item.id ? null : (
                     <span className="library-actions">
-                      <button type="button" disabled={busy || opened} onClick={() => void run(() => onOpen(item.id))}>
-                        {opened ? "Открыт" : "Открыть"}
+                      <button type="button" disabled={busy} onClick={() => void openCourse(item.id)}>
+                        Открыть
                       </button>
                       <button
                         type="button"
                         disabled={busy}
-                        onClick={() =>
+                        onClick={() => {
+                          setPendingDelete("");
                           setDraft({
                             id: item.id,
                             audience: item.audience,
                             duration: item.durationHours ? String(item.durationHours).replace(".", ",") : "",
                             attestation: String(item.attestationHours ?? 0).replace(".", ","),
                             error: "",
-                          })
-                        }
+                          });
+                        }}
                       >
                         Копия
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          setDraft({ id: "", audience: "", duration: "", attestation: "", error: "" });
+                          setPendingDelete(item.id);
+                        }}
+                      >
+                        Удалить
                       </button>
                     </span>
                   )}
@@ -184,7 +311,7 @@ export function CourseLibrary({
             })}
           </ul>
         )}
-      </div>
-    </details>
+      </section>
+    </SiteFrame>
   );
 }

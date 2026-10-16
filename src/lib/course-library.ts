@@ -109,6 +109,19 @@ export function readLibrary(storage: Pick<Storage, "getItem">): LibraryFile {
   }
 }
 
+export function forgetCourse(
+  courseId: string,
+  storage: Pick<Storage, "getItem" | "setItem">,
+) {
+  const library = readLibrary(storage);
+  delete library[courseId];
+  try {
+    storage.setItem(LIBRARY_KEY, JSON.stringify(library));
+  } catch {
+    return;
+  }
+}
+
 export function rememberCourse(
   course: CourseDocument,
   messages: UIMessage[],

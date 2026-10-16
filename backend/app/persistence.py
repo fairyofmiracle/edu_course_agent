@@ -211,6 +211,24 @@ def list_versions(
     }
 
 
+@router.delete(
+    "/{course_id}",
+    summary="Удалить курс",
+    description="Курс, его версии, диалог и источники удаляются. Остальные курсы остаются.",
+    operation_id="deleteCourse",
+)
+def delete_course(course_id: str, session: Session = Depends(get_db)) -> dict[str, Any]:
+    record = session.get(CourseRecord, course_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="course not found")
+    session.execute(delete(ChatMessageRecord).where(ChatMessageRecord.course_id == course_id))
+    session.execute(delete(SourceRecord).where(SourceRecord.course_id == course_id))
+    session.execute(delete(CourseVersion).where(CourseVersion.course_id == course_id))
+    session.delete(record)
+    session.commit()
+    return {"id": course_id}
+
+
 @router.post(
     "/{course_id}/copy",
     summary="Сделать копию курса",

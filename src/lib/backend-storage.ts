@@ -63,6 +63,19 @@ export async function copyCourseOnBackend(courseId: string) {
   return (await response.json()) as { course: CourseDocument; version: number };
 }
 
+export async function deleteCourseFromBackend(courseId: string) {
+  const base = baseUrl();
+  if (!base) return false;
+  const response = await fetch(`${base}/api/courses/${encodeURIComponent(courseId)}`, {
+    method: "DELETE",
+  });
+  if (response.status === 404) return false;
+  if (!response.ok) {
+    throw new Error(`Не удалось удалить курс: HTTP ${response.status}`);
+  }
+  return true;
+}
+
 export async function loadCourseFromBackend(courseId: string) {
   const base = baseUrl();
   if (!base) return null;

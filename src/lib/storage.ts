@@ -1,4 +1,4 @@
-import { rememberCourse } from "@/lib/course-library";
+import { forgetCourse, rememberCourse } from "@/lib/course-library";
 import {
   courseDocumentSchema,
   createEmptyCourse,
@@ -59,6 +59,21 @@ export function newSessionId() {
   const id = crypto.randomUUID();
   window.localStorage.setItem(SESSION_KEY, id);
   return id;
+}
+
+export function dropStoredCourse(courseId: string) {
+  if (typeof window === "undefined") return false;
+  forgetCourse(courseId, window.localStorage);
+  let open = false;
+  try {
+    const raw = window.localStorage.getItem(COURSE_KEY);
+    const parsed = raw ? (JSON.parse(raw) as { id?: unknown }) : null;
+    open = parsed?.id === courseId;
+  } catch {
+    open = false;
+  }
+  if (open) clearStudioStorage();
+  return open;
 }
 
 export function clearStudioStorage() {

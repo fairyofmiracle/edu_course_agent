@@ -21,13 +21,14 @@ describe("backend storage", () => {
     expect(await api.listCoursesFromBackend()).toBeNull();
     expect(await api.copyCourseOnBackend(SAMPLE_COURSE.id)).toBeNull();
     expect(await api.loadCourseFromBackend(SAMPLE_COURSE.id)).toBeNull();
+    expect(await api.deleteCourseFromBackend(SAMPLE_COURSE.id)).toBe(false);
   });
 
   it("кладёт курс, список, копию и загрузку", async () => {
     const api = await loadBackend("http://studio.local/");
     const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
       const path = String(url);
-      if (init?.method === "PUT") return new Response("ok", { status: 200 });
+      if (init?.method === "PUT" || init?.method === "DELETE") return new Response("ok", { status: 200 });
       if (path.endsWith("/copy")) {
         return Response.json({ course: SAMPLE_COURSE, version: 2 });
       }
@@ -59,6 +60,7 @@ describe("backend storage", () => {
     expect(copied?.version).toBe(2);
     const loaded = await api.loadCourseFromBackend(SAMPLE_COURSE.id);
     expect(loaded?.course.id).toBe(SAMPLE_COURSE.id);
+    expect(await api.deleteCourseFromBackend(SAMPLE_COURSE.id)).toBe(true);
     expect(String(fetchImpl.mock.calls[0]?.[0])).toBe(
       `http://studio.local/api/courses/${encodeURIComponent(SAMPLE_COURSE.id)}`,
     );
@@ -74,6 +76,7 @@ describe("backend storage", () => {
     await expect(api.listCoursesFromBackend()).rejects.toThrow(/список/);
     await expect(api.copyCourseOnBackend("missing")).rejects.toThrow(/скопировать/);
     await expect(api.loadCourseFromBackend("missing")).rejects.toThrow(/загрузить/);
+    await expect(api.deleteCourseFromBackend("missing")).rejects.toThrow(/удалить/);
 
     vi.stubGlobal(
       "fetch",
@@ -81,5 +84,6 @@ describe("backend storage", () => {
     );
     expect(await api.copyCourseOnBackend("missing")).toBeNull();
     expect(await api.loadCourseFromBackend("missing")).toBeNull();
+    expect(await api.deleteCourseFromBackend("missing")).toBe(false);
   });
 });

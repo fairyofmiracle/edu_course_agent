@@ -3,6 +3,7 @@ import { createEmptyCourse } from "@/lib/course-schema";
 import {
   adaptCourseCopy,
   duplicateCourse,
+  forgetCourse,
   LIBRARY_KEY,
   listLibrary,
   loadLibraryCourse,
@@ -36,6 +37,10 @@ describe("библиотека курсов", () => {
     expect(titles).toEqual(["Для студентов", "Для учителей"]);
     expect(loadLibraryCourse(storage, first.id)?.course.brief.audience).toBe("Учителя школ");
     expect(loadLibraryCourse(storage, first.id)?.messages).toHaveLength(1);
+
+    forgetCourse(second.id, storage);
+    expect(listLibrary(storage).map((item) => item.id)).toEqual([first.id]);
+    expect(loadLibraryCourse(storage, second.id)).toBeNull();
   });
 
   it("копия получает новый идентификатор и оставляет аудиторию для правки", () => {

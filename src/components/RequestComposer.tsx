@@ -338,7 +338,7 @@ export function RequestComposer({
       {formError && mode === "template" ? <p className="chat-error">{formError}</p> : null}
       {mode === "free" ? (
         <p className="input-hint">
-          Enter — отправить, Shift+Enter — новая строка. Для точного результата можно перейти в режим «По шаблону».
+          Enter отправляет запрос. Если аудитория и часы уже известны, откройте «По шаблону».
         </p>
       ) : null}
 
@@ -350,7 +350,7 @@ export function RequestComposer({
           Ссылка
         </button>
         <button type="button" onClick={() => setShowRefs((value) => !value)}>
-          {showRefs ? "Скрыть референс" : extraReferences ? "Референс есть" : "Референс"}
+          {showRefs ? "Скрыть материал" : extraReferences ? "Материал приложен" : "Материал"}
         </button>
         <input
           ref={fileRef}

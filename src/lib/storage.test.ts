@@ -3,6 +3,7 @@ import { LIBRARY_KEY } from "@/lib/course-library";
 import { SAMPLE_COURSE } from "@/lib/sample-course";
 import {
   clearStudioStorage,
+  dropStoredCourse,
   loadSessionId,
   loadStoredCourse,
   loadStoredMessages,
@@ -68,5 +69,21 @@ describe("storage", () => {
     clearStudioStorage();
     expect(storage.getItem("edu-course-agent:course")).toBeNull();
     expect(storage.getItem(LIBRARY_KEY)).toContain(SAMPLE_COURSE.id);
+  });
+
+  it("удаление открытого курса очищает студию и оставляет остальные", () => {
+    const storage = memoryStorage();
+    vi.stubGlobal("window", { localStorage: storage });
+    saveCourse(SAMPLE_COURSE, [{ id: "m1", role: "user", parts: [] }]);
+    const other = { ...SAMPLE_COURSE, id: "other-course", brief: { ...SAMPLE_COURSE.brief, title: "Другой" } };
+    saveCourse(other, []);
+
+    expect(dropStoredCourse(SAMPLE_COURSE.id)).toBe(false);
+    expect(loadStoredCourse().id).toBe(other.id);
+    expect(storage.getItem(LIBRARY_KEY)).not.toContain(SAMPLE_COURSE.id);
+
+    expect(dropStoredCourse(other.id)).toBe(true);
+    expect(storage.getItem("edu-course-agent:course")).toBeNull();
+    expect(storage.getItem(LIBRARY_KEY)).toBe("{}");
   });
 });

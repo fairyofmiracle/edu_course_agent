@@ -248,7 +248,7 @@ function Overview({ course, score }: { course: CourseDocument; score: number }) 
           <p className="kicker">Программа</p>
           <h2>{brief.title || "Без названия"}</h2>
         </div>
-        <p className="score">{Math.round(score * 100)}% комплекта</p>
+        <p className="score">{Math.round(score * 100)}% заполнено</p>
       </header>
       <dl className="meta-grid">
         <div>

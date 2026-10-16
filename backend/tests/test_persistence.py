@@ -47,3 +47,30 @@ def test_course_versions_and_messages_are_persisted() -> None:
     assert original.json()["course"]["brief"]["title"] == course["brief"]["title"]
     assert original.json()["messages"][0]["role"] == "user"
     assert original.json()["course"]["id"] == course["id"]
+
+
+def test_delete_course_removes_one_and_keeps_the_other() -> None:
+    course = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    other = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    course["id"] = "delete-me-test"
+    other["id"] = "keep-me-test"
+    client = TestClient(app)
+    for item in (course, other):
+        saved = client.put(
+            f"/api/courses/{item['id']}",
+            json={"course": item, "messages": [{"role": "user", "parts": []}], "reason": "delete-test"},
+        )
+        assert saved.status_code == 200
+
+    missing = client.delete("/api/courses/missing-course")
+    assert missing.status_code == 404
+
+    deleted = client.delete(f"/api/courses/{course['id']}")
+    assert deleted.status_code == 200
+    assert deleted.json()["id"] == course["id"]
+    assert client.get(f"/api/courses/{course['id']}").status_code == 404
+
+    listed = {item["id"] for item in client.get("/api/courses").json()["courses"]}
+    assert course["id"] not in listed
+    assert other["id"] in listed
+    client.delete(f"/api/courses/{other['id']}")

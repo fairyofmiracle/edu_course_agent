@@ -1,5 +1,18 @@
 import PptxGenJS from "pptxgenjs";
 import type { CourseDocument } from "@/lib/course-schema";
+import { renderMermaidToSvg } from "@/lib/presentation/mermaid-svg";
+import { addFourCardsLayout } from "@/lib/presentation/layouts";
+
+function svgToDataUri(svg: string): string {
+  const bytes = new TextEncoder().encode(svg);
+  let binary = "";
+
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+
+  return `data:image/svg+xml;base64,${btoa(binary)}`;
+}
 
 function slug(title: string) {
   return (title.trim() || "course")
@@ -8,7 +21,21 @@ function slug(title: string) {
     .slice(0, 60);
 }
 
-export function buildCoursePptx(course: CourseDocument, moduleId?: string) {
+type PreparedDiagram = {
+  lectureIndex: number;
+  slideIndex: number;
+  svg: string;
+};
+
+type PptxOptions = {
+  diagrams?: PreparedDiagram[];
+};
+
+export function buildCoursePptx(
+  course: CourseDocument,
+  moduleId?: string,
+  options: PptxOptions = {},
+) {
   const lectures = moduleId
     ? course.lectures.filter((lecture) => lecture.moduleId === moduleId)
     : course.lectures;
@@ -53,7 +80,7 @@ export function buildCoursePptx(course: CourseDocument, moduleId?: string) {
     line: { color: "2456D8", width: 3 },
   });
 
-  for (const lecture of lectures) {
+  for (const [lectureIndex, lecture] of lectures.entries()) {
     const courseModule = course.modules.find((entry) => entry.id === lecture.moduleId);
     lecture.slides.forEach((source, index) => {
       const slide = pptx.addSlide();
@@ -99,20 +126,48 @@ export function buildCoursePptx(course: CourseDocument, moduleId?: string) {
         h: 0,
         line: { color: "2456D8", width: 2.5 },
       });
-      slide.addText(source.bullets.map((bullet) => `• ${bullet}`).join("\n"), {
-        x: 0.85,
-        y: 2.25,
-        w: 11,
-        h: source.visualPrompt || source.mermaid ? 2.6 : 3.8,
-        fontSize: 20,
-        color: "384253",
-        breakLine: false,
-        fit: "shrink",
-        margin: 0.05,
-        paraSpaceAfter: 14,
-      });
+
+      const useFourCards =
+        source.bullets.length === 4 &&
+        !source.mermaid &&
+        !source.visualPrompt;
+
+      if (useFourCards) {
+        addFourCardsLayout(pptx, slide, source.bullets);
+      } else {
+        slide.addText(
+          source.bullets.map((bullet) => `• ${bullet}`).join("\n"),
+          {
+            x: 0.85,
+            y: 2.25,
+            w: 11,
+            h: source.visualPrompt || source.mermaid ? 2.6 : 3.8,
+            fontSize: 20,
+            color: "384253",
+            breakLine: false,
+            fit: "shrink",
+            margin: 0.05,
+            paraSpaceAfter: 14,
+          },
+        );
+      }
+
+      const preparedDiagram = options.diagrams?.find(
+        (diagram) =>
+        diagram.lectureIndex === lectureIndex &&
+        diagram.slideIndex === index,
+      );
       const support = source.mermaid || source.visualPrompt;
-      if (support) {
+
+      if (preparedDiagram){
+        slide.addImage({
+          data: svgToDataUri(preparedDiagram.svg),
+          x: 1.0,
+          y: 4.7,
+          w: 10.8,
+          h: 1.8,
+        });
+      } else if (support) {
         slide.addShape(pptx.ShapeType.rect, {
           x: 0.85,
           y: 5.15,
@@ -144,8 +199,51 @@ export function buildCoursePptx(course: CourseDocument, moduleId?: string) {
   return pptx;
 }
 
-export async function exportCoursePptx(course: CourseDocument, moduleId?: string) {
-  const pptx = buildCoursePptx(course, moduleId);
+//последовательная обработка схем
+async function prepareDiagrams(
+  course: CourseDocument,
+  moduleId?: string,
+): Promise<PreparedDiagram[]> {
+  const lectures = moduleId
+    ? course.lectures.filter(
+        (lecture) => lecture.moduleId === moduleId,
+      )
+    : course.lectures;
+
+  const diagrams: PreparedDiagram[] = [];
+
+  for (const [lectureIndex, lecture] of lectures.entries()) {
+    for (const [slideIndex, slide] of lecture.slides.entries()) {
+      if (!slide.mermaid) continue;
+
+      try {
+        const svg = await renderMermaidToSvg(slide.mermaid);
+
+        diagrams.push({
+          lectureIndex,
+          slideIndex,
+          svg,
+        });
+      } catch (error) {
+        console.warn(
+          `Не удалось подготовить схему для слайда ${slideIndex + 1}`,
+          error,
+        );
+      }
+    }
+  }
+
+  return diagrams;
+}
+
+export async function exportCoursePptx(
+  course: CourseDocument,
+  moduleId?: string,
+) {
+  const diagrams = await prepareDiagrams(course, moduleId);
+  const pptx = buildCoursePptx(course, moduleId, {
+    diagrams,
+  });
   const moduleTitle = moduleId
     ? course.modules.find((entry) => entry.id === moduleId)?.title ?? moduleId
     : "lectures";

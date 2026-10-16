@@ -39,7 +39,12 @@ def _serialize(record: CourseRecord, version: CourseVersion) -> dict[str, Any]:
     }
 
 
-@router.put("/{course_id}")
+@router.put(
+    "/{course_id}",
+    summary="Сохранить версию курса",
+    description="Идентификатор в теле и в пути должны совпадать. Каждое сохранение увеличивает номер версии.",
+    operation_id="saveCourse",
+)
 def save_course(
     course_id: str,
     request: SaveCourseRequest,
@@ -91,7 +96,11 @@ def save_course(
     return _serialize(record, version)
 
 
-@router.get("/{course_id}")
+@router.get(
+    "/{course_id}",
+    summary="Загрузить последнюю версию курса",
+    operation_id="loadCourse",
+)
 def load_course(
     course_id: str, session: Session = Depends(get_db)
 ) -> dict[str, Any]:
@@ -131,7 +140,11 @@ def load_course(
     }
 
 
-@router.get("/{course_id}/versions")
+@router.get(
+    "/{course_id}/versions",
+    summary="Список версий курса",
+    operation_id="listCourseVersions",
+)
 def list_versions(
     course_id: str, session: Session = Depends(get_db)
 ) -> dict[str, Any]:
@@ -154,7 +167,11 @@ def list_versions(
     }
 
 
-@router.post("/{course_id}/messages")
+@router.post(
+    "/{course_id}/messages",
+    summary="Добавить сообщение диалога",
+    operation_id="appendCourseMessage",
+)
 def append_message(
     course_id: str,
     request: AddMessageRequest,

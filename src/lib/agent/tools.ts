@@ -247,7 +247,7 @@ function courseTools(allowContent: boolean, course?: CourseDocument, guard?: Bri
     }),
     set_structure: tool({
       description:
-        "Записывает учебный план, 3–8 модулей. Часы только целые академические. Сервер доведёт сумму модулей до durationHours минус аттестация без десятых. plan можно не заполнять.",
+        "Записывает учебный план, 3–8 модулей. Часы академические с шагом 0,5. Сервер доведёт сумму модулей до durationHours минус аттестация. plan можно не заполнять.",
       inputSchema: z.object({
         modules: z.array(looseModule).min(1).max(8),
       }),

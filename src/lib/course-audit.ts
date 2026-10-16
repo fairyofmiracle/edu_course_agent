@@ -53,6 +53,14 @@ function warning(id: string, label: string, section: AuditSection, details?: str
   return { id, label, status: "warning", section, details };
 }
 
+function moduleOutcomes(course: CourseDocument, moduleId: string) {
+  return new Set(
+    course.modules
+      .find((module) => module.id === moduleId)
+      ?.learningOutcomes.map((outcome) => outcome.trim()) ?? [],
+  );
+}
+
 function questionOutcomes(course: CourseDocument, moduleId: string) {
   return new Set(
     course.assessments
@@ -115,6 +123,31 @@ function genericItems(course: CourseDocument): AuditItem[] {
         .filter(Boolean)
         .join(", ") || undefined,
     });
+  }
+
+  for (const assessment of course.assessments) {
+    const outcomes = moduleOutcomes(course, assessment.moduleId);
+    for (const question of assessment.questions) {
+      const outcome = question.learningOutcome?.trim() ?? "";
+      const linked = outcomes.has(outcome);
+      const hasAnswer = question.answer.trim().length > 0;
+      if (!hasAnswer || !linked) {
+        items.push(
+          item(
+            `question.${assessment.moduleId}.${outcome || "missing"}`,
+            `Вопрос «${question.stem}» имеет ключ и результат обучения`,
+            false,
+            "content",
+            [
+              hasAnswer ? "" : "нет ключа",
+              linked ? "" : "результат не найден в модуле",
+            ]
+              .filter(Boolean)
+              .join(", "),
+          ),
+        );
+      }
+    }
   }
 
   for (const gap of outcomeInstrumentGaps(course)) {

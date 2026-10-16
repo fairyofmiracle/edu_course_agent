@@ -7,7 +7,7 @@ export type FrameworkItem = {
 };
 
 function roundHours(value: number) {
-  return Math.round(value * 100) / 100;
+  return Math.round(value * 2) / 2;
 }
 
 export function moduleHoursSum(course: CourseDocument) {

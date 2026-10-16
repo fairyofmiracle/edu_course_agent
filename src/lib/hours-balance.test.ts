@@ -26,16 +26,16 @@ function sample(partial: Partial<CourseModule> = {}): CourseModule {
   };
 }
 
-function expectWhole(value: number) {
-  expect(Number.isInteger(value)).toBe(true);
+function expectHalfHour(value: number) {
   expect(value).toBeGreaterThanOrEqual(0);
+  expect(Math.abs(value * 2 - Math.round(value * 2))).toBeLessThan(0.001);
 }
 
 describe("allocateInteger", () => {
   it("не пишет десятые: 70 часов по весам 12/16/44", () => {
     const next = allocateInteger(70, [12, 16, 44]);
     expect(next.reduce((sum, value) => sum + value, 0)).toBe(70);
-    for (const value of next) expectWhole(value);
+    for (const value of next) expectHalfHour(value);
   });
 
   it("нулевой вес не получает часы", () => {
@@ -49,12 +49,12 @@ describe("fillModulePlan", () => {
     expect(next.plan).toHaveLength(2);
     expect(kindSum(next)).toBe(next.hours);
     expect(next.plan.reduce((sum, row) => sum + kindSum(row), 0)).toBe(next.hours);
-    expectWhole(next.hours);
+    expectHalfHour(next.hours);
     for (const row of next.plan) {
-      expectWhole(row.lectureHours);
-      expectWhole(row.practiceHours);
-      expectWhole(row.labHours);
-      expectWhole(row.selfStudyHours);
+      expectHalfHour(row.lectureHours);
+      expectHalfHour(row.practiceHours);
+      expectHalfHour(row.labHours);
+      expectHalfHour(row.selfStudyHours);
     }
     expect(next.learningOutcomes[0]).toMatch(/Сети/);
   });
@@ -101,7 +101,7 @@ describe("balanceModules", () => {
     const sum = roundHours(next.reduce((total, module) => total + module.hours, 0));
     expect(sum).toBe(70);
     for (const courseModule of next) {
-      expectWhole(courseModule.hours);
+      expectHalfHour(courseModule.hours);
       expect(kindSum(courseModule)).toBe(courseModule.hours);
     }
   });
@@ -142,7 +142,7 @@ describe("balanceModules", () => {
     );
     const hours = next.map((module) => module.hours);
     expect(hours.reduce((sum, value) => sum + value, 0)).toBe(70);
-    expect(hours.some((value) => !Number.isInteger(value))).toBe(false);
+    expect(hours.every((value) => value * 2 === Math.round(value * 2))).toBe(true);
     expect(hours).not.toContain(11.67);
     expect(hours).not.toContain(15.56);
     expect(hours).not.toContain(42.78);

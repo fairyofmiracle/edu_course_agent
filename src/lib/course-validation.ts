@@ -1,15 +1,19 @@
 import type { CourseDocument } from "./course-schema";
 
+function isHalfHour(value: number) {
+  return Number.isFinite(value) && Math.abs(value * 2 - Math.round(value * 2)) < 0.001;
+}
+
 export function validateCourseHours(course: CourseDocument): string[] {
   const errors: string[] = [];
   const { durationHours, attestationHours } = course.brief;
 
-  if (!Number.isInteger(durationHours) || durationHours < 16 || durationHours > 500) {
-    errors.push("Общая продолжительность должна быть от 16 до 500 целых часов.");
+  if (!isHalfHour(durationHours) || durationHours < 16 || durationHours > 500) {
+    errors.push("Общая продолжительность должна быть от 16 до 500 часов с шагом 0,5.");
   }
 
-  if (!Number.isInteger(attestationHours) || attestationHours < 0) {
-    errors.push("Часы аттестации должны быть неотрицательным целым числом.");
+  if (!isHalfHour(attestationHours) || attestationHours < 0) {
+    errors.push("Часы аттестации должны быть неотрицательными и кратны 0,5.");
   }
 
   if (attestationHours > durationHours) {
@@ -35,8 +39,8 @@ export function validateCourseHours(course: CourseDocument): string[] {
       courseModule.labHours +
       courseModule.selfStudyHours;
 
-    if (!Number.isInteger(courseModule.hours) || courseModule.hours <= 0) {
-      errors.push(`Модуль "${courseModule.title}": некорректное количество часов.`);
+    if (!isHalfHour(courseModule.hours) || courseModule.hours <= 0) {
+      errors.push(`Модуль "${courseModule.title}": часы должны быть больше нуля и кратны 0,5.`);
     }
 
     if (kindsTotal !== courseModule.hours) {

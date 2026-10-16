@@ -22,21 +22,22 @@ PATCH_TYPES = {
 }
 
 
-def academic_hours(value: Any) -> int:
+def academic_hours(value: Any) -> float:
     try:
         number = float(value)
     except (TypeError, ValueError):
         return 0
-    return round(number) if math.isfinite(number) and number > 0 else 0
+    return round(number * 2) / 2 if math.isfinite(number) and number > 0 else 0
 
 
 def allocate_integer(
     target: float, weights: list[float], *, keep_zero: bool = True
-) -> list[int]:
+) -> list[float]:
     if not weights:
         return []
     goal = academic_hours(target)
-    if goal <= 0:
+    units = round(goal * 2)
+    if units <= 0:
         return [0] * len(weights)
     raw = [value if math.isfinite(value) and value > 0 else 0 for value in weights]
     usable = [
@@ -45,17 +46,17 @@ def allocate_integer(
         if value > 0 or not keep_zero
     ]
     if not usable:
-        each, remainder = divmod(goal, len(raw))
+        each, remainder = divmod(units, len(raw))
         return [
-            each + (1 if index >= len(raw) - remainder else 0)
+            (each + (1 if index >= len(raw) - remainder else 0)) / 2
             for index in range(len(raw))
         ]
     total = sum(value for _, value in usable)
-    exact = [(index, goal * value / total) for index, value in usable]
+    exact = [(index, units * value / total) for index, value in usable]
     result = [0] * len(raw)
     for index, value in exact:
         result[index] = math.floor(value)
-    remainder = goal - sum(result)
+    remainder = units - sum(result)
     ranked = sorted(
         exact,
         key=lambda pair: (
@@ -66,10 +67,10 @@ def allocate_integer(
     )
     for cursor in range(remainder):
         result[ranked[cursor % len(ranked)][0]] += 1
-    return result
+    return [value / 2 for value in result]
 
 
-def _kind_sum(value: dict[str, Any]) -> int:
+def _kind_sum(value: dict[str, Any]) -> float:
     return sum(academic_hours(value.get(key, 0)) for key in KIND_KEYS)
 
 
@@ -197,6 +198,28 @@ def _upsert(items: list[dict[str, Any]], value: dict[str, Any]) -> list[dict[str
     ]
 
 
+def normalize_academic_hours(value: dict[str, Any]) -> None:
+    brief = value.get("brief")
+    if isinstance(brief, dict):
+        for key in ("durationHours", "attestationHours"):
+            if key in brief:
+                brief[key] = academic_hours(brief[key])
+    for module in value.get("modules") or []:
+        if not isinstance(module, dict):
+            continue
+        if "hours" in module:
+            module["hours"] = academic_hours(module.get("hours"))
+        for key in KIND_KEYS:
+            if key in module:
+                module[key] = academic_hours(module.get(key))
+        for row in module.get("plan") or []:
+            if not isinstance(row, dict):
+                continue
+            for key in KIND_KEYS:
+                if key in row:
+                    row[key] = academic_hours(row.get(key))
+
+
 def apply_patch(course: CourseDocument, patch: dict[str, Any]) -> CourseDocument:
     if patch.get("type") not in PATCH_TYPES:
         return course
@@ -234,6 +257,7 @@ def apply_patch(course: CourseDocument, patch: dict[str, Any]) -> CourseDocument
             }.get(section)
             return apply_patch(course, translated) if translated else course
         value["updatedAt"] = datetime.now(timezone.utc).isoformat()
+        normalize_academic_hours(value)
         return rebalance_course(CourseDocument.model_validate(value))
     except (KeyError, TypeError, ValidationError):
         return course

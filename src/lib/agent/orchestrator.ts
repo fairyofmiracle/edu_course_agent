@@ -158,7 +158,7 @@ export function planStep(
     return {
       kind: "tool",
       tool: "set_structure",
-      task: `Сейчас вызови set_structure: 3–8 модулей с целыми часами, topics, learningOutcomes и competencyIds только из списка: ${ids}. Сумма модулей = ${Math.max(0, course.brief.durationHours - course.brief.attestationHours)} ч.`,
+      task: `Сейчас вызови set_structure: 3–8 модулей с часами шагом 0,5, topics, learningOutcomes и competencyIds только из списка: ${ids}. Сумма модулей = ${Math.max(0, course.brief.durationHours - course.brief.attestationHours)} ч.`,
     };
   }
   return { kind: "reply", task: summaryTask(course) };

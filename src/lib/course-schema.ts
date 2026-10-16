@@ -115,7 +115,7 @@ export const questionSchema = z.object({
   answer: z.string().min(1).max(600),
   explanation: z.string().min(1).max(600),
   competencyId: z.string().min(1).max(40),
-  learningOutcome: z.string().max(300).optional(),
+  learningOutcome: z.string().min(1).max(300),
 });
 
 export const assessmentSchema = z.object({

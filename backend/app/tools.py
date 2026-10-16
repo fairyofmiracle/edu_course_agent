@@ -92,7 +92,7 @@ def course_tools() -> list[dict[str, Any]]:
         ),
         _function(
             "set_structure",
-            "Записывает учебный план с целыми академическими часами.",
+            "Записывает учебный план с академическими часами шагом 0,5.",
             {
                 "type": "object",
                 "properties": {"modules": {"type": "array", "items": MODULE_SCHEMA}},

@@ -57,4 +57,35 @@ describe("Проверка учебных часов", () => {
       "Аттестация не может превышать продолжительность курса.",
     );
   });
+
+  it("принимает часы с шагом 0,5", () => {
+    const course = createEmptyCourse();
+    course.brief.durationHours = 16;
+    course.brief.attestationHours = 0.5;
+    course.modules = [
+      {
+        id: "module-1",
+        title: "Основы Python",
+        hours: 15.5,
+        lectureHours: 4,
+        practiceHours: 8,
+        labHours: 1.5,
+        selfStudyHours: 2,
+        topics: ["Введение в Python"],
+        plan: [
+          {
+            title: "Введение в Python",
+            lectureHours: 4,
+            practiceHours: 8,
+            labHours: 1.5,
+            selfStudyHours: 2,
+          },
+        ],
+        learningOutcomes: ["Пишет простые программы на Python"],
+        competencyIds: [],
+      },
+    ];
+
+    expect(validateCourseHours(course)).toEqual([]);
+  });
 });

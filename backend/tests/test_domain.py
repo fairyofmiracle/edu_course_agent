@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 
 from backend.app.brief_guard import guard_brief
+from pydantic import ValidationError
+
 from backend.app.domain import (
     allocate_integer,
     apply_patch,
@@ -22,6 +24,7 @@ def test_shared_contract_matches_typescript_expectations() -> None:
     results = {item["id"]: item["ok"] for item in framework_items(course)}
     assert all(results.values())
     assert allocate_integer(14, [4, 8, 0, 2]) == [4, 8, 0, 2]
+    assert allocate_integer(2, [0.5, 1.5]) == [0.5, 1.5]
 
 
 def test_patch_rebalances_hours_and_keeps_contract() -> None:
@@ -46,6 +49,26 @@ def test_month_does_not_become_seventy_two_hours() -> None:
     assert "durationHours" not in guarded
     assert "programKind" not in guarded
     assert dropped == ["durationHours", "programKind"]
+
+
+def test_patch_rounds_hours_to_half_step_instead_of_dropping_brief() -> None:
+    course = fixture_course()
+    changed = apply_patch(
+        course,
+        {"type": "update_brief", "brief": {"durationHours": 20.7, "title": "Сети колледжа"}},
+    )
+    assert changed.brief.title == "Сети колледжа"
+    assert changed.brief.duration_hours == 20.5
+
+
+def test_saved_course_rejects_hour_outside_half_step() -> None:
+    course = fixture_course().model_dump(by_alias=True)
+    course["brief"]["durationHours"] = 16.2
+    try:
+        CourseDocument.model_validate(course)
+    except ValidationError:
+        return
+    raise AssertionError("16.2 часа не должны проходить схему курса")
 
 
 def test_planner_starts_with_brief_tool() -> None:

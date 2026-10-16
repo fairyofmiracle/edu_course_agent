@@ -11,10 +11,10 @@ type KindKey = (typeof KIND_KEYS)[number];
 type KindHours = Pick<CourseModule, KindKey | "hours">;
 type TopicHours = Pick<CourseModule["plan"][number], KindKey | "title">;
 
-/** Академический час в учебном плане — целое число, без десятых. */
+/** Академические часы хранятся с шагом 0,5: допустимы 0,5 и 1,5. */
 export function academicHours(value: number) {
   if (!Number.isFinite(value) || value <= 0) return 0;
-  return Math.round(value);
+  return Math.round(value * 2) / 2;
 }
 
 export function roundHours(value: number) {
@@ -36,7 +36,7 @@ export function kindSum(parts: {
 }
 
 /**
- * Целые часы по весам (метод наибольшего остатка).
+ * Часы с шагом 0,5 по весам (метод наибольшего остатка).
  * Нулевой вес остаётся нулём — как СРС-стажировка без лекций.
  */
 export function allocateInteger(
@@ -47,7 +47,8 @@ export function allocateInteger(
   const count = weights.length;
   if (count === 0) return [];
   const goal = academicHours(target);
-  if (goal <= 0) return weights.map(() => 0);
+  const units = Math.round(goal * 2);
+  if (units <= 0) return weights.map(() => 0);
 
   const keepZero = options?.keepZero ?? true;
   const raw = weights.map((weight) =>
@@ -58,20 +59,20 @@ export function allocateInteger(
     .filter((item) => (keepZero ? item.weight > 0 : true));
 
   if (usable.length === 0) {
-    const each = Math.floor(goal / count);
-    const remainder = goal - each * count;
-    return raw.map((_, index) => each + (index >= count - remainder ? 1 : 0));
+    const each = Math.floor(units / count);
+    const remainder = units - each * count;
+    return raw.map((_, index) => (each + (index >= count - remainder ? 1 : 0)) / 2);
   }
 
   const sumWeights = usable.reduce((total, item) => total + item.weight, 0);
   const parts = usable.map((item) => {
-    const exact = (goal * item.weight) / sumWeights;
+    const exact = (units * item.weight) / sumWeights;
     const floor = Math.floor(exact);
     return { ...item, floor, frac: exact - floor };
   });
   const result = Array.from({ length: count }, () => 0);
   for (const part of parts) result[part.index] = part.floor;
-  let remainder = goal - parts.reduce((total, part) => total + part.floor, 0);
+  let remainder = units - parts.reduce((total, part) => total + part.floor, 0);
   parts.sort((a, b) => b.frac - a.frac || b.weight - a.weight || a.index - b.index);
   let cursor = 0;
   while (remainder > 0 && parts.length > 0) {
@@ -79,7 +80,7 @@ export function allocateInteger(
     remainder -= 1;
     cursor += 1;
   }
-  return result;
+  return result.map((value) => value / 2);
 }
 
 function scaleKinds(module: CourseModule, hours: number): KindHours {
@@ -130,10 +131,10 @@ function planMatches(plan: TopicHours[], kinds: KindHours) {
     sum.selfStudyHours === kinds.selfStudyHours &&
     plan.every(
       (row) =>
-        Number.isInteger(row.lectureHours) &&
-        Number.isInteger(row.practiceHours) &&
-        Number.isInteger(row.labHours) &&
-        Number.isInteger(row.selfStudyHours),
+        row.lectureHours === academicHours(row.lectureHours) &&
+        row.practiceHours === academicHours(row.practiceHours) &&
+        row.labHours === academicHours(row.labHours) &&
+        row.selfStudyHours === academicHours(row.selfStudyHours),
     )
   );
 }

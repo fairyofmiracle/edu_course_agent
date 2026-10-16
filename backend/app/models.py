@@ -4,11 +4,17 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ApiModel(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+
+def half_hour_step(value: float) -> float:
+    if abs(value * 2 - round(value * 2)) >= 1e-6:
+        raise ValueError("академические часы задаются с шагом 0,5")
+    return value
 
 
 class Reference(ApiModel):
@@ -21,16 +27,33 @@ class Brief(ApiModel):
     title: str = Field(default="", max_length=180)
     audience: str = Field(default="", max_length=400)
     level: Literal["beginner", "intermediate", "advanced"] = "intermediate"
-    duration_hours: float = Field(default=0, ge=0, le=500, alias="durationHours")
+    duration_hours: float = Field(
+        default=0,
+        ge=0,
+        le=500,
+        alias="durationHours",
+        description="Объём программы в академических часах. Допустимый шаг — 0,5.",
+    )
     format: Literal["lecture", "blended", "workshop"] = "blended"
     program_kind: Literal["unset", "general", "qualification"] = Field(
         default="unset", alias="programKind"
     )
-    attestation_hours: float = Field(default=0, ge=0, le=80, alias="attestationHours")
+    attestation_hours: float = Field(
+        default=0,
+        ge=0,
+        le=80,
+        alias="attestationHours",
+        description="Часы аттестации внутри общего объёма. Шаг — 0,5.",
+    )
     attestation_form: str = Field(default="", max_length=180, alias="attestationForm")
     goals: list[str] = Field(default_factory=list, max_length=12)
     constraints: list[str] = Field(default_factory=list, max_length=12)
     references: list[Reference] = Field(default_factory=list, max_length=20)
+
+    @field_validator("duration_hours", "attestation_hours")
+    @classmethod
+    def hours_use_half_step(cls, value: float) -> float:
+        return half_hour_step(value)
 
 
 class CompetencyNode(ApiModel):
@@ -64,11 +87,21 @@ class TopicPlan(ApiModel):
     lab_hours: float = Field(default=0, alias="labHours")
     self_study_hours: float = Field(default=0, alias="selfStudyHours")
 
+    @field_validator(
+        "lecture_hours",
+        "practice_hours",
+        "lab_hours",
+        "self_study_hours",
+    )
+    @classmethod
+    def hours_use_half_step(cls, value: float) -> float:
+        return half_hour_step(value)
+
 
 class CourseModule(ApiModel):
     id: str
     title: str
-    hours: float
+    hours: float = Field(description="Объём модуля в академических часах, шаг 0,5.")
     lecture_hours: float = Field(default=0, alias="lectureHours")
     practice_hours: float = Field(default=0, alias="practiceHours")
     lab_hours: float = Field(default=0, alias="labHours")
@@ -77,6 +110,17 @@ class CourseModule(ApiModel):
     plan: list[TopicPlan] = Field(default_factory=list)
     learning_outcomes: list[str] = Field(alias="learningOutcomes", min_length=1)
     competency_ids: list[str] = Field(default_factory=list, alias="competencyIds")
+
+    @field_validator(
+        "hours",
+        "lecture_hours",
+        "practice_hours",
+        "lab_hours",
+        "self_study_hours",
+    )
+    @classmethod
+    def hours_use_half_step(cls, value: float) -> float:
+        return half_hour_step(value)
 
 
 class Slide(ApiModel):
@@ -101,7 +145,11 @@ class SeminarTask(ApiModel):
     time_min: float = Field(alias="timeMin")
     criteria: list[str]
     competency_id: str = Field(alias="competencyId")
-    learning_outcome: str | None = Field(default=None, alias="learningOutcome")
+    learning_outcome: str | None = Field(
+        default=None,
+        alias="learningOutcome",
+        description="Дословный результат обучения из модуля. Пустая связь не закрывает результат.",
+    )
 
 
 class Seminar(ApiModel):
@@ -113,10 +161,14 @@ class Question(ApiModel):
     type: Literal["mcq", "open"]
     stem: str
     options: list[str] | None = None
-    answer: str
+    answer: str = Field(min_length=1, description="Ключ ответа. Пустое значение не принимается.")
     explanation: str
     competency_id: str = Field(alias="competencyId")
-    learning_outcome: str | None = Field(default=None, alias="learningOutcome")
+    learning_outcome: str = Field(
+        min_length=1,
+        alias="learningOutcome",
+        description="Дословный результат обучения из модуля этого теста.",
+    )
 
 
 class Assessment(ApiModel):

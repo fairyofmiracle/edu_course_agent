@@ -37,7 +37,15 @@ class ChatTurnRequest(BaseModel):
     formBrief: dict[str, Any] | None = None
 
 
-@router.post("/chat/turn")
+@router.post(
+    "/chat/turn",
+    summary="Один ход диалога с методистом",
+    description=(
+        "Принимает текущий курс и реплики. Cloud.ru может предложить правку, "
+        "но неподтверждённые часы и нормативные реквизиты отбрасывает код."
+    ),
+    operation_id="chatTurn",
+)
 async def chat_turn(request: ChatTurnRequest) -> dict[str, Any]:
     messages = list(request.messages)
     if not messages or messages[-1].get("role") != "user":
@@ -56,7 +64,15 @@ async def chat_turn(request: ChatTurnRequest) -> dict[str, Any]:
     return result
 
 
-@router.post("/run")
+@router.post(
+    "/run",
+    summary="Прогнать запрос до каркаса и комплекта",
+    description=(
+        "Несколько ходов модели: каркас, при готовности — утверждение и комплект. "
+        "Поле report.audit совпадает с правилами POST /api/audit."
+    ),
+    operation_id="runCase",
+)
 async def run_case(request: RunRequest) -> dict[str, Any]:
     course = empty_course()
     user_texts: list[str] = []

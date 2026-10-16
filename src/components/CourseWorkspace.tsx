@@ -1,6 +1,8 @@
 "use client";
 
 import { CompetencyMap } from "@/components/CompetencyMap";
+import { SourceChecks } from "@/components/SourceChecks";
+import { StackFreshnessPanel } from "@/components/StackFreshness";
 import { LectureDeck } from "@/components/LectureDeck";
 import { MermaidBlock } from "@/components/MermaidBlock";
 import { auditCourse, type AuditSection, type AuditStatus } from "@/lib/course-audit";
@@ -120,6 +122,7 @@ const AUDIT_SECTIONS: Array<{ id: AuditSection; label: string }> = [
   { id: "framework", label: "Каркас" },
   { id: "content", label: "Полный комплект" },
   { id: "sources", label: "Источники" },
+  { id: "freshness", label: "Актуальность" },
   { id: "case", label: "Условия запроса" },
 ];
 
@@ -157,6 +160,8 @@ function AuditPanel({ course }: { course: CourseDocument }) {
           </article>
         );
       })}
+      <SourceChecks course={course} />
+      <StackFreshnessPanel course={course} />
     </div>
   );
 }

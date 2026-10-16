@@ -1,3 +1,4 @@
+import { rememberCourse } from "@/lib/course-library";
 import {
   courseDocumentSchema,
   createEmptyCourse,
@@ -21,9 +22,10 @@ export function loadStoredCourse(): CourseDocument {
   }
 }
 
-export function saveCourse(course: CourseDocument) {
+export function saveCourse(course: CourseDocument, messages: UIMessage[] = []) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(COURSE_KEY, JSON.stringify(course));
+  rememberCourse(course, messages, window.localStorage);
 }
 
 export function loadStoredMessages(): UIMessage[] {

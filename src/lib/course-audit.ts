@@ -1,8 +1,10 @@
 import type { CourseDocument } from "@/lib/course-schema";
 import { frameworkItems } from "@/lib/framework-check";
+import { ORDER_266, citesRepealedOrder499, missingLegalBasis } from "@/lib/legal-basis";
+import { findOutdated } from "@/lib/outdated";
 
 export type AuditStatus = "pass" | "warning" | "fail";
-export type AuditSection = "framework" | "content" | "sources" | "case";
+export type AuditSection = "framework" | "content" | "sources" | "freshness" | "case";
 export type OpenCaseId = 1 | 2 | 3 | 4 | 5;
 
 export type AuditItem = {
@@ -171,6 +173,66 @@ function genericItems(course: CourseDocument): AuditItem[] {
         "Каждый результат обучения проверяется тестом и практическим заданием",
         true,
         "content",
+      ),
+    );
+  }
+
+  const outdated = findOutdated(course);
+  if (course.modules.length > 0 && outdated.length === 0) {
+    items.push(
+      item(
+        "freshness.clear",
+        "В темах и результатах нет инструментов из списка снятых с поддержки",
+        true,
+        "freshness",
+        "Список короткий: Flash, Internet Explorer, Windows XP, Python 2, AngularJS, CentOS 6/7, TensorFlow 1, Silverlight. Он не заменяет решение методиста.",
+      ),
+    );
+  }
+  for (const document of missingLegalBasis(course)) {
+    items.push(
+      item(
+        `basis.${document.id}`,
+        `Нет обязательного источника: ${document.title}`,
+        false,
+        "sources",
+        document.source,
+      ),
+    );
+  }
+  if (course.brief.programKind === "qualification") {
+    items.push(
+      warning(
+        "basis.order-499",
+        "Приказ № 499 утратил силу с 01.09.2025",
+        "freshness",
+        citesRepealedOrder499(course)
+          ? `Он указан в источниках. Действующий порядок — ${ORDER_266.title}: ${ORDER_266.source}. Методист подтверждает, какой документ ставить в программу.`
+          : `В требовании он назван основанием программ повышения квалификации. Действующий порядок — ${ORDER_266.title}: ${ORDER_266.source}. Методист подтверждает применимость.`,
+      ),
+    );
+  }
+  if (course.brief.programKind === "qualification" && course.competencies.nodes.length > 0) {
+    const withoutCode = course.competencies.nodes.filter((node) => !node.laborFunctionCode?.trim());
+    if (withoutCode.length > 0) {
+      items.push(
+        warning(
+          "basis.labor-codes",
+          "У компетенций повышения квалификации нет кода трудовой функции",
+          "sources",
+          `${withoutCode.map((node) => node.id).join(", ")}. Код берётся из профстандарта методиста и не придумывается.`,
+        ),
+      );
+    }
+  }
+
+  for (const hit of outdated) {
+    items.push(
+      warning(
+        `freshness.${hit.id}.${hit.place}`,
+        `Устаревший инструмент: ${hit.label}`,
+        "freshness",
+        `${hit.place}. ${hit.note}`,
       ),
     );
   }

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -30,6 +32,35 @@ class AddMessageRequest(BaseModel):
     payload: dict[str, Any]
 
 
+def _copy_title(title: str) -> str:
+    base = title.strip() or "Новая образовательная программа"
+    return f"{base} — копия"[:180]
+
+
+def _summary(record: CourseRecord, version: CourseVersion | None) -> dict[str, Any]:
+    brief = (version.payload or {}).get("brief") if version else {}
+    brief = brief if isinstance(brief, dict) else {}
+    return {
+        "id": record.id,
+        "title": record.title or str(brief.get("title") or ""),
+        "audience": str(brief.get("audience") or ""),
+        "programKind": str(brief.get("programKind") or "unset"),
+        "durationHours": brief.get("durationHours") or 0,
+        "attestationHours": brief.get("attestationHours") or 0,
+        "version": record.current_version,
+        "updatedAt": record.updated_at.isoformat(),
+    }
+
+
+def _latest_version(session: Session, course_id: str) -> CourseVersion | None:
+    return session.scalar(
+        select(CourseVersion)
+        .where(CourseVersion.course_id == course_id)
+        .order_by(CourseVersion.version.desc())
+        .limit(1)
+    )
+
+
 def _serialize(record: CourseRecord, version: CourseVersion) -> dict[str, Any]:
     return {
         "id": record.id,
@@ -37,6 +68,19 @@ def _serialize(record: CourseRecord, version: CourseVersion) -> dict[str, Any]:
         "course": version.payload,
         "updatedAt": record.updated_at.isoformat(),
     }
+
+
+@router.get(
+    "",
+    summary="Список сохранённых курсов",
+    description="Курсы методиста в базе студии. Открытие и копия не удаляют остальные.",
+    operation_id="listCourses",
+)
+def list_courses(session: Session = Depends(get_db)) -> dict[str, Any]:
+    records = session.scalars(
+        select(CourseRecord).order_by(CourseRecord.updated_at.desc())
+    ).all()
+    return {"courses": [_summary(record, _latest_version(session, record.id)) for record in records]}
 
 
 @router.put(
@@ -165,6 +209,32 @@ def list_versions(
             for version in versions
         ]
     }
+
+
+@router.post(
+    "/{course_id}/copy",
+    summary="Сделать копию курса",
+    description="Новый курс с новым идентификатором. Исходный курс, его версии и диалог не меняются.",
+    operation_id="copyCourse",
+)
+def copy_course(course_id: str, session: Session = Depends(get_db)) -> dict[str, Any]:
+    record = session.get(CourseRecord, course_id)
+    version = _latest_version(session, course_id) if record is not None else None
+    if record is None or version is None:
+        raise HTTPException(status_code=404, detail="course not found")
+    original = CourseDocument.model_validate(version.payload)
+    cloned = original.model_copy(
+        update={
+            "id": str(uuid4()),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "brief": original.brief.model_copy(update={"title": _copy_title(original.brief.title)}),
+        }
+    )
+    return save_course(
+        cloned.id,
+        SaveCourseRequest(course=cloned, messages=[], reason="copy"),
+        session,
+    )
 
 
 @router.post(

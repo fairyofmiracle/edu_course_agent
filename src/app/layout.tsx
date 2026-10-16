@@ -31,7 +31,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="ru"
       className={`${sans.variable} ${serif.variable} ${mono.variable} h-full antialiased`}
     >
-      <body className="h-full">{children}</body>
+      <body className="h-full">
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{if(localStorage.getItem('edu-course-theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}",
+          }}
+        />
+        {children}
+      </body>
     </html>
   );
 }

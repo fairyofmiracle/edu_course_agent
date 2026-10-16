@@ -85,7 +85,7 @@ class AuditItem(BaseModel):
     id: str
     label: str
     status: Literal["pass", "warning", "fail"]
-    section: Literal["framework", "content", "sources"]
+    section: Literal["framework", "content", "sources", "freshness"]
     details: str | None = None
 
 
@@ -120,6 +120,8 @@ class RegulatoryCheckRequest(BaseModel):
 class RegulatoryCheckResult(RegulatoryClaim):
     status: Literal["source_attached", "unconfirmed"]
     message: str
+    site: Literal["reachable", "unavailable", "not_found", "blocked", "not_checked"] = "not_checked"
+    site_message: str = Field(default="", alias="siteMessage")
 
 
 class RegulatoryCheckResponse(BaseModel):
@@ -129,3 +131,44 @@ class RegulatoryCheckResponse(BaseModel):
 class RegulatoryPolicy(BaseModel):
     authorities: list[str]
     rules: list[str]
+
+
+class SourceProbeRequest(BaseModel):
+    urls: list[str] = Field(default_factory=list, max_length=20)
+
+
+class SourceProbeHit(BaseModel):
+    url: str
+    state: Literal["reachable", "unavailable", "not_found", "blocked", "not_checked"]
+    message: str
+    fingerprint: str = Field(
+        default="",
+        description="Отметка страницы: ETag, Last-Modified и хеш первых 64 КБ. Текст ответа сюда не входит.",
+    )
+
+
+class SourceProbeResponse(BaseModel):
+    results: list[SourceProbeHit]
+
+
+class StackFreshnessRequest(BaseModel):
+    texts: list[str] = Field(
+        default_factory=list,
+        max_length=80,
+        description="Фрагменты программы, в которых может быть названа версия инструмента.",
+    )
+
+
+class StackFreshnessHit(BaseModel):
+    id: str
+    label: str
+    status: Literal["supported", "eol", "unknown", "unavailable"]
+    place: str
+    detail: str
+    source: str
+
+
+class StackFreshnessResponse(BaseModel):
+    state: Literal["empty", "ready"]
+    source: str
+    hits: list[StackFreshnessHit]

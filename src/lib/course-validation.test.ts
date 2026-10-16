@@ -88,4 +88,52 @@ describe("Проверка учебных часов", () => {
 
     expect(validateCourseHours(course)).toEqual([]);
   });
+
+  it("показывает сбой шага, видов занятий и плана тем", () => {
+    const course = createEmptyCourse();
+    course.brief.durationHours = 15.2;
+    course.brief.attestationHours = Number.NaN;
+    course.modules = [
+      {
+        id: "module-1",
+        title: "Основы",
+        hours: 0.2,
+        lectureHours: 1,
+        practiceHours: 0,
+        labHours: 0,
+        selfStudyHours: 0,
+        topics: ["Вводная"],
+        plan: [],
+        learningOutcomes: ["Смотрит"],
+        competencyIds: [],
+      },
+      {
+        id: "module-2",
+        title: "Практика",
+        hours: 2,
+        lectureHours: 2,
+        practiceHours: 0,
+        labHours: 0,
+        selfStudyHours: 0,
+        topics: ["Задача"],
+        plan: [
+          {
+            title: "Задача",
+            lectureHours: 1,
+            practiceHours: 0,
+            labHours: 0,
+            selfStudyHours: 0,
+          },
+        ],
+        learningOutcomes: ["Решает"],
+        competencyIds: [],
+      },
+    ];
+    const errors = validateCourseHours(course).join("\n");
+    expect(errors).toContain("шагом 0,5");
+    expect(errors).toContain("кратны 0,5");
+    expect(errors).toContain("больше нуля");
+    expect(errors).toContain("отсутствует план");
+    expect(errors).toContain("сумма часов тем");
+  });
 });

@@ -4,12 +4,19 @@ import { DefaultChatTransport, type UIMessage } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ChatPanel } from "@/components/ChatPanel";
+import { CourseLibrary } from "@/components/CourseLibrary";
 import { CourseWorkspace, type WorkspaceTab } from "@/components/CourseWorkspace";
 import {
   hasBackendStorage,
   loadCourseFromBackend,
   saveCourseToBackend,
 } from "@/lib/backend-storage";
+import {
+  adaptCourseCopy,
+  type CopyAdaptation,
+  loadLibraryCourse,
+  rememberCourse,
+} from "@/lib/course-library";
 import { applyPatch, foldCourseFromMessages } from "@/lib/course-patches";
 import {
   frameworkFingerprint,
@@ -29,6 +36,8 @@ import {
   exportLectureHtml,
 } from "@/lib/export";
 import { exportCourseDocx } from "@/lib/export-docx";
+import { exportCourseMoodle } from "@/lib/export-moodle";
+import { exportCourseCsv, exportCourseGift } from "@/lib/export-tests";
 import { exportCoursePptx } from "@/lib/export-pptx";
 import { SAMPLE_COURSE } from "@/lib/sample-course";
 import {
@@ -46,6 +55,7 @@ import {
   saveCourse,
   saveMessages,
 } from "@/lib/storage";
+import { applyTheme, readTheme, storeTheme, type Theme } from "@/lib/theme";
 
 function useIsClient() {
   return useSyncExternalStore(
@@ -87,6 +97,7 @@ function StudioSession({
   const [saveState, setSaveState] = useState<"local" | "saving" | "synced" | "offline">(
     hasBackendStorage() ? "saving" : "local",
   );
+  const [theme, setTheme] = useState<Theme>("light");
   const courseRef = useRef(storedCourse);
   const refsRef = useRef("");
   const sessionRef = useRef(initialSessionId);
@@ -112,9 +123,15 @@ function StudioSession({
   const missingChecks = checks.filter((item) => !item.ok).map((item) => item.label);
 
   useEffect(() => {
+    const stored = readTheme(window.localStorage);
+    setTheme(stored);
+    applyTheme(stored);
+  }, []);
+
+  useEffect(() => {
     courseRef.current = course;
-    saveCourse(course);
-  }, [course]);
+    saveCourse(course, messages);
+  }, [course, messages]);
 
   useEffect(() => {
     refsRef.current = extraReferences;
@@ -205,6 +222,62 @@ function StudioSession({
         },
       },
     );
+  };
+
+  const switchTo = (nextCourse: CourseDocument, nextMessages: UIMessage[]) => {
+    const nextSession = newSessionId();
+    seenMessages.current = new Set(nextMessages.map((item) => item.id));
+    loggedErrors.current = new Set();
+    sessionRef.current = nextSession;
+    setSessionId(nextSession);
+    setStoredCourse(nextCourse);
+    setMessages(nextMessages);
+    setExtraReferences("");
+    setTab("overview");
+    saveCourse(nextCourse, nextMessages);
+  };
+
+  const openSaved = async (courseId: string) => {
+    if (courseId === course.id) return;
+    let next = loadLibraryCourse(window.localStorage, courseId);
+    if (hasBackendStorage()) {
+      try {
+        const stored = await loadCourseFromBackend(courseId);
+        if (stored) next = { course: stored.course, messages: stored.messages };
+      } catch {
+        setSaveState("offline");
+      }
+    }
+    if (!next) return;
+    switchTo(next.course, next.messages);
+    persistLog(actionEntry(sessionRef.current, "Открыт сохранённый курс"));
+  };
+
+  const copySaved = async (courseId: string, adaptation: CopyAdaptation) => {
+    let source =
+      courseId === course.id ? course : loadLibraryCourse(window.localStorage, courseId)?.course;
+    if (!source && hasBackendStorage()) {
+      try {
+        const stored = await loadCourseFromBackend(courseId);
+        if (stored) source = stored.course;
+      } catch {
+        setSaveState("offline");
+      }
+    }
+    if (!source) return "Курс не найден.";
+    const adapted = adaptCourseCopy(source, adaptation);
+    if (!adapted.ok) return adapted.error;
+    if (courseId === course.id) rememberCourse(course, messages, window.localStorage);
+    if (hasBackendStorage()) {
+      try {
+        await saveCourseToBackend(adapted.course, [], "copy");
+        setSaveState("synced");
+      } catch {
+        setSaveState("offline");
+      }
+    }
+    switchTo(adapted.course, []);
+    persistLog(actionEntry(sessionRef.current, "Создана копия под новую аудиторию и объём"));
   };
 
   const reset = () => {
@@ -304,6 +377,23 @@ function StudioSession({
           <li className={stage === "kit" ? "current" : ""}>Комплект</li>
         </ol>
         <div className="top-actions">
+          <button
+            type="button"
+            onClick={() => {
+              const next = theme === "dark" ? "light" : "dark";
+              setTheme(next);
+              applyTheme(next);
+              storeTheme(window.localStorage, next);
+            }}
+          >
+            {theme === "dark" ? "Светлая" : "Тёмная"}
+          </button>
+          <CourseLibrary
+            currentId={course.id}
+            revision={course.updatedAt}
+            onOpen={openSaved}
+            onCopy={copySaved}
+          />
           <button type="button" onClick={loadSample}>
             Пример 24 ч
           </button>
@@ -374,6 +464,33 @@ function StudioSession({
                   <button type="button" disabled={course.lectures.length === 0} onClick={() => void exportCoursePptx(course)}>
                     PPTX
                   </button>
+                  <div className="export-tests">
+                    <span>Тесты</span>
+                    <button
+                      type="button"
+                      title="Moodle XML"
+                      disabled={course.assessments.every((assessment) => assessment.questions.length === 0)}
+                      onClick={() => exportCourseMoodle(course)}
+                    >
+                      Moodle
+                    </button>
+                    <button
+                      type="button"
+                      title="Формат GIFT"
+                      disabled={course.assessments.every((assessment) => assessment.questions.length === 0)}
+                      onClick={() => exportCourseGift(course)}
+                    >
+                      GIFT
+                    </button>
+                    <button
+                      type="button"
+                      title="Таблица CSV"
+                      disabled={course.assessments.every((assessment) => assessment.questions.length === 0)}
+                      onClick={() => exportCourseCsv(course)}
+                    >
+                      CSV
+                    </button>
+                  </div>
                 </div>
               </details>
             </div>

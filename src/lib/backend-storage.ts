@@ -29,6 +29,40 @@ export async function saveCourseToBackend(
   return true;
 }
 
+export type SavedCourseSummary = {
+  id: string;
+  title: string;
+  audience: string;
+  programKind: string;
+  durationHours: number;
+  attestationHours: number;
+  version: number;
+  updatedAt: string;
+};
+
+export async function listCoursesFromBackend() {
+  const base = baseUrl();
+  if (!base) return null;
+  const response = await fetch(`${base}/api/courses`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Не удалось получить список курсов: HTTP ${response.status}`);
+  }
+  return (await response.json()) as { courses: SavedCourseSummary[] };
+}
+
+export async function copyCourseOnBackend(courseId: string) {
+  const base = baseUrl();
+  if (!base) return null;
+  const response = await fetch(`${base}/api/courses/${encodeURIComponent(courseId)}/copy`, {
+    method: "POST",
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new Error(`Не удалось скопировать курс: HTTP ${response.status}`);
+  }
+  return (await response.json()) as { course: CourseDocument; version: number };
+}
+
 export async function loadCourseFromBackend(courseId: string) {
   const base = baseUrl();
   if (!base) return null;

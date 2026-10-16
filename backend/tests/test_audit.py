@@ -12,7 +12,17 @@ def test_audit_checks_hours_and_two_instruments() -> None:
             "programKind": "qualification",
             "durationHours": 36,
             "attestationHours": 2,
-            "references": [{"title": "Профстандарт Педагог"}],
+            "references": [
+                {"title": "Профстандарт Педагог"},
+                {
+                    "title": "Федеральный закон от 29.12.2012 № 273-ФЗ",
+                    "source": "http://publication.pravo.gov.ru/document/0001201212300007",
+                },
+                {
+                    "title": "Приказ Минобрнауки России от 24.03.2025 № 266",
+                    "source": "http://publication.pravo.gov.ru/document/0001202504230011",
+                },
+            ],
         },
         "competencies": {"nodes": []},
         "modules": [
@@ -124,7 +134,17 @@ def test_audit_accepts_half_hour_with_linked_key() -> None:
             "programKind": "qualification",
             "durationHours": 16,
             "attestationHours": 0.5,
-            "references": [{"title": "Материал методиста"}],
+            "references": [
+                {"title": "Материал методиста"},
+                {
+                    "title": "Федеральный закон от 29.12.2012 № 273-ФЗ",
+                    "source": "http://publication.pravo.gov.ru/document/0001201212300007",
+                },
+                {
+                    "title": "Приказ Минобрнауки России от 24.03.2025 № 266",
+                    "source": "http://publication.pravo.gov.ru/document/0001202504230011",
+                },
+            ],
         },
         "modules": [
             {
@@ -190,3 +210,47 @@ def test_openapi_describes_audit_contract() -> None:
     body = response.json()
     assert set(body["summary"]) == {"pass", "warning", "fail"}
     assert body["summary"]["fail"] > 0
+
+
+def test_general_program_fails_without_order_629() -> None:
+    report = audit_course(
+        {
+            "brief": {
+                "title": "Курс",
+                "audience": "Слушатели",
+                "programKind": "general",
+                "durationHours": 16,
+                "references": [],
+            },
+            "modules": [],
+        }
+    )
+    failed = {item["id"] for item in report["items"] if item["status"] == "fail"}
+    assert "basis.order-629" in failed
+
+
+def test_qualification_keeps_order_499_as_warning() -> None:
+    report = audit_course(
+        {
+            "brief": {
+                "programKind": "qualification",
+                "references": [
+                    {
+                        "title": "Приказ Минобрнауки России от 01.07.2013 № 499",
+                        "source": "https://www.consultant.ru/document/cons_doc_LAW_151143/",
+                    },
+                    {
+                        "title": "Федеральный закон от 29.12.2012 № 273-ФЗ",
+                        "source": "http://publication.pravo.gov.ru/document/0001201212300007",
+                    },
+                ],
+            },
+            "competencies": {"nodes": [{"id": "c1"}]},
+        }
+    )
+    by_id = {item["id"]: item for item in report["items"]}
+    assert by_id["basis.order-266"]["status"] == "fail"
+    assert by_id["basis.order-499"]["status"] == "warning"
+    assert "указан в источниках" in by_id["basis.order-499"]["details"]
+    assert by_id["basis.labor-codes"]["status"] == "warning"
+    assert "basis.fz-273" not in by_id

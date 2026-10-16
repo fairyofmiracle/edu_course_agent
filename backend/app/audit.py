@@ -4,7 +4,9 @@ import math
 from typing import Any
 
 from .domain import framework_items
+from .legal_basis import legal_basis_items
 from .models import CourseDocument
+from .outdated import find_outdated
 
 KIND_FIELDS = ("lectureHours", "practiceHours", "labHours", "selfStudyHours")
 
@@ -198,6 +200,29 @@ def audit_course(course: dict[str, Any]) -> dict[str, Any]:
                     f"Не хватает: {' и '.join(missing)}" if missing else None,
                 )
             )
+
+    outdated = find_outdated(course)
+    if modules and not outdated:
+        items.append(
+            _audit_item(
+                "freshness.clear",
+                "В темах нет инструментов из списка снятых с поддержки",
+                True,
+                "freshness",
+            )
+        )
+    for hit in outdated:
+        items.append(
+            {
+                "id": f"freshness.{hit['id']}.{len(items)}",
+                "label": f"Устаревший инструмент: {hit['label']}",
+                "status": "warning",
+                "section": "freshness",
+                "details": hit["place"],
+            }
+        )
+
+    items.extend(legal_basis_items(course))
 
     references = brief.get("references") or []
     items.append(

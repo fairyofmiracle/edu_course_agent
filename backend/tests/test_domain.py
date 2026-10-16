@@ -71,6 +71,17 @@ def test_saved_course_rejects_hour_outside_half_step() -> None:
     raise AssertionError("16.2 часа не должны проходить схему курса")
 
 
+def test_patch_attaches_official_basis_for_the_program_kind() -> None:
+    course = fixture_course()
+    changed = apply_patch(
+        course,
+        {"type": "update_brief", "brief": {"title": "Основы Python"}},
+    )
+    sources = [reference.source for reference in changed.brief.references]
+    assert "http://publication.pravo.gov.ru/document/0001202209270013" in sources
+    assert "https://example.org/reference" in sources
+
+
 def test_planner_starts_with_brief_tool() -> None:
     course = fixture_course()
     assert decide_mode(course, "Новый запрос") == "intake"

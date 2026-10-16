@@ -8,6 +8,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from .legal_basis import merge_legal_basis
 from .models import CourseDocument
 
 KIND_KEYS = ("lectureHours", "practiceHours", "labHours", "selfStudyHours")
@@ -258,6 +259,9 @@ def apply_patch(course: CourseDocument, patch: dict[str, Any]) -> CourseDocument
             return apply_patch(course, translated) if translated else course
         value["updatedAt"] = datetime.now(timezone.utc).isoformat()
         normalize_academic_hours(value)
+        brief = value.get("brief")
+        if isinstance(brief, dict):
+            merge_legal_basis(brief)
         return rebalance_course(CourseDocument.model_validate(value))
     except (KeyError, TypeError, ValidationError):
         return course

@@ -28,3 +28,22 @@ def test_course_versions_and_messages_are_persisted() -> None:
     assert loaded.status_code == 200
     assert loaded.json()["course"]["brief"]["durationHours"] == 16
     assert loaded.json()["messages"][0]["role"] == "user"
+
+    listed = client.get("/api/courses")
+    assert listed.status_code == 200
+    listed_course = next(item for item in listed.json()["courses"] if item["id"] == course["id"])
+    assert listed_course["durationHours"] == 16
+    assert listed_course["audience"] == course["brief"]["audience"]
+
+    copied = client.post(f"/api/courses/{course['id']}/copy")
+    assert copied.status_code == 200
+    copy_body = copied.json()
+    assert copy_body["course"]["id"] != course["id"]
+    assert copy_body["course"]["brief"]["title"].endswith("— копия")
+    assert copy_body["course"]["brief"]["audience"] == course["brief"]["audience"]
+    assert copy_body["course"]["brief"]["durationHours"] == 16
+
+    original = client.get(f"/api/courses/{course['id']}")
+    assert original.json()["course"]["brief"]["title"] == course["brief"]["title"]
+    assert original.json()["messages"][0]["role"] == "user"
+    assert original.json()["course"]["id"] == course["id"]

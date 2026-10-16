@@ -15,6 +15,7 @@ import {
   type Seminar,
 } from "@/lib/course-schema";
 import { attachCompetencyIds, balanceModules, linkCompetencies } from "@/lib/hours-balance";
+import { mergeLegalBasis } from "@/lib/legal-basis";
 
 export type CoursePatch =
   | { type: "update_brief"; brief: Partial<CourseBrief> }
@@ -48,7 +49,11 @@ function upsertByModule<T extends { moduleId: string }>(
 }
 
 function touch(course: CourseDocument): CourseDocument {
-  return { ...course, updatedAt: new Date().toISOString() };
+  return {
+    ...course,
+    updatedAt: new Date().toISOString(),
+    brief: mergeLegalBasis(course.brief),
+  };
 }
 
 function withBalancedModules(course: CourseDocument): CourseDocument {

@@ -14,7 +14,13 @@ from .contracts import (
     RegulatoryCheckRequest,
     RegulatoryCheckResponse,
     RegulatoryPolicy,
+    SourceProbeRequest,
+    SourceProbeResponse,
+    StackFreshnessRequest,
+    StackFreshnessResponse,
 )
+from .source_probe import probe_url, probe_urls
+from .stack_freshness import check_stack
 
 try:
     from .database import init_database
@@ -109,8 +115,9 @@ def audit(course: AuditCourse) -> AuditReport:
     tags=["regulatory"],
     summary="Проверить наличие источника",
     description=(
-        "Статус source_attached означает, что ссылка и реквизиты заполнены. "
-        "Он не означает, что документ действующий."
+        "Ссылку открывает сервер и смотрит только код ответа. Текст приказа не сохраняется. "
+        "source_attached ставится, если сайт ответил и реквизиты заполнены. "
+        "Недоступный сайт оставляет документ неподтверждённым."
     ),
     operation_id="checkRegulatorySources",
 )
@@ -119,19 +126,64 @@ def check_regulatory_sources(
 ) -> RegulatoryCheckResponse:
     results = []
     for claim in request.claims:
-        source_attached = claim.source is not None and bool(claim.number and claim.date)
+        probe = (
+            probe_url(str(claim.source))
+            if claim.source is not None
+            else {
+                "state": "not_checked",
+                "message": "Ссылки нет. Сайт не открывали, документ не подтверждён.",
+            }
+        )
+        site_ok = probe["state"] == "reachable"
+        requisites = bool(claim.number and claim.date)
+        source_attached = site_ok and requisites
         results.append(
             {
                 **claim.model_dump(mode="json"),
                 "status": "source_attached" if source_attached else "unconfirmed",
                 "message": (
-                    "Источник приложен; реквизиты всё равно подтверждает методист."
+                    "Сайт ответил, реквизиты заполнены. Действующим приказ признаёт методист."
                     if source_attached
-                    else "Не использовать в программе до подтверждения источником."
+                    else probe["message"]
                 ),
+                "site": probe["state"],
+                "siteMessage": probe["message"],
             }
         )
     return RegulatoryCheckResponse.model_validate({"results": results})
+
+
+@app.post(
+    "/api/sources/probe",
+    response_model=SourceProbeResponse,
+    tags=["regulatory"],
+    summary="Открыть ссылки источников",
+    description=(
+        "Проверяет, отвечает ли сайт. Тело страницы не сохраняется. "
+        "Недоступность сайта не превращается в вывод, что приказ отменён или действует."
+    ),
+    operation_id="probeSources",
+)
+def probe_sources(request: SourceProbeRequest) -> SourceProbeResponse:
+    return SourceProbeResponse.model_validate({"results": probe_urls(request.urls[:20])})
+
+
+@app.post(
+    "/api/stack/freshness",
+    response_model=StackFreshnessResponse,
+    tags=["regulatory"],
+    summary="Сверить версии инструментов со сроком поддержки",
+    description=(
+        "Ищет в тексте программы версии Python, Java, Node.js и соседних продуктов "
+        "и спрашивает каталог endoflife.date. Ответ сайта не сохраняется. "
+        "Если сайт не ответил, срок поддержки остаётся неподтверждённым."
+    ),
+    operation_id="checkStackFreshness",
+)
+def stack_freshness(request: StackFreshnessRequest) -> StackFreshnessResponse:
+    return StackFreshnessResponse.model_validate(
+        check_stack([text[:500] for text in request.texts[:80]])
+    )
 
 
 @app.get(
@@ -152,7 +204,13 @@ def regulatory_policy() -> RegulatoryPolicy:
         rules=[
             "Использовать только документы из файлов методиста или проверяемых ссылок.",
             "Не придумывать номера, даты, названия приказов и коды профстандартов.",
+            "Общеразвивающая программа опирается на приказ Минпросвещения от 27.07.2022 № 629. Повышение квалификации опирается на 273-ФЗ и приказ Минобрнауки от 24.03.2025 № 266.",
+            "Приказ Минобрнауки от 01.07.2013 № 499 утратил силу с 01.09.2025. Методист подтверждает, какой порядок оставить в программе.",
+            "Реквизиты приказа организации, ФИО преподавателей и подпись заполняет методист.",
             "Неподтверждённые реквизиты помечать и не переносить в итоговый DOCX.",
+            "Текст приказа не скачивать в студию. В момент проверки открывать ссылку и запоминать только отметку страницы.",
+            "Если отметка страницы изменилась, предупредить методиста. Изменение страницы само по себе не означает новый приказ.",
+            "Если сайт не ответил, документ остаётся неподтверждённым.",
             "Финальное решение о применимости документа принимает методист.",
         ],
     )

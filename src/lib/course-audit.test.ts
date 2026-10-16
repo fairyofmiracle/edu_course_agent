@@ -7,6 +7,20 @@ const result = (caseId: OpenCaseId, id: string, course = copy()) =>
   auditCourse(course, caseId).items.find((item) => item.id === id);
 
 describe("auditCourse", () => {
+  it("коды трудовых функций без источника не проходят, с источником остаются на сверку", () => {
+    const bare = copy();
+    bare.brief.references = [];
+    bare.competencies.nodes[0].laborFunctionCode = "A/01.6";
+    const missing = auditCourse(bare).items.find((item) => item.id === "sources.codes");
+    expect(missing?.status).toBe("fail");
+
+    const sourced = copy();
+    sourced.competencies.nodes[0].laborFunctionCode = "A/01.6";
+    const review = auditCourse(sourced).items.find((item) => item.id === "sources.codes");
+    expect(review?.status).toBe("warning");
+    expect(review?.details).toContain("A/01.6");
+  });
+
   it("пример 24 ч закрывает каждый результат тестом и заданием", () => {
     const course = copy();
     expect(outcomeInstrumentGaps(course)).toEqual([]);

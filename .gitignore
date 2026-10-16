@@ -36,6 +36,11 @@ yarn-error.log*
 
 # session logs
 /logs
+/backend/data/
+__pycache__/
+*.py[cod]
+.venv/
+.ipynb_checkpoints/
 
 # vercel
 .vercel

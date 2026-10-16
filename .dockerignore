@@ -1,0 +1,16 @@
+.git
+.gitignore
+.next
+.venv
+node_modules
+__pycache__
+*.py[cod]
+.env
+logs
+backend/data
+coverage
+notebooks
+materials
+*.pdf
+*.png
+checkpoint-*.html

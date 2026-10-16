@@ -46,6 +46,9 @@ type CourseWorkspaceProps = {
 export function CourseWorkspace({ course, tab, onTabChange }: CourseWorkspaceProps) {
   const empty = isCourseEmpty(course);
   const completeness = courseCompleteness(course);
+  const approved = isFrameworkApproved(course);
+  const contentTabs: WorkspaceTab[] = ["lectures", "seminars", "tests"];
+  const locked = contentTabs.includes(tab) && !approved;
 
   return (
     <section className="workspace">
@@ -54,17 +57,29 @@ export function CourseWorkspace({ course, tab, onTabChange }: CourseWorkspacePro
           <button
             key={item.id}
             type="button"
-            className={tab === item.id ? "tab active" : "tab"}
+            className={[
+              "tab",
+              tab === item.id ? "active" : "",
+              contentTabs.includes(item.id) && !approved ? "locked" : "",
+            ].filter(Boolean).join(" ")}
+            title={
+              contentTabs.includes(item.id) && !approved
+                ? "Раздел заполнится после утверждения каркаса"
+                : item.hint
+            }
             onClick={() => onTabChange(item.id)}
           >
             {item.label}
+            {contentTabs.includes(item.id) && !approved ? <span aria-hidden="true"> · позже</span> : null}
           </button>
         ))}
       </nav>
       <p className="kicker section-hint">{TABS.find((item) => item.id === tab)?.hint}</p>
 
       <div className="workspace-body">
-        {empty && tab === "overview" ? (
+        {locked ? (
+          <LockedContentState />
+        ) : empty && tab === "overview" ? (
           <EmptyState />
         ) : (
           <>
@@ -79,6 +94,19 @@ export function CourseWorkspace({ course, tab, onTabChange }: CourseWorkspacePro
         )}
       </div>
     </section>
+  );
+}
+
+function LockedContentState() {
+  return (
+    <div className="hero-empty compact">
+      <p className="kicker">Следующий этап</p>
+      <h2>Сначала проверьте каркас</h2>
+      <p>
+        Лекции, задания и тесты собираются после того, как часы и связи проверены,
+        а методист нажал «Утвердить каркас».
+      </p>
+    </div>
   );
 }
 

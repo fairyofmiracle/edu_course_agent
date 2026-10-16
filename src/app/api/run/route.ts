@@ -51,6 +51,26 @@ export async function POST(req: Request) {
   const request = body.request?.trim();
   if (!request) return Response.json({ error: "РќСѓР¶РЅРѕ РїРѕР»Рµ request" }, { status: 400 });
 
+  const pythonUrl = process.env.PYTHON_AGENT_URL?.trim();
+  if (pythonUrl) {
+    try {
+      const response = await fetch(`${pythonUrl.replace(/\/$/, "")}/api/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(790_000),
+      });
+      return new Response(response.body, {
+        status: response.status,
+        headers: { "Content-Type": response.headers.get("Content-Type") ?? "application/json" },
+      });
+    } catch (error) {
+      void appendServerLog({
+        text: `Python /api/run недоступен, используем TypeScript: ${describeError(error)}`,
+      });
+    }
+  }
+
   let course: CourseDocument = createEmptyCourse();
   const messages: ModelMessage[] = [];
   const userTexts: string[] = [];

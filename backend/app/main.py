@@ -1,16 +1,36 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from typing import Any, Literal
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, HttpUrl
 
+from .agent_api import router as agent_router
+
+try:
+    from .database import init_database
+    from .persistence import router as courses_router
+except ModuleNotFoundError as error:
+    if error.name != "sqlalchemy":
+        raise
+    init_database = None
+    courses_router = None
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    if init_database is not None:
+        init_database()
+    yield
+
 
 app = FastAPI(
     title="Студия методиста — Python backend",
     version="0.1.0",
     description="Аудит образовательной программы и контроль нормативных источников.",
+    lifespan=lifespan,
 )
 app.add_middleware(
     CORSMiddleware,
@@ -19,6 +39,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+if courses_router is not None:
+    app.include_router(courses_router)
+app.include_router(agent_router)
 
 
 class RegulatoryClaim(BaseModel):

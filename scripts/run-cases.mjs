@@ -68,11 +68,13 @@ for (const item of CASES.filter((entry) => only.includes(entry.id))) {
   }
   const seconds = Math.round((Date.now() - started) / 1000);
   await writeFile(path.join(outDir, `case-${item.id}.json`), JSON.stringify(payload, null, 2), "utf8");
-  if (payload.error && !payload.course) {
-    console.log(`ошибка за ${seconds} с: ${payload.error}`);
+  const responseError = payload.error ?? payload.detail;
+  if (responseError && !payload.course) {
+    console.log(`ошибка за ${seconds} с: ${responseError}`);
     continue;
   }
-  const { course, report, transcript, error } = payload;
+  const { course, report, transcript } = payload;
+  const error = responseError;
   const failed = (report?.checks ?? []).filter((check) => !check.ok).map((check) => check.label);
   const auditFailed = (report?.audit?.items ?? [])
     .filter((check) => check.status === "fail")

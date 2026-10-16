@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "backend": "python -m uvicorn backend.app.main:app --reload --port 8000",
+    "backend:migrate": "python -m alembic upgrade head",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

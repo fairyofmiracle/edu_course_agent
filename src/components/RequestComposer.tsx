@@ -91,6 +91,7 @@ export function fieldsToBrief(fields: TemplateFields): Partial<CourseBrief> {
 type RequestComposerProps = {
   extraReferences: string;
   frameworkApproved: boolean;
+  stage: "ask" | "framework" | "kit";
   pending: boolean;
   onReferencesChange: (value: string) => void;
   onReferenceAdd: (reference: CourseBrief["references"][number]) => void;
@@ -101,6 +102,7 @@ type RequestComposerProps = {
 export function RequestComposer({
   extraReferences,
   frameworkApproved,
+  stage,
   pending,
   onReferencesChange,
   onReferenceAdd,
@@ -179,7 +181,7 @@ export function RequestComposer({
   const sendTemplate = () => {
     if (pending) return;
     if (!fields.audience.trim() || !fields.durationHours.trim() || !fields.goals.trim()) {
-      setFormError("Нужны аудитория, часы и цель — без этого снова пойдёт кружок вопросов.");
+      setFormError("Заполните аудиторию, точный объём в часах и цель программы.");
       return;
     }
     setFormError("");
@@ -220,7 +222,7 @@ export function RequestComposer({
           id="course-request"
           value={input}
           onChange={(event) => setInput(event.target.value)}
-          placeholder="Пишите как есть. Ответ агента — в окне выше."
+          placeholder="Например: нужен курс по кибербезопасности для студентов колледжа…"
           rows={3}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {
@@ -334,6 +336,11 @@ export function RequestComposer({
       )}
 
       {formError && mode === "template" ? <p className="chat-error">{formError}</p> : null}
+      {mode === "free" ? (
+        <p className="input-hint">
+          Enter — отправить, Shift+Enter — новая строка. Для точного результата можно перейти в режим «По шаблону».
+        </p>
+      ) : null}
 
       <div className="composer-row">
         <button type="button" onClick={() => fileRef.current?.click()} disabled={busyFile}>
@@ -380,13 +387,21 @@ export function RequestComposer({
             {mode === "template" ? "Собрать по шаблону" : "Отправить"}
           </button>
         )}
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() => onSend(frameworkApproved ? KIT_PROMPT : FRAMEWORK_PROMPT)}
-        >
-          {frameworkApproved ? "Собрать комплект" : "Дособрать каркас"}
-        </button>
+        {stage !== "ask" ? (
+          <button
+            type="button"
+            className={stage === "kit" ? "primary" : undefined}
+            disabled={pending}
+            title={
+              stage === "kit"
+                ? "Добавить тесты, задания и лекции к утверждённому каркасу"
+                : "Заполнить недостающие части каркаса"
+            }
+            onClick={() => onSend(frameworkApproved ? KIT_PROMPT : FRAMEWORK_PROMPT)}
+          >
+            {frameworkApproved ? "Собрать комплект" : "Дособрать каркас"}
+          </button>
+        ) : null}
       </div>
     </form>
   );

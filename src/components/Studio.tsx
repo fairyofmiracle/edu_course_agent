@@ -5,6 +5,11 @@ import { useChat } from "@ai-sdk/react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ChatPanel } from "@/components/ChatPanel";
 import { CourseWorkspace, type WorkspaceTab } from "@/components/CourseWorkspace";
+import {
+  hasBackendStorage,
+  loadCourseFromBackend,
+  saveCourseToBackend,
+} from "@/lib/backend-storage";
 import { applyPatch, foldCourseFromMessages } from "@/lib/course-patches";
 import {
   frameworkFingerprint,
@@ -78,6 +83,10 @@ function StudioSession({
   const [extraReferences, setExtraReferences] = useState("");
   const [tab, setTab] = useState<WorkspaceTab>("overview");
   const [sessionId, setSessionId] = useState(initialSessionId);
+  const [backendReady, setBackendReady] = useState(!hasBackendStorage());
+  const [saveState, setSaveState] = useState<"local" | "saving" | "synced" | "offline">(
+    hasBackendStorage() ? "saving" : "local",
+  );
   const courseRef = useRef(storedCourse);
   const refsRef = useRef("");
   const sessionRef = useRef(initialSessionId);
@@ -100,6 +109,7 @@ function StudioSession({
   const frameworkReady = checks.every((item) => item.ok);
   const frameworkApproved = isFrameworkApproved(course);
   const stage = frameworkApproved ? "kit" : course.modules.length ? "framework" : "ask";
+  const missingChecks = checks.filter((item) => !item.ok).map((item) => item.label);
 
   useEffect(() => {
     courseRef.current = course;
@@ -117,6 +127,38 @@ function StudioSession({
   useEffect(() => {
     saveMessages(messages);
   }, [messages]);
+
+  useEffect(() => {
+    if (!hasBackendStorage()) return;
+    let active = true;
+    void loadCourseFromBackend(initialCourse.id)
+      .then((stored) => {
+        if (!active || !stored) return;
+        setStoredCourse(stored.course);
+        setMessages(stored.messages);
+        setSaveState("synced");
+      })
+      .catch(() => {
+        if (active) setSaveState("offline");
+      })
+      .finally(() => {
+        if (active) setBackendReady(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [initialCourse.id, setMessages]);
+
+  useEffect(() => {
+    if (!backendReady || !hasBackendStorage()) return;
+    const timer = window.setTimeout(() => {
+      setSaveState("saving");
+      void saveCourseToBackend(course, messages)
+        .then(() => setSaveState("synced"))
+        .catch(() => setSaveState("offline"));
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [backendReady, course, messages]);
 
   useEffect(() => {
     const ready = status === "ready";
@@ -241,9 +283,18 @@ function StudioSession({
       <header className="topbar">
         <div>
           <p className="kicker">
-            Пишете слева. Документ справа. Лог сессии — файл logs/ за сегодня, не колонка в вебе.
+            Опишите задачу слева — каркас программы и проверки появятся справа.
           </p>
           <h1>{course.brief.title || "Новая образовательная программа"}</h1>
+          <p className="save-state" aria-live="polite">
+            {saveState === "synced"
+              ? "Сохранено в Python backend"
+              : saveState === "saving"
+                ? "Сохраняю изменения…"
+                : saveState === "offline"
+                  ? "Сохранено локально — backend недоступен"
+                  : "Сохранено в этом браузере"}
+          </p>
         </div>
         <ol className="stages" aria-label="Шаги">
           <li className={stage === "ask" ? "current" : "done"}>Запрос</li>
@@ -268,6 +319,8 @@ function StudioSession({
           error={error}
           extraReferences={extraReferences}
           frameworkApproved={frameworkApproved}
+          stage={stage}
+          missingChecks={missingChecks}
           onReferencesChange={setExtraReferences}
           onReferenceAdd={addReference}
           onSend={send}
@@ -275,9 +328,11 @@ function StudioSession({
         />
         <div className="pane pane-doc">
           <header className="pane-head">
-            <p className="pane-label">2. Сюда не пишете</p>
-            <h2>Документ</h2>
-            <p className="kicker">Смотрите каркас и часы. Утверждение и выгрузка только здесь.</p>
+            <p className="pane-label">2. Результат</p>
+            <h2>Документ программы</h2>
+            <p className="kicker">
+              Проверьте каркас и часы, затем подтвердите переход к полному комплекту.
+            </p>
             <div className="pane-actions">
               {frameworkApproved ? (
                 <button type="button" onClick={revokeFramework}>
@@ -288,53 +343,39 @@ function StudioSession({
                   type="button"
                   className="primary"
                   disabled={!frameworkReady}
+                  title={
+                    frameworkReady
+                      ? "Каркас готов к утверждению"
+                      : `Сначала исправьте: ${missingChecks.slice(0, 3).join("; ")}`
+                  }
                   onClick={approveFramework}
                 >
                   Утвердить каркас
                 </button>
               )}
-              <button
-                type="button"
-                disabled={isCourseEmpty(course)}
-                onClick={() => exportCourseJson(course)}
-              >
-                JSON
-              </button>
-              <button
-                type="button"
-                disabled={isCourseEmpty(course)}
-                onClick={() => exportCourseMarkdown(course)}
-              >
-                Текст
-              </button>
-              <button
-                type="button"
-                disabled={isCourseEmpty(course)}
-                onClick={() => exportCourseAudit(course)}
-              >
-                Отчёт
-              </button>
-              <button
-                type="button"
-                disabled={isCourseEmpty(course)}
-                onClick={() => void exportCourseDocx(course)}
-              >
-                DOCX
-              </button>
-              <button
-                type="button"
-                disabled={course.lectures.length === 0}
-                onClick={() => exportLectureHtml(course)}
-              >
-                HTML
-              </button>
-              <button
-                type="button"
-                disabled={course.lectures.length === 0}
-                onClick={() => void exportCoursePptx(course)}
-              >
-                PPTX
-              </button>
+              <details className="export-menu">
+                <summary>Выгрузить</summary>
+                <div>
+                  <button type="button" disabled={isCourseEmpty(course)} onClick={() => exportCourseJson(course)}>
+                    JSON
+                  </button>
+                  <button type="button" disabled={isCourseEmpty(course)} onClick={() => exportCourseMarkdown(course)}>
+                    Текст
+                  </button>
+                  <button type="button" disabled={isCourseEmpty(course)} onClick={() => exportCourseAudit(course)}>
+                    Отчёт
+                  </button>
+                  <button type="button" disabled={isCourseEmpty(course)} onClick={() => void exportCourseDocx(course)}>
+                    DOCX
+                  </button>
+                  <button type="button" disabled={course.lectures.length === 0} onClick={() => exportLectureHtml(course)}>
+                    HTML
+                  </button>
+                  <button type="button" disabled={course.lectures.length === 0} onClick={() => void exportCoursePptx(course)}>
+                    PPTX
+                  </button>
+                </div>
+              </details>
             </div>
           </header>
           <CourseWorkspace course={course} tab={tab} onTabChange={setTab} />

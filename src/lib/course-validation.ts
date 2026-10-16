@@ -28,30 +28,30 @@ export function validateCourseHours(course: CourseDocument): string[] {
     );
   }
 
-  for (const module of course.modules) {
+  for (const courseModule of course.modules) {
     const kindsTotal =
-      module.lectureHours +
-      module.practiceHours +
-      module.labHours +
-      module.selfStudyHours;
+      courseModule.lectureHours +
+      courseModule.practiceHours +
+      courseModule.labHours +
+      courseModule.selfStudyHours;
 
-    if (!Number.isInteger(module.hours) || module.hours <= 0) {
-      errors.push(`Модуль "${module.title}": некорректное количество часов.`);
+    if (!Number.isInteger(courseModule.hours) || courseModule.hours <= 0) {
+      errors.push(`Модуль "${courseModule.title}": некорректное количество часов.`);
     }
 
-    if (kindsTotal !== module.hours) {
+    if (kindsTotal !== courseModule.hours) {
       errors.push(
-        `Модуль "${module.title}": виды занятий дают ` +
-        `${kindsTotal} ч вместо ${module.hours} ч.`,
+        `Модуль "${courseModule.title}": виды занятий дают ` +
+        `${kindsTotal} ч вместо ${courseModule.hours} ч.`,
       );
     }
 
-    if (module.plan.length === 0) {
-      errors.push(`Модуль "${module.title}": отсутствует план тем.`);
+    if (courseModule.plan.length === 0) {
+      errors.push(`Модуль "${courseModule.title}": отсутствует план тем.`);
       continue;
     }
 
-    const topicTotal = module.plan.reduce(
+    const topicTotal = courseModule.plan.reduce(
       (sum, topic) =>
         sum +
         topic.lectureHours +
@@ -61,10 +61,10 @@ export function validateCourseHours(course: CourseDocument): string[] {
       0,
     );
 
-    if (topicTotal !== module.hours) {
+    if (topicTotal !== courseModule.hours) {
       errors.push(
-        `Модуль "${module.title}": сумма часов тем ` +
-        `${topicTotal} ч вместо ${module.hours} ч.`,
+        `Модуль "${courseModule.title}": сумма часов тем ` +
+        `${topicTotal} ч вместо ${courseModule.hours} ч.`,
       );
     }
   }

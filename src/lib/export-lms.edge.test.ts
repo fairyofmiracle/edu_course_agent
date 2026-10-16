@@ -69,7 +69,7 @@ describe("краевые случаи выгрузки", () => {
 
     const withQuestion = {
       assessments: [{ moduleId: "m1", questions: [] }],
-    } as CourseDocument;
+    } as unknown as CourseDocument;
 
     expect(() => courseToMoodleXml(course)).not.toThrow();
     expect(() => courseToGift(course)).not.toThrow();

@@ -2,7 +2,7 @@ import { Packer } from "docx";
 import { describe, expect, it } from "vitest";
 import { docxToText } from "@/lib/docx-text";
 import { buildCourseDocx, courseDocxHeadings } from "@/lib/export-docx";
-import { buildCoursePptx } from "@/lib/export-pptx";
+import { buildCoursePptxAsync } from "@/lib/export-pptx";
 import { SAMPLE_COURSE } from "@/lib/sample-course";
 
 describe("document exports", () => {
@@ -30,11 +30,15 @@ describe("document exports", () => {
     expect(headings.join("\n")).toContain("утратил силу с 01.09.2025");
   });
 
+
   it("собирает непустой PPTX", async () => {
-    const output = await buildCoursePptx(SAMPLE_COURSE, "m1").write({
+    const pptx = await buildCoursePptxAsync(SAMPLE_COURSE, "m1");
+
+    const output = await pptx.write({
       outputType: "nodebuffer",
       compression: true,
     });
+
     expect(output).toBeInstanceOf(Uint8Array);
     expect((output as Uint8Array).byteLength).toBeGreaterThan(10_000);
   });

@@ -47,9 +47,12 @@ def normalize_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 class CloudRuClient:
     def __init__(self) -> None:
-        self.api_key = setting("CLOUDRU_API_KEY")
-        self.base_url = setting(
-            "CLOUDRU_BASE_URL", "https://foundation-models.api.cloud.ru/v1"
+        self.api_key = setting("OPENAI_API_KEY") or setting("CLOUDRU_API_KEY")
+        self.base_url = (
+            setting("OPENAI_BASE_URL")
+            or setting(
+                "CLOUDRU_BASE_URL", "https://foundation-models.api.cloud.ru/v1"
+            )
         ).rstrip("/")
         self.model = setting("CLOUDRU_MODEL_WRITER") or setting(
             "CLOUDRU_MODEL", "GigaChat/GigaChat-3-Pro"
@@ -65,7 +68,8 @@ class CloudRuClient:
     ) -> dict[str, Any]:
         if not self.api_key:
             raise RuntimeError(
-                "CLOUDRU_API_KEY не задан. Офлайн-пример и проверки доступны без модели."
+                "OPENAI_API_KEY или CLOUDRU_API_KEY не задан. "
+                "Офлайн-пример и проверки доступны без модели."
             )
         payload = {
             "model": self.model,

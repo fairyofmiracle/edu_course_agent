@@ -35,11 +35,9 @@ export function SourceChecks({ course }: { course: CourseDocument }) {
   const urls = httpUrls(course);
   const key = urls.join("\n");
   const [check, setCheck] = useState<SourceCheck>({ state: "empty" });
-  const [stamps, setStamps] = useState<Record<string, SourceStamp>>({});
-
-  useEffect(() => {
-    setStamps(readStamps(window.localStorage));
-  }, []);
+  const [stamps, setStamps] = useState<Record<string, SourceStamp>>(() =>
+    typeof window === "undefined" ? {} : readStamps(window.localStorage),
+  );
 
   useEffect(() => {
     const nextUrls = key ? key.split("\n") : [];
@@ -67,7 +65,11 @@ export function SourceChecks({ course }: { course: CourseDocument }) {
       });
       remembered = true;
     }
-    if (remembered) setStamps(readStamps(storage));
+    if (!remembered) return;
+    const timer = window.setTimeout(() => {
+      setStamps(readStamps(storage));
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [check]);
 
   function acknowledge(result: SourceProbeResult) {

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { applyTheme, readTheme, storeTheme, type Theme } from "@/lib/theme";
 
@@ -14,16 +15,17 @@ export function SiteFrame({
 
   useEffect(() => {
     const stored = readTheme(window.localStorage);
-    setTheme(stored);
     applyTheme(stored);
+    const timer = window.setTimeout(() => setTheme(stored), 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   return (
     <div className="studio">
       <header className="site-header">
-        <a className="site-mark" href="/">
+        <Link className="site-mark" href="/">
           Студия методиста
-        </a>
+        </Link>
         <div className="top-actions">
           <button
             type="button"

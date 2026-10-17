@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 import backend.app.agent as agent_module
 from backend.app.agent import run_turn
+from backend.app.cloud import CloudRuClient
 from backend.app.main import app
 from backend.app.models import empty_course
 
@@ -111,3 +112,13 @@ def test_chat_turn_http_contract(monkeypatch) -> None:
     payload = response.json()
     assert payload["course"]["brief"]["durationHours"] == 16
     assert payload["patches"][0]["type"] == "update_brief"
+
+
+def test_vm_openai_settings_have_priority(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "vm-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://vm.example/v1")
+    monkeypatch.setenv("CLOUDRU_API_KEY", "legacy-key")
+    monkeypatch.setenv("CLOUDRU_BASE_URL", "https://legacy.example/v1")
+    client = CloudRuClient()
+    assert client.api_key == "vm-key"
+    assert client.base_url == "https://vm.example/v1"

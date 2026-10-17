@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { SiteFrame } from "@/components/SiteFrame";
 import {
@@ -29,6 +31,7 @@ function formatWhen(iso: string) {
 }
 
 export function CourseCatalog() {
+  const router = useRouter();
   const [items, setItems] = useState<LibraryItem[]>([]);
   const [note, setNote] = useState("");
   const [query, setQuery] = useState("");
@@ -47,10 +50,14 @@ export function CourseCatalog() {
     const local = listLibrary(window.localStorage);
     let active = true;
     if (!hasBackendStorage()) {
-      setItems(local.map((item) => ({ ...item, where: "browser" })));
-      setNote("Курсы записаны в этом браузере.");
+      const timer = window.setTimeout(() => {
+        if (!active) return;
+        setItems(local.map((item) => ({ ...item, where: "browser" })));
+        setNote("Курсы записаны в этом браузере.");
+      }, 0);
       return () => {
         active = false;
+        window.clearTimeout(timer);
       };
     }
     void listCoursesFromBackend()
@@ -97,7 +104,7 @@ export function CourseCatalog() {
       return;
     }
     saveCourse(next.course, next.messages);
-    window.location.href = "/";
+    router.push("/");
   }
 
   async function copyCourse(courseId: string, adaptation: CopyAdaptation) {
@@ -149,7 +156,7 @@ export function CourseCatalog() {
   return (
     <SiteFrame
       actions={
-        <a href="/">К программе</a>
+        <Link href="/">К программе</Link>
       }
     >
       <section className="catalog-page">

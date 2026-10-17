@@ -1,0 +1,71 @@
+{
+  "id": "contract-course",
+  "updatedAt": "2026-10-15T00:00:00.000Z",
+  "brief": {
+    "title": "Основы Python",
+    "audience": "Начинающие разработчики",
+    "level": "beginner",
+    "durationHours": 16,
+    "format": "blended",
+    "programKind": "general",
+    "attestationHours": 2,
+    "attestationForm": "Защита итоговой работы",
+    "goals": ["Освоить основы Python"],
+    "constraints": [],
+    "references": [
+      {
+        "title": "Материалы заказчика",
+        "source": "https://example.org/reference"
+      }
+    ]
+  },
+  "competencies": {
+    "nodes": [
+      {
+        "id": "C1",
+        "name": "Пишет простые программы",
+        "bloomLevel": "apply",
+        "moduleIds": ["M1"],
+        "knowledge": ["Базовый синтаксис Python"],
+        "skills": ["Выбирать конструкции языка"],
+        "abilities": ["Реализовывать простой алгоритм"]
+      }
+    ],
+    "edges": []
+  },
+  "modules": [
+    {
+      "id": "M1",
+      "title": "Базовый синтаксис",
+      "hours": 14,
+      "lectureHours": 4,
+      "practiceHours": 8,
+      "labHours": 0,
+      "selfStudyHours": 2,
+      "topics": ["Переменные", "Условия"],
+      "plan": [
+        {
+          "title": "Переменные",
+          "lectureHours": 2,
+          "practiceHours": 4,
+          "labHours": 0,
+          "selfStudyHours": 1
+        },
+        {
+          "title": "Условия",
+          "lectureHours": 2,
+          "practiceHours": 4,
+          "labHours": 0,
+          "selfStudyHours": 1
+        }
+      ],
+      "learningOutcomes": ["Пишет программу с ветвлением"],
+      "competencyIds": ["C1"]
+    }
+  ],
+  "lectures": [],
+  "seminars": [],
+  "assessments": [],
+  "frameworkApproved": false,
+  "frameworkFingerprint": ""
+}

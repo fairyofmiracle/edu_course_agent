@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Мы — методисту академии</title>
+  <style>
+    :root {
+      --blue: #1d4ed8;
+      --navy: #1b2a4a;
+      --muted: #5c6770;
+      --card: #1d4ed8;
+      --line: #1d4ed8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #fff;
+      color: var(--navy);
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    }
+    .who {
+      position: fixed;
+      top: 18px;
+      left: 28px;
+      z-index: 2;
+      color: var(--navy);
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .who span { color: var(--muted); font-weight: 500; }
+    .top {
+      position: fixed;
+      top: 18px;
+      right: 28px;
+      z-index: 2;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    nav {
+      position: fixed;
+      left: 28px;
+      bottom: 18px;
+      z-index: 2;
+      display: flex;
+      gap: 8px;
+    }
+    nav button {
+      width: 28px;
+      height: 6px;
+      padding: 0;
+      border: 0;
+      border-radius: 99px;
+      background: #d5dbe3;
+      cursor: pointer;
+    }
+    nav button[aria-current="true"] { background: var(--blue); }
+    section {
+      display: none;
+      min-height: 100vh;
+      padding: 72px 72px 64px;
+    }
+    section.active { display: flex; flex-direction: column; justify-content: center; }
+    .head {
+      display: flex;
+      align-items: flex-start;
+      gap: 22px;
+      margin-bottom: 18px;
+    }
+    .num {
+      font-size: 84px;
+      line-height: 0.85;
+      font-weight: 800;
+      color: var(--blue);
+      letter-spacing: -2px;
+    }
+    h1 {
+      margin: 6px 0 0;
+      font-size: 34px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .date { margin: 6px 0 0; font-size: 20px; font-weight: 700; }
+    .rule { height: 5px; width: min(640px, 100%); background: var(--line); border: 0; margin: 8px 0 28px; }
+    p, li { font-size: 20px; line-height: 1.4; color: var(--muted); }
+    p { margin: 0 0 16px; max-width: 860px; }
+    ul, ol { margin: 0; padding-left: 22px; max-width: 900px; }
+    li { margin: 0 0 8px; }
+    li strong { color: var(--navy); }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+      margin-top: 8px;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 18px;
+      padding: 22px 22px 18px;
+      min-height: 200px;
+    }
+    .card .when {
+      margin: 0 0 10px;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #fff;
+    }
+    .card h2 {
+      margin: 0 0 12px;
+      font-size: 26px;
+      line-height: 1.15;
+      font-weight: 800;
+      color: #fff;
+    }
+    .card p, .card li { color: #fff; font-size: 16px; }
+    .card p:last-child { margin-bottom: 0; }
+    .two { grid-template-columns: 1fr 1fr; }
+    .rows { display: grid; gap: 10px; margin-top: 8px; }
+    .row {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    .row b { color: var(--navy); font-size: 18px; }
+    .row span { color: var(--muted); font-size: 18px; line-height: 1.35; }
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--blue);
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .lead {
+      max-width: 980px;
+      color: var(--navy);
+      font-size: 30px;
+      line-height: 1.22;
+      font-weight: 750;
+    }
+    .chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+    .chip {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: #e8eefc;
+      color: var(--blue);
+      font-size: 15px;
+      font-weight: 700;
+    }
+    .split {
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: 22px;
+      align-items: stretch;
+    }
+    .panel {
+      padding: 22px;
+      border: 1px solid #d5dbe3;
+      border-radius: 18px;
+    }
+    .panel h2 { margin: 0 0 12px; font-size: 24px; }
+    .panel p, .panel li { font-size: 17px; }
+    .panel ul { padding-left: 20px; }
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .step {
+      min-height: 112px;
+      padding: 15px 12px;
+      border-radius: 14px;
+      background: #eef2f7;
+      color: var(--navy);
+      font-size: 15px;
+      line-height: 1.3;
+      font-weight: 700;
+    }
+    .step b { display: block; margin-bottom: 8px; color: var(--blue); font-size: 22px; }
+    .prototype {
+      display: grid;
+      grid-template-columns: 0.72fr 1.28fr;
+      overflow: hidden;
+      border: 1px solid #cbd3df;
+      border-radius: 18px;
+      background: #f6f8fb;
+    }
+    .proto-left, .proto-right { padding: 18px; }
+    .proto-left { border-right: 1px solid #cbd3df; background: #fff; }
+    .proto-title { margin: 0 0 12px; color: var(--navy); font-size: 16px; font-weight: 800; }
+    .fake-input {
+      min-height: 76px;
+      padding: 12px;
+      border: 1px solid #d5dbe3;
+      border-radius: 10px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.35;
+    }
+    .fake-button {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 9px 13px;
+      border-radius: 9px;
+      background: var(--blue);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .proto-tabs { display: flex; gap: 14px; margin-bottom: 15px; color: var(--muted); font-size: 13px; }
+    .proto-tabs b { color: var(--blue); }
+    .proto-total {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      color: var(--navy);
+      font-size: 15px;
+      font-weight: 800;
+    }
+    .bar { height: 9px; overflow: hidden; border-radius: 99px; background: #dce3ed; }
+    .bar span { display: block; width: 100%; height: 100%; background: var(--blue); }
+    .proto-list { margin-top: 14px; display: grid; gap: 7px; }
+    .proto-line {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .prototype-shot {
+      margin: 0;
+      padding: 10px;
+      border: 1px solid #cbd3df;
+      border-radius: 16px;
+      background: #f6f8fb;
+      text-align: center;
+    }
+    .prototype-shot img {
+      display: block;
+      width: 100%;
+      height: 310px;
+      object-fit: cover;
+      object-position: top;
+    }
+    .metric strong {
+      display: block;
+      margin-bottom: 8px;
+      color: #fff;
+      font-size: 30px;
+      line-height: 1;
+    }
+    .architecture {
+      display: grid;
+      grid-template-columns: 1fr 34px 1.15fr 34px 1.15fr 34px 1fr;
+      gap: 8px;
+      align-items: center;
+    }
+    .architecture.system {
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      align-items: stretch;
+    }
+    .architecture.system .arch-node {
+      min-height: 132px;
+      padding: 15px 17px;
+    }
+    .architecture.system .arch-node small { margin-bottom: 9px; }
+    .architecture.system .arch-node strong {
+      margin-bottom: 8px;
+      font-size: 18px;
+    }
+    .architecture.system .arch-node span { font-size: 14px; }
+    .arch-node {
+      min-height: 190px;
+      padding: 20px 17px;
+      border: 1px solid #cbd3df;
+      border-radius: 16px;
+      background: #fff;
+    }
+    .arch-node.accent { border-color: var(--blue); background: #eef2ff; }
+    .arch-node small {
+      display: block;
+      margin-bottom: 14px;
+      color: var(--blue);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .arch-node strong {
+      display: block;
+      margin-bottom: 12px;
+      color: var(--navy);
+      font-size: 20px;
+      line-height: 1.2;
+    }
+    .arch-node span { color: var(--muted); font-size: 15px; line-height: 1.4; }
+    .arch-arrow { color: var(--blue); font-size: 30px; font-weight: 800; text-align: center; }
+    .note {
+      margin-top: 18px;
+      padding: 12px 16px;
+      border-left: 5px solid var(--blue);
+      background: #eef2f7;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.4;
+    }
+    @media (max-width: 900px) {
+      section { padding: 64px 22px 72px; }
+      .num { font-size: 56px; }
+      h1 { font-size: 24px; }
+      .cards, .two, .row, .split, .flow, .prototype, .architecture { grid-template-columns: 1fr; }
+      .card { min-height: 0; }
+      .proto-left { border-right: 0; border-bottom: 1px solid #cbd3df; }
+      .arch-arrow { transform: rotate(90deg); }
+    }
+    @media print {
+      @page { size: 16in 9in; margin: 0; }
+      * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      body { background: #fff; }
+      .who, .top, nav { display: none !important; }
+      section, section.active {
+        display: flex !important;
+        width: 16in;
+        height: 9in;
+        min-height: 9in;
+        padding: 0.65in 0.75in;
+        page-break-after: always;
+        break-after: page;
+      }
+      section:last-child { page-break-after: auto; break-after: auto; }
+    }
+  </style>
+</head>
+<body>
+  <p class="who">not_idea <span>для методиста академии</span></p>
+  <p class="top" id="counter">1 / 10</p>
+  <nav>
+    <button type="button" data-slide="0" aria-label="Обложка"></button>
+    <button type="button" data-slide="1" aria-label="Вопрос 1"></button>
+    <button type="button" data-slide="2" aria-label="Вопрос 2"></button>
+    <button type="button" data-slide="3" aria-label="Пять запросов"></button>
+    <button type="button" data-slide="4" aria-label="Вопрос 3"></button>
+    <button type="button" data-slide="5" aria-label="Вопрос 4"></button>
+    <button type="button" data-slide="6" aria-label="Вопрос 5"></button>
+    <button type="button" data-slide="7" aria-label="Архитектура"></button>
+    <button type="button" data-slide="8" aria-label="Готовность"></button>
+    <button type="button" data-slide="9" aria-label="Демонстрация"></button>
+  </nav>
+  <main>
+    <section>
+      <p class="eyebrow">Продуктовый чекпоинт · 15 октября 2026</p>
+      <div class="head">
+        <div>
+          <h1>Студия методиста</h1>
+          <p class="date">Помощник для сборки образовательных программ</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <p class="lead">Методист загружает запрос и материалы, получает каркас курса и проверяет его до сборки полного комплекта.</p>
+      <div class="chips">
+        <span class="chip">Команда not_idea</span>
+        <span class="chip">Next.js + Python</span>
+        <span class="chip">Cloud.ru Evolution — после выдачи доступа</span>
+      </div>
+    </section>
+
+    <section>
+      <div class="head">
+        <div class="num">01</div>
+        <div>
+          <h1>Какую задачу бизнеса решаем и кто пользователь?</h1>
+          <p class="date">Сейчас программу приходится собирать и сверять вручную</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <div class="cards two">
+        <article class="card">
+          <p class="when">Пользователь</p>
+          <h2>Методист Академии</h2>
+          <p>Получает заявку, разбирает материалы, составляет учебный план, связывает темы с компетенциями и готовит задания.</p>
+        </article>
+        <article class="card">
+          <p class="when">Задача бизнеса</p>
+          <h2>Сократить время подготовки программы</h2>
+          <p>Убрать ручные подсчёты, раньше находить ошибки и тратить меньше времени на повторные согласования.</p>
+        </article>
+      </div>
+      <div class="note"><strong>Проблема:</strong> часы, темы, компетенции и задания находятся в разных разделах, хотя изменения в одном месте влияют на остальные.</div>
+    </section>
+
+    <section>
+      <div class="head">
+        <div class="num">02</div>
+        <div>
+          <h1>Какие требования и ограничения учитываем?</h1>
+          <p class="date">Берём правила из кейса и проверяем их в коде</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <div class="split">
+        <article class="panel">
+          <h2>Что должно быть</h2>
+          <ul>
+            <li>Два шаблона АЦР: общеразвивающая программа и повышение квалификации.</li>
+            <li>Любое ИТ-направление и заданный объём часов.</li>
+            <li>Входные данные: текст, DOCX и PDF; при нехватке данных — уточняющие вопросы.</li>
+            <li>Документы Минпросвещения, Минобрнауки, Минтруда, 273-ФЗ и профстандарты — только из файлов или проверяемых ссылок.</li>
+            <li>Компетенции → знания, умения, навыки → темы → результаты → оценивание.</li>
+            <li>Тесты с ключами, задания с критериями, планы лекций и слайды.</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h2>Что нельзя нарушать</h2>
+          <ul>
+            <li>Только целые академические часы; сумма модулей и аттестации равна объёму программы.</li>
+            <li>Приказы, профстандарты и источники не выдумываются — только из материалов методиста.</li>
+            <li>Сначала каркас, затем обязательное утверждение человеком, только после этого — полный комплект.</li>
+            <li>Модель планируем подключить через Cloud.ru Evolution, а часы и связи проверять обычным кодом.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <div class="head">
+        <div class="num">02</div>
+        <div>
+          <h1>Пять запросов — пять разных проверок</h1>
+          <p class="date">Не настраиваем решение только под пример на 24 часа</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <div class="rows">
+        <div class="row"><b>Python · 16 ч</b><span>Не меньше 8 часов практики, восемь занятий по 2 часа, тест на 10 вопросов, слайды для первых двух занятий.</span></div>
+        <div class="row"><b>Учителя · 36 ч</b><span>Повышение квалификации, коды профстандарта только из файла, российские сервисы, зачёт по портфолио.</span></div>
+        <div class="row"><b>Банк · 72 ч</b><span>Отдельные модули по Python, pandas, визуализации, SQL и статистике; текст образца не копируем.</span></div>
+        <div class="row"><b>Колледж · месяц</b><span>Сначала уточняем вид программы, точные часы, уровень и аттестацию. «Примерно месяц» не превращаем в часы сами.</span></div>
+        <div class="row"><b>DevOps · 256 ч</b><span>254 часа самостоятельной работы и 2 часа защиты; нулевые лекции и практики не заполняем искусственно.</span></div>
+      </div>
+      <div class="note"><strong>После получения доступа</strong> прогоним все пять запросов одним скриптом и сохраним результат проверки по каждому ограничению.</div>
+    </section>
+
+    <section>
+      <div class="head">
+        <div class="num">03</div>
+        <div>
+          <h1>Как устроен основной сценарий?</h1>
+          <p class="date">Сначала проверяем каркас, потом собираем материалы</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <div class="flow">
+        <div class="step"><b>1</b>Запрос и файлы</div>
+        <div class="step"><b>2</b>Уточняющие вопросы</div>
+        <div class="step"><b>3</b>Каркас курса</div>
+        <div class="step"><b>4</b>Проверка часов</div>
+        <div class="step"><b>5</b>Проверка методистом</div>
+        <div class="step"><b>6</b>Тесты и занятия</div>
+      </div>
+      <figure class="prototype-shot">
+        <img src="prototype-checkpoint.png" alt="Рабочий интерфейс Студии методиста: запрос слева, документ программы справа" />
+      </figure>
+      <p class="note"><strong>Это реальный интерфейс прототипа.</strong> На чекпоинте откроем готовый пример на 24 часа. Запрос к модели пока не показываем: доступ команда получит после чекпоинта.</p>
+    </section>
+
+    <section>
+      <div class="head">
+        <div class="num">04</div>
+        <div>
+          <h1>Какую ценность получают пользователь и бизнес?</h1>
+          <p class="date">Меньше ручной работы, но последнее слово остаётся за методистом</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <div class="cards two">
+        <article class="card">
+          <p class="when">Для методиста</p>
+          <h2>Не сводить всё вручную</h2>
+          <p>Часы и связи видны на одном экране. Можно поправить один раздел, не переделывая всю программу.</p>
+        </article>
+        <article class="card">
+          <p class="when">Для Академии</p>
+          <h2>Реже возвращать программы на правки</h2>
+          <p>Одни и те же проверки работают для всех программ. Ошибки в часах и связях видны до согласования.</p>
+        </article>
+      </div>
+      <div class="note"><strong>На пилоте</strong> сначала замерим, сколько времени у методиста уходит сейчас, а затем сравним с работой в студии. Цель — получить проверенный каркас не дольше чем за 30 минут.</div>
+    </section>
+
+    <section>
+      <div class="head">
+        <div class="num">05</div>
+        <div>
+          <h1>Как поймём, что решение работает?</h1>
+          <p class="date">Эти показатели будем измерять на пилоте</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <div class="cards">
+        <article class="card metric">
+          <p class="when">Скорость</p>
+          <strong>≤ 30 мин</strong>
+          <p>От получения запроса до утверждённого каркаса.</p>
+        </article>
+        <article class="card metric">
+          <p class="when">Корректность</p>
+          <strong>≥ 95%</strong>
+          <p>Программ проходят проверку часов и связей с первого раза.</p>
+        </article>
+        <article class="card metric">
+          <p class="when">Качество</p>
+          <strong>100%</strong>
+          <p>Результатов обучения связаны и с тестом, и с практическим заданием.</p>
+        </article>
+      </div>
+      <div class="rows" style="margin-top: 18px">
+        <div class="row"><b>Возвраты</b><span>Не более 5% программ возвращаются из-за арифметики или пропущенных обязательных разделов.</span></div>
+        <div class="row"><b>Самостоятельная работа</b><span>Не менее 70% методистов пилота собирают и утверждают каркас без помощи команды.</span></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="head">
+        <div class="num">06</div>
+        <div>
+          <h1>Как устроено решение?</h1>
+          <p class="date">Что происходит между запросом методиста и готовой программой</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <div class="architecture system">
+        <article class="arch-node">
+          <small>1 · Уже работает</small>
+          <strong>Next.js и React</strong>
+          <span>Интерфейс: запрос, файлы, программа, отчёт и выгрузки.</span>
+        </article>
+        <article class="arch-node accent">
+          <small>2 · Основа backend</small>
+          <strong>Python и FastAPI</strong>
+          <span>Оркестратор, обработка документов, API и аудит. Проверки источников уже вынесены в Python.</span>
+        </article>
+        <article class="arch-node">
+          <small>3 · Генерация</small>
+          <strong>Cloud.ru Evolution</strong>
+          <span>Модель меняет отдельные разделы через инструменты; подключаем после выдачи доступа.</span>
+        </article>
+        <article class="arch-node">
+          <small>4 · Данные курса</small>
+          <strong>PostgreSQL + pgvector</strong>
+          <span>Курсы, версии, связи, история правок и поиск по подтверждённым нормативным материалам.</span>
+        </article>
+        <article class="arch-node">
+          <small>5 · Файлы</small>
+          <strong>Объектное хранилище</strong>
+          <span>Исходные DOCX/PDF и готовые DOCX/PPTX; в БД остаются метаданные и ссылки.</span>
+        </article>
+        <article class="arch-node">
+          <small>6 · Контроль</small>
+          <strong>Правила без модели</strong>
+          <span>Часы, связи и полнота — кодом. Приказы и профстандарты — только из подтверждённых источников.</span>
+        </article>
+      </div>
+      <div class="note"><strong>Поток данных:</strong> интерфейс → Python API → БД и файлы → Cloud.ru → проверка → решение методиста. PostgreSQL и хранилище — следующий этап; мы не выдаём их за уже готовые.</div>
+    </section>
+
+    <section>
+      <div class="head">
+        <div class="num">07</div>
+        <div>
+          <h1>Что готово к чекпоинту?</h1>
+          <p class="date">Что покажем сейчас и что сделаем после получения доступа</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <div class="split">
+        <article class="panel">
+          <h2>Есть сейчас</h2>
+          <ul>
+            <li>Интерфейс запроса, формы и загрузки референсов.</li>
+            <li>Полный пример: бриф, план, тесты, задания и лекции.</li>
+            <li>Отчёт по часам, связям, источникам и оцениванию результатов.</li>
+            <li>Ручное утверждение каркаса.</li>
+            <li>Выгрузки JSON, DOCX, HTML и PPTX.</li>
+            <li>40 автотестов; проект собирается без ошибок.</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h2>Дальше</h2>
+          <ul>
+            <li>Получить доступ и провести живой прогон Cloud.ru Evolution.</li>
+            <li>Проверить полный комплект на пяти запросах кейса.</li>
+            <li>Сверить DOCX с исходным бланком организаторов.</li>
+            <li>Проверить коды и названия нормативных источников.</li>
+            <li>Добавить выгрузку тестов в LMS.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <div class="head">
+        <div class="num">08</div>
+        <div>
+          <h1>Переходим к демонстрации</h1>
+          <p class="date">Показываем только то, что уже можно проверить</p>
+        </div>
+      </div>
+      <hr class="rule" />
+      <div class="cards">
+        <article class="card">
+          <p class="when">Шаг 1</p>
+          <h2>Открыть пример</h2>
+          <p>Показать общеразвивающую программу и баланс 24 из 24 академических часов.</p>
+        </article>
+        <article class="card">
+          <p class="when">Шаг 2</p>
+          <h2>Проверить связи</h2>
+          <p>Открыть компетенции, учебный план, тест с ключом и семинар с критериями.</p>
+        </article>
+        <article class="card">
+          <p class="when">Шаг 3</p>
+          <h2>Показать контроль человека</h2>
+          <p>Кнопка «Утвердить каркас» и архитектура следующего шага после получения доступа к модели.</p>
+        </article>
+      </div>
+      <p class="lead" style="margin-top: 26px">Код проверяет каркас. Методист решает, можно ли идти дальше.</p>
+    </section>
+  </main>
+  <script>
+    const sections = [...document.querySelectorAll("main section")];
+    const buttons = [...document.querySelectorAll("nav button")];
+    const counter = document.getElementById("counter");
+    const show = (index) => {
+      const next = (index + sections.length) % sections.length;
+      sections.forEach((section, i) => section.classList.toggle("active", i === next));
+      buttons.forEach((button, i) => button.setAttribute("aria-current", i === next ? "true" : "false"));
+      counter.textContent = `${next + 1} / ${sections.length}`;
+      history.replaceState(null, "", "#" + next);
+    };
+    buttons.forEach((button) => button.addEventListener("click", () => show(Number(button.dataset.slide))));
+    document.addEventListener("keydown", (event) => {
+      const current = sections.findIndex((section) => section.classList.contains("active"));
+      if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {
+        if (event.key === " ") event.preventDefault();
+        show(current + 1);
+      }
+      if (event.key === "ArrowLeft" || event.key === "PageUp") show(current - 1);
+    });
+    show(Number(location.hash.replace("#", "")) || 0);
+  </script>
+</body>
+</html>

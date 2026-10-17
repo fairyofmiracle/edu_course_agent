@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -50,6 +51,7 @@ app = FastAPI(
         "ключ и результат обучения, дословно совпадающий с результатом модуля."
     ),
     lifespan=lifespan,
+    root_path=os.getenv("ROOT_PATH", ""),
     openapi_tags=[
         {"name": "service", "description": "Проверка, что процесс отвечает."},
         {

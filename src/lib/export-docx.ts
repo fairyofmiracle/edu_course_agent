@@ -31,7 +31,7 @@ const LETTERHEAD = [
 
 const BORDER = { style: BorderStyle.SINGLE, size: 4, color: "666666" };
 const BORDERS = { top: BORDER, bottom: BORDER, left: BORDER, right: BORDER };
-const KIND_KEYS = ["lectureHours", "practiceHours", "labHours", "selfStudyHours"] as const;
+type KindKey = "lectureHours" | "practiceHours" | "labHours" | "selfStudyHours";
 
 type Block = Paragraph | Table;
 
@@ -96,7 +96,7 @@ function table(headers: string[], rows: string[][]) {
   });
 }
 
-function kindSum(modules: CourseModule[], key: (typeof KIND_KEYS)[number]) {
+function kindSum(modules: CourseModule[], key: KindKey) {
   return modules.reduce((total, courseModule) => total + courseModule[key], 0);
 }
 

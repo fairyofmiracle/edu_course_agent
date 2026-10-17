@@ -10,9 +10,21 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Откройте студию на [http://localhost:3000](http://localhost:3000), FastAPI — на [http://localhost:8000/docs](http://localhost:8000/docs). Compose поднимает Next.js, FastAPI и PostgreSQL, ждёт готовности БД и автоматически применяет миграции Alembic.
+Откройте студию на [http://localhost:8000](http://localhost:8000), FastAPI через прокси — на [http://localhost:8000/backend/docs](http://localhost:8000/backend/docs). Compose поднимает Next.js, FastAPI и PostgreSQL, ждёт готовности БД и автоматически применяет миграции Alembic. Наружу публикуется только обязательный для демо порт 8000.
 
-Для живой генерации заполните `CLOUDRU_API_KEY` в `.env`. Без ключа доступны офлайн-пример, загрузка файлов, аудит и выгрузки. Для остановки: `docker compose down`. Данные PostgreSQL остаются в volume `postgres-data`; удалить их можно только явно командой `docker compose down -v`.
+Для живой генерации задайте `OPENAI_API_KEY` и `OPENAI_BASE_URL` либо совместимые переменные `CLOUDRU_*`. На хакатонной VM `OPENAI_*` уже заданы и автоматически передаются в контейнер. Без ключа доступны офлайн-пример, загрузка файлов, аудит и выгрузки. Для остановки: `docker compose down`. Данные PostgreSQL остаются в volume `postgres-data`; удалить их можно только явно командой `docker compose down -v`.
+
+### Хакатонная VM
+
+```bash
+cd ~/project
+git pull
+docker compose up -d --build
+docker compose ps
+docker compose logs -f
+```
+
+Публичный адрес VM ведёт на порт 8000 и открывает интерфейс. FastAPI и PostgreSQL доступны только внутри Docker-сети.
 
 ## Локальный запуск
 

@@ -33,7 +33,7 @@ docker compose logs -f
 ```
 CLOUDRU_API_KEY=...
 CLOUDRU_BASE_URL=https://foundation-models.api.cloud.ru/v1
-CLOUDRU_MODEL=ai-sage/GigaChat3-10B-A1.8B
+CLOUDRU_MODEL=GigaChat/GigaChat-3-Pro
 CLOUDRU_MODEL_WRITER=GigaChat/GigaChat-3-Pro
 ```
 

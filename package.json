@@ -10,7 +10,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "smoke:llm": "python scripts/smoke-llm.py"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.84",

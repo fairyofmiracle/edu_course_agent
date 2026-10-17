@@ -25,7 +25,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       CLOUDRU_BASE_URL: ${CLOUDRU_BASE_URL:-}
       CLOUDRU_API_KEY: ${CLOUDRU_API_KEY:-}
-      CLOUDRU_MODEL: ${CLOUDRU_MODEL:-ai-sage/GigaChat3-10B-A1.8B}
+      CLOUDRU_MODEL: ${CLOUDRU_MODEL:-GigaChat/GigaChat-3-Pro}
       CLOUDRU_MODEL_WRITER: ${CLOUDRU_MODEL_WRITER:-GigaChat/GigaChat-3-Pro}
     expose:
       - "8000"

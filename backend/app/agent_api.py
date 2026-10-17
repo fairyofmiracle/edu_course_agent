@@ -5,15 +5,15 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from .agent import approve_framework, course_report, run_turn
+from .agent import approve_framework, course_report, fill_missing_kit, run_turn, strengthen_framework
 from .audit import audit_course_document
+from .catalog import is_incomplete_brief
+from .cloud import CloudRuClient
 from .models import CourseDocument, empty_course
-from .planner import content_missing
 
 router = APIRouter(prefix="/api", tags=["agent"])
 
 FRAMEWORK_PROMPT = "Собери только каркас программы: бриф, компетенции и учебный план."
-KIT_PROMPT = "Каркас утверждён методистом. Собери недостающий комплект."
 
 
 def _error_detail(error: Exception) -> str:
@@ -78,9 +78,21 @@ async def run_case(request: RunRequest) -> dict[str, Any]:
     user_texts: list[str] = []
     messages: list[dict[str, Any]] = []
     transcript: list[dict[str, Any]] = []
+    client = CloudRuClient()
 
     async def turn(text: str) -> None:
         nonlocal course, messages
+        if not client.budget_left():
+            transcript.append(
+                {
+                    "user": text,
+                    "assistant": "Остановилась: лимит токенов на задачу.",
+                    "mode": "stop",
+                    "steps": [],
+                    "calls": [],
+                }
+            )
+            return
         user_texts.append(text)
         messages.append({"role": "user", "content": text})
         result = await run_turn(
@@ -88,6 +100,7 @@ async def run_case(request: RunRequest) -> dict[str, Any]:
             user_texts=user_texts,
             model_messages=messages,
             references=request.references,
+            client=client,
         )
         course = result["course"]
         messages = result["modelMessages"]
@@ -106,24 +119,25 @@ async def run_case(request: RunRequest) -> dict[str, Any]:
         asked_questions = not course.modules
         if asked_questions and request.answers and request.answers.strip():
             await turn(request.answers.strip())
-        if not course.modules:
+        if not course.modules and not is_incomplete_brief(course):
             await turn(FRAMEWORK_PROMPT)
         approved_by = None
+        if course.modules:
+            course = strengthen_framework(course)
         if all(item["ok"] for item in course_report(course, asked_questions=False)["checks"]):
             if request.autoApprove:
                 course = approve_framework(course)
                 approved_by = "auto"
-                for _ in range(4):
-                    if not content_missing(course):
-                        break
-                    await turn(KIT_PROMPT)
+                course = fill_missing_kit(course)
         report = course_report(course, asked_questions=asked_questions)
         report["approvedBy"] = approved_by
         report["audit"] = audit_course_document(course)
+        report["usage"] = client.usage
         return {
             "course": course.as_api(),
             "report": report,
             "transcript": transcript,
+            "usage": client.usage,
         }
     except Exception as error:
         raise HTTPException(status_code=502, detail=_error_detail(error)) from error

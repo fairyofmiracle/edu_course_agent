@@ -9,8 +9,10 @@ from backend.app.domain import (
     apply_patch,
     framework_items,
 )
-from backend.app.models import CourseDocument
-from backend.app.planner import decide_mode, plan_step
+from backend.app.models import CourseDocument, empty_course
+from backend.app.agent import approve_framework, fill_missing_kit
+from backend.app.planner import decide_mode, kit_needed, plan_step
+from backend.app.tools import execute_tool
 
 FIXTURE = Path(__file__).parents[2] / "fixtures" / "course-contract.json"
 
@@ -51,6 +53,75 @@ def test_month_does_not_become_seventy_two_hours() -> None:
     assert dropped == ["durationHours", "programKind"]
 
 
+def test_russian_program_kind_becomes_general() -> None:
+    current = empty_course().brief.model_dump(by_alias=True)
+    guarded, dropped = guard_brief(
+        {
+            "title": "Первые шаги в Python",
+            "durationHours": 16,
+            "programKind": "Дополнительная общеразвивающая программа",
+        },
+        current,
+        [
+            "Нужна дополнительная общеразвивающая программа «Первые шаги в Python» "
+            "Объем 16 часов"
+        ],
+    )
+    assert guarded["programKind"] == "general"
+    assert guarded["durationHours"] == 16
+    assert dropped == []
+
+
+def test_model_structure_aliases_are_applied() -> None:
+    course = empty_course()
+    output = execute_tool(
+        "set_structure",
+        {
+            "competencies": ["Основы Python"],
+            "modules": [
+                {
+                    "title": "Введение в Python",
+                    "academicHours": 8,
+                    "practicesHours": 5,
+                    "lecturesHours": 3,
+                    "description": "Синтаксис и переменные",
+                }
+            ],
+        },
+        course,
+        ["Нужна общеразвивающая программа на 16 часов"],
+    )
+    module = output["modules"][0]
+    assert module["hours"] == 8
+    assert module["practiceHours"] == 5
+    assert module["lectureHours"] == 3
+    assert module["topics"]
+    assert module["learningOutcomes"]
+    nodes = execute_tool(
+        "set_brief",
+        {"competencies": ["Основы Python", "Мини-проект"]},
+        course,
+        ["текст"],
+    )
+    assert nodes["type"] == "update_brief"
+
+
+def test_empty_assessment_is_filled_from_module() -> None:
+    course = approve_framework(fixture_course())
+    output = execute_tool("set_assessment", {}, course, [], module_id="M1")
+    assert output["type"] == "set_assessment"
+    assert len(output["assessment"]["questions"]) == 10
+    assert output["assessment"]["questions"][0]["learningOutcome"] == "Пишет программу с ветвлением"
+    assert "Что верно про тему" not in output["assessment"]["questions"][0]["stem"]
+    filled = fill_missing_kit(course)
+    assert kit_needed(filled) is False
+    assert len(filled.assessments[0].questions) == 10
+    assert filled.lectures
+    assert filled.seminars
+    assert filled.competencies.nodes[0].name == "Пишет простые программы"
+    assert "Практика по теме" not in filled.lectures[0].slides[0].bullets
+
+
 def test_patch_rounds_hours_to_half_step_instead_of_dropping_brief() -> None:
     course = fixture_course()
     changed = apply_patch(
@@ -87,3 +158,19 @@ def test_planner_starts_with_brief_tool() -> None:
     assert decide_mode(course, "Новый запрос") == "intake"
     step = plan_step("intake", course, [], 1)
     assert step["tool"] == "update_brief"
+
+
+def test_short_program_asks_for_three_modules() -> None:
+    course = fixture_course()
+    course.brief.duration_hours = 16
+    step = plan_step("intake", course, ["update_brief", "set_competency_map"], 1)
+    assert step["tool"] == "set_structure"
+    assert "3 модуля" in step["task"]
+
+
+def test_kit_stops_after_test_and_two_lectures() -> None:
+    course = fixture_course()
+    course.framework_approved = True
+    assert kit_needed(course) is True
+    first = plan_step("kit", course, [], 3)
+    assert first["tool"] == "set_assessment"

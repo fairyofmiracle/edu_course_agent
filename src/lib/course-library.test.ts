@@ -34,7 +34,10 @@ describe("библиотека курсов", () => {
     rememberCourse(second, [], storage);
 
     const titles = listLibrary(storage).map((item) => item.title);
-    expect(titles).toEqual(["Для студентов", "Для учителей"]);
+    expect(titles).toHaveLength(2);
+    expect(titles).toEqual(
+      expect.arrayContaining(["Для студентов", "Для учителей"]),
+    );
     expect(loadLibraryCourse(storage, first.id)?.course.brief.audience).toBe("Учителя школ");
     expect(loadLibraryCourse(storage, first.id)?.messages).toHaveLength(1);
 

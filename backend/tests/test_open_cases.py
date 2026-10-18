@@ -150,6 +150,7 @@ def test_case4_asks_then_builds() -> None:
     missing = missing_brief_lines(first)
     assert "точный объём в академических часах" in missing
     assert "тип программы" in missing
+    assert "входной уровень слушателей" in missing
     step = plan_step("intake", first, ["update_brief"], 1)
     assert step["kind"] == "reply"
     assert "час" in step["task"]

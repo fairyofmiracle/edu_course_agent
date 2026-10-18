@@ -74,3 +74,48 @@ def test_delete_course_removes_one_and_keeps_the_other() -> None:
     assert course["id"] not in listed
     assert other["id"] in listed
     client.delete(f"/api/courses/{other['id']}")
+
+
+def test_save_rejects_mismatched_id_and_missing_course() -> None:
+    course = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    client = TestClient(app)
+    mismatched = client.put("/api/courses/other-id", json={"course": course})
+    assert mismatched.status_code == 400
+    assert client.get("/api/courses/missing-course").status_code == 404
+    assert client.get("/api/courses/missing-course/versions").status_code == 404
+    assert client.post("/api/courses/missing-course/copy").status_code == 404
+    assert client.post(
+        "/api/courses/missing-course/messages",
+        json={"role": "user", "payload": {"text": "привет"}},
+    ).status_code == 404
+
+
+def test_versions_and_appended_message() -> None:
+    course = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    course["id"] = "versioned-course"
+    client = TestClient(app)
+    first = client.put(
+        f"/api/courses/{course['id']}",
+        json={"course": course, "reason": "first"},
+    )
+    assert first.status_code == 200
+    course["brief"]["title"] = ""
+    second = client.put(
+        f"/api/courses/{course['id']}",
+        json={"course": course, "reason": "retitle"},
+    )
+    assert second.status_code == 200
+    versions = client.get(f"/api/courses/{course['id']}/versions")
+    assert versions.status_code == 200
+    assert [item["reason"] for item in versions.json()["versions"]] == ["retitle", "first"]
+    added = client.post(
+        f"/api/courses/{course['id']}/messages",
+        json={"role": "assistant", "payload": {"text": "каркас готов"}},
+    )
+    assert added.status_code == 200
+    assert added.json()["id"]
+    copied = client.post(f"/api/courses/{course['id']}/copy")
+    assert copied.status_code == 200
+    assert copied.json()["course"]["brief"]["title"].endswith("— копия")
+    client.delete(f"/api/courses/{course['id']}")
+    client.delete(f"/api/courses/{copied.json()['id']}")

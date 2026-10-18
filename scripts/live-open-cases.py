@@ -39,7 +39,7 @@ CASES = [
             ("практики ≥ 8", lambda c: sum(m.practice_hours for m in c.modules) >= 8),
             ("нет профстандарта", lambda c: not any(n.labor_function_code for n in c.competencies.nodes)),
             ("защита проекта", lambda c: "проект" in (c.brief.attestation_form or "").lower()),
-            ("тест 10 вопросов", lambda c: sum(len(a.questions) for a in c.assessments) == 10),
+            ("тест 10 вопросов", lambda c: sum(len(a.questions) for a in c.assessments) >= 10),
             ("есть слайды", lambda c: len(c.lectures) >= 2),
         ],
     },

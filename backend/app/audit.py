@@ -17,11 +17,12 @@ def _audit_item(
     ok: bool,
     section: str,
     details: str | None = None,
+    status: str | None = None,
 ) -> dict[str, Any]:
     item = {
         "id": item_id,
         "label": label,
-        "status": "pass" if ok else "fail",
+        "status": status or ("pass" if ok else "fail"),
         "section": section,
     }
     if details:
@@ -128,15 +129,29 @@ def audit_course(course: dict[str, Any]) -> dict[str, Any]:
         module_outcomes = {
             str(outcome).strip() for outcome in module.get("learningOutcomes") or []
         }
+        needs_lecture = _number(module.get("lectureHours")) > 0
         has_lecture = any(row.get("moduleId") == module_id for row in lectures)
         has_seminar = any(row.get("moduleId") == module_id for row in seminars)
         has_assessment = any(row.get("moduleId") == module_id for row in assessments)
+        missing = [
+            part
+            for part, present in (
+                ("нет лекции", has_lecture or not needs_lecture),
+                ("нет задания", has_seminar),
+                ("нет теста", has_assessment),
+            )
+            if not present
+        ]
+        complete = not missing
+        partial = has_lecture or has_seminar or has_assessment
         items.append(
             _audit_item(
                 f"content.{module_id}",
                 f"{module.get('title') or module_id}: лекция, задание и тест",
-                has_lecture and has_seminar and has_assessment,
+                complete,
                 "content",
+                ", ".join(missing) if missing else None,
+                status="pass" if complete else "warning" if partial else "fail",
             )
         )
 

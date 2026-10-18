@@ -13,12 +13,14 @@ from .catalog import (
     is_incomplete_brief,
     is_internship,
     lecture_modules,
+    profile_name,
     promise_notes,
 )
 from .kit_content import (
     STUB_BULLET,
     PEDAGOGUE_STANDARD,
     attestation_form,
+    cover_learning_outcomes,
     default_competencies,
     document_constraints,
     ensure_risk_topic,
@@ -31,6 +33,7 @@ from .kit_content import (
 )
 from .models import CourseDocument, empty_course
 from .planner import (
+    KIT_TOOLS,
     content_missing,
     decide_mode,
     intake_questions,
@@ -40,10 +43,15 @@ from .planner import (
     missing_brief_lines,
     plan_step,
 )
+from .reference_outline import (
+    apply_file_labor_codes,
+    apply_reference_hints,
+    compact_reference,
+)
 from .tools import course_tools, execute_tool
 
-MAX_STEPS = 10
-REF_LIMIT = 900
+MAX_STEPS = 12
+REF_LIMIT = 3500
 USER_LIMIT = 1800
 
 SYSTEM_PROMPT = """Ты методист. Документ меняй только JSON-инструментом.
@@ -62,7 +70,7 @@ def clip_text(value: str | None, limit: int) -> str:
 
 
 def clip_references(value: str | None, limit: int = REF_LIMIT) -> str:
-    return clip_text(value, limit)
+    return compact_reference(value, limit)
 
 
 def course_snapshot(course: CourseDocument, step: dict[str, Any]) -> dict[str, Any]:
@@ -128,7 +136,9 @@ def build_system_prompt(
     step: dict[str, Any],
     references: str | None = None,
 ) -> str:
-    refs = clip_references(references)
+    tool = step.get("tool")
+    ref_limit = REF_LIMIT if tool == "set_structure" else 900
+    refs = clip_references(references, ref_limit)
     return "\n".join(
         filter(
             None,
@@ -193,8 +203,8 @@ async def run_turn(
 ) -> dict[str, Any]:
     client = client or CloudRuClient()
     mode = decide_mode(course, user_texts[-1] if user_texts else "")
-    if is_framework_approved(course) and kit_needed(course):
-        course = fill_missing_kit(course)
+    if is_framework_approved(course) and kit_needed(course) and not getattr(client, "api_key", None):
+        course = fill_missing_kit(course, references, user_texts)
         return {
             "course": course,
             "assistant": "Собрала комплект по каркасу: тест, слайды и семинар.",
@@ -205,6 +215,8 @@ async def run_turn(
             "modelMessages": model_messages,
             "usage": getattr(client, "usage", None),
         }
+    if is_framework_approved(course) and kit_needed(course):
+        mode = "kit"
     planned: list[str] = []
     patches: list[dict[str, Any]] = []
     calls: list[dict[str, Any]] = []
@@ -231,14 +243,21 @@ async def run_turn(
                 if next_course != course:
                     course = next_course
                     patches.append(output)
+            if references:
+                course = apply_reference_hints(course, references, user_texts)
             continue
         if step.get("kind") == "reply":
             if missing_brief_lines(course):
                 assistant_text = intake_questions(course)
             else:
                 assistant_text = str(step.get("task") or "Каркас готов. Проверьте часы и утвердите.")
+                notes = promise_notes(course)
+                if notes:
+                    assistant_text = assistant_text + "\n\n" + "\n".join(notes)
             break
-        if step.get("tool") == "set_competency_map":
+        if step.get("tool") == "set_competency_map" and (
+            not getattr(client, "api_key", None) or profile_name(course) != "generic"
+        ):
             output = execute_tool(
                 "set_competency_map",
                 {"nodes": default_competencies(course)},
@@ -254,24 +273,47 @@ async def run_turn(
                     patches.append(output)
             continue
         use_fast = step.get("kind") == "reply"
-        message = await client.complete(
-            system=build_system_prompt(course, step, references),
-            messages=outgoing,
-            tools=tools_for_step(step),
-            tool_choice=_tool_choice(step),
-            max_tokens=max_tokens_for_step(step),
-            model=(
-                getattr(client, "model_fast", None)
-                if use_fast
-                else getattr(client, "model_writer", None)
-            ),
-        )
-        tool_calls = (message.get("tool_calls") or [])[:1]
-        model_messages.append(message)
-        content = message.get("content")
-        if isinstance(content, str) and content.strip():
-            assistant_text = content.strip()
-        if not tool_calls:
+        try:
+            message = await client.complete(
+                system=build_system_prompt(course, step, references),
+                messages=outgoing,
+                tools=tools_for_step(step),
+                tool_choice=_tool_choice(step),
+                max_tokens=max_tokens_for_step(step),
+                model=(
+                    getattr(client, "model_fast", None)
+                    if use_fast
+                    else getattr(client, "model_writer", None)
+                ),
+            )
+        except Exception:
+            if step.get("tool") in KIT_TOOLS:
+                output = execute_tool(
+                    str(step["tool"]),
+                    {},
+                    course,
+                    user_texts,
+                    form_brief,
+                    module_id=step.get("moduleId"),
+                )
+                calls.append({"tool": step["tool"], "input": "local_fallback"})
+                if output.get("type") != "tool_error":
+                    course = apply_patch(course, output)
+                    patches.append(output)
+                continue
+            if step.get("tool") == "set_competency_map":
+                output = execute_tool(
+                    "set_competency_map",
+                    {"nodes": default_competencies(course)},
+                    course,
+                    user_texts,
+                    form_brief,
+                )
+                calls.append({"tool": "set_competency_map", "input": "local_fallback"})
+                if output.get("type") != "tool_error":
+                    course = apply_patch(course, output)
+                    patches.append(output)
+                continue
             if step.get("tool") == "set_structure":
                 modules = default_structure(course)
                 if modules:
@@ -282,15 +324,51 @@ async def run_turn(
                         user_texts,
                         form_brief,
                     )
+                    calls.append({"tool": "set_structure", "input": "local_fallback"})
+                    if output.get("type") != "tool_error":
+                        course = apply_patch(course, output)
+                        patches.append(output)
+                continue
+            raise
+        tool_calls = (message.get("tool_calls") or [])[:1]
+        model_messages.append(message)
+        content = message.get("content")
+        if isinstance(content, str) and content.strip():
+            assistant_text = content.strip()
+            if not tool_calls:
+                if step.get("tool") == "set_structure":
+                    modules = default_structure(course)
+                    if modules:
+                        output = execute_tool(
+                            "set_structure",
+                            {"modules": modules},
+                            course,
+                            user_texts,
+                            form_brief,
+                        )
+                        if output.get("type") != "tool_error":
+                            next_course = apply_patch(course, output)
+                            if next_course != course:
+                                course = next_course
+                                patches.append(output)
+                                calls.append({"tool": "set_structure", "input": "local_fallback"})
+                if step.get("tool") == "set_competency_map":
+                    output = execute_tool(
+                        "set_competency_map",
+                        {"nodes": default_competencies(course)},
+                        course,
+                        user_texts,
+                        form_brief,
+                    )
                     if output.get("type") != "tool_error":
                         next_course = apply_patch(course, output)
                         if next_course != course:
                             course = next_course
                             patches.append(output)
-                            calls.append({"tool": "set_structure", "input": "local_fallback"})
-            if step["kind"] in {"reply", "auto"}:
-                break
-            continue
+                            calls.append({"tool": "set_competency_map", "input": "local_fallback"})
+                if step["kind"] in {"reply", "auto"}:
+                    break
+                continue
 
         call = tool_calls[0]
         function = call.get("function") or {}
@@ -337,6 +415,12 @@ async def run_turn(
         model_messages.append({"role": "user", "content": f"ok {name}"})
         if planned.count("reply") >= 2:
             break
+
+    if is_framework_approved(course) and kit_needed(course):
+        course = fill_missing_kit(course, references, user_texts)
+        planned.append("fill_missing_kit")
+    if is_framework_approved(course) and not assistant_text:
+        assistant_text = "Собрала комплект по каркасу: тест, слайды и семинар."
 
     return {
         "course": course,
@@ -447,8 +531,14 @@ def _lecture_is_stub(course: CourseDocument, module_id: str) -> bool:
     return any(STUB_BULLET.search(" ".join(slide.bullets)) for slide in lecture.slides)
 
 
-def fill_missing_kit(course: CourseDocument) -> CourseDocument:
+def fill_missing_kit(
+    course: CourseDocument,
+    references: str | None = None,
+    user_texts: list[str] | None = None,
+) -> CourseDocument:
+    course = apply_reference_hints(course, references, user_texts)
     course = strengthen_framework(course)
+    course = apply_file_labor_codes(course, references)
     if all(item["ok"] for item in framework_items(course)):
         course = approve_framework(course)
     if not is_framework_approved(course):
@@ -461,9 +551,7 @@ def fill_missing_kit(course: CourseDocument) -> CourseDocument:
         )
         output = execute_tool("set_assessment", {}, course, [], module_id=target)
         if output.get("type") != "tool_error":
-            value = course.as_api()
-            value["assessments"] = [output["assessment"]]
-            course = CourseDocument.model_validate(value)
+            course = apply_patch(course, output)
     for module in lecture_modules(course, kit_lecture_target(course)):
         if not _lecture_is_stub(course, module.id):
             continue
@@ -481,18 +569,19 @@ def fill_missing_kit(course: CourseDocument) -> CourseDocument:
         )
         if output.get("type") != "tool_error":
             course = apply_patch(course, output)
-    return course
+    return cover_learning_outcomes(course)
 
 
 def assemble_local_course(
     texts: list[str],
     extra_brief: dict[str, Any] | None = None,
+    references: str | None = None,
 ) -> CourseDocument:
     course = empty_course()
     output = execute_tool("update_brief", dict(extra_brief or {}), course, texts)
     if output.get("type") != "tool_error":
         course = apply_patch(course, output)
-    return fill_missing_kit(course)
+    return fill_missing_kit(course, references, texts)
 
 
 def approve_framework(course: CourseDocument) -> CourseDocument:

@@ -50,6 +50,74 @@ KIND_MARKERS = {
 
 
 SAMPLE_NEAR = re.compile(r"образец|приложен|референс", re.IGNORECASE)
+FILE_PTR = r"файл|образц|приложен|референс"
+FIELD_WORDS = {
+    "hours": r"час|объ[её]м",
+    "audience": r"аудитор|слушател",
+    "topic": r"тем[аеуы]|назван|предмет",
+    "structure": r"структур|раздел|модул",
+    "attestation": r"аттестац",
+}
+EXCEPT_WORDS = {
+    "hours": r"час|объ[её]м",
+    "audience": r"аудитор|слушател",
+    "topic": r"тем|назван",
+    "structure": r"структур|раздел|модул",
+    "attestation": r"аттестац",
+}
+
+
+def sample_intents(texts: list[str]) -> set[str]:
+    """Какие поля методист явно берёт из файла. Молчаливое приложение файла сюда не входит."""
+    blob = " ".join(texts)
+    intents: set[str] = set()
+    if re.search(
+        rf"(?:вс[её]|целиком|полностью).{{0,16}}(?:как в|из).{{0,12}}(?:{FILE_PTR})",
+        blob,
+        re.IGNORECASE,
+    ):
+        intents.update(FIELD_WORDS)
+    for match in re.finditer(
+        rf"кроме\s+({EXCEPT_WORDS['topic']}|{EXCEPT_WORDS['audience']}|"
+        rf"{EXCEPT_WORDS['hours']}|{EXCEPT_WORDS['structure']}|{EXCEPT_WORDS['attestation']})\w*",
+        blob,
+        re.IGNORECASE,
+    ):
+        token = match.group(1).lower()
+        for field, stem in EXCEPT_WORDS.items():
+            if re.match(stem, token, re.IGNORECASE):
+                intents.discard(field)
+    for field, words in FIELD_WORDS.items():
+        others = "|".join(stem for name, stem in FIELD_WORDS.items() if name != field)
+        for match in re.finditer(
+            rf"(?:{words})\w{{0,12}}(.{{0,40}})(?:как в|из)\s+(?:{FILE_PTR})",
+            blob,
+            re.IGNORECASE,
+        ):
+            gap = match.group(1)
+            if not re.search(rf"(?:{others})\w*", gap, re.IGNORECASE):
+                intents.add(field)
+        if re.search(
+            rf"(?:как в|из)\s+(?:{FILE_PTR})\w{{0,12}}.{{0,16}}только\s+(?:{words})",
+            blob,
+            re.IGNORECASE,
+        ) or re.search(
+            rf"(?:как в|из)\s+(?:{FILE_PTR}).{{0,20}}(?:{words})",
+            blob,
+            re.IGNORECASE,
+        ):
+            intents.add(field)
+    if re.search(r"структур\w*.{0,24}(?:возьм|можно взять|как в)", blob, re.IGNORECASE):
+        intents.add("structure")
+    if re.search(r"тем[аеу]\s+друг", blob, re.IGNORECASE):
+        intents.discard("topic")
+    if re.search(r"аудитор\w*\s+друг", blob, re.IGNORECASE):
+        intents.discard("audience")
+    return intents
+
+
+def wants_hours_from_sample(texts: list[str]) -> bool:
+    return "hours" in sample_intents(texts)
 
 
 def mentioned_hours(text: str) -> list[int]:

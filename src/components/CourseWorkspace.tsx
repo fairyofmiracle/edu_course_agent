@@ -5,7 +5,7 @@ import { SourceChecks } from "@/components/SourceChecks";
 import { StackFreshnessPanel } from "@/components/StackFreshness";
 import { LectureDeck } from "@/components/LectureDeck";
 import { MermaidBlock } from "@/components/MermaidBlock";
-import { auditCourse, type AuditSection, type AuditStatus } from "@/lib/course-audit";
+import { auditCourse, methodistNotes, type AuditSection, type AuditStatus } from "@/lib/course-audit";
 import { structureMermaid } from "@/lib/export";
 import { validateCourseHours } from "@/lib/course-validation";
 import { contentGaps, frameworkItems, isFrameworkApproved, outcomeGaps } from "@/lib/framework-check";
@@ -241,6 +241,7 @@ function FrameworkCheck({ course }: { course: CourseDocument }) {
 
 function Overview({ course, score }: { course: CourseDocument; score: number }) {
   const { brief } = course;
+  const notes = methodistNotes(course);
   return (
     <div className="overview">
       <header className="overview-head">
@@ -250,6 +251,16 @@ function Overview({ course, score }: { course: CourseDocument; score: number }) 
         </div>
         <p className="score">{Math.round(score * 100)}% заполнено</p>
       </header>
+      {notes.length ? (
+        <article>
+          <h3>Для методиста</h3>
+          <ul>
+            {notes.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </article>
+      ) : null}
       <dl className="meta-grid">
         <div>
           <dt>Аудитория</dt>

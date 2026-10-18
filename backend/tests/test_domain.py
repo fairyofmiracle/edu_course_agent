@@ -168,6 +168,24 @@ def test_short_program_asks_for_three_modules() -> None:
     assert "3 модуля" in step["task"]
 
 
+def test_kit_tools_wait_for_approval() -> None:
+    course = fixture_course()
+    blocked = execute_tool("set_assessment", {}, course, [], module_id="M1")
+    assert blocked["type"] == "tool_error"
+    unknown = execute_tool("set_mood", {}, course, [])
+    assert unknown["type"] == "set_mood"
+    missing = execute_tool("unknown_tool", {}, course, [])
+    assert missing["type"] == "tool_error"
+    revised = execute_tool(
+        "revise_section",
+        {"section": "brief", "data": '{"title":"Сети"}'},
+        approve_framework(course),
+        [],
+    )
+    assert revised["type"] == "revise_section"
+    assert revised["data"]["title"] == "Сети"
+
+
 def test_kit_stops_after_test_and_two_lectures() -> None:
     course = fixture_course()
     course.framework_approved = True

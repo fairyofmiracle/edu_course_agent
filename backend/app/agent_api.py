@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from .agent import approve_framework, course_report, fill_missing_kit, run_turn, strengthen_framework
+from .agent import approve_framework, course_report, run_turn, strengthen_framework
 from .audit import audit_course_document
 from .catalog import is_incomplete_brief
 from .cloud import CloudRuClient
@@ -128,7 +128,33 @@ async def run_case(request: RunRequest) -> dict[str, Any]:
             if request.autoApprove:
                 course = approve_framework(course)
                 approved_by = "auto"
-                course = fill_missing_kit(course)
+                transcript.append(
+                    {
+                        "user": "Утверждаю каркас",
+                        "assistant": "Каркас утверждён. Собираю комплект: тест, лекции и семинары.",
+                        "mode": "approve",
+                        "steps": ["approve_framework"],
+                        "calls": [],
+                    }
+                )
+                kit = await run_turn(
+                    course,
+                    user_texts=user_texts or [request.request.strip()],
+                    model_messages=messages,
+                    references=request.references,
+                    client=client,
+                )
+                course = kit["course"]
+                messages = kit["modelMessages"]
+                transcript.append(
+                    {
+                        "user": "Собери комплект",
+                        "assistant": kit["assistant"],
+                        "mode": kit["mode"],
+                        "steps": kit["steps"],
+                        "calls": kit["calls"],
+                    }
+                )
         report = course_report(course, asked_questions=asked_questions)
         report["approvedBy"] = approved_by
         report["audit"] = audit_course_document(course)

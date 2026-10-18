@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { auditCourse, outcomeInstrumentGaps, type OpenCaseId } from "@/lib/course-audit";
+import { auditCourse, methodistNotes, outcomeInstrumentGaps, type OpenCaseId } from "@/lib/course-audit";
 import { SAMPLE_COURSE } from "@/lib/sample-course";
 
 const copy = () => structuredClone(SAMPLE_COURSE);
@@ -43,7 +43,7 @@ describe("auditCourse", () => {
     course.brief.durationHours = 16;
     expect(result(1, "case.1.kind", course)?.status).toBe("pass");
     expect(result(1, "case.1.practice", course)?.status).toBe("pass");
-    expect(result(1, "case.1.questions", course)?.status).toBe("fail");
+    expect(result(1, "case.1.questions", course)?.status).toBe("pass");
   });
 
   it("проверяет запрос 2", () => {
@@ -94,5 +94,18 @@ describe("auditCourse", () => {
     expect(result(5, "case.5.self", course)?.status).toBe("pass");
     expect(result(5, "case.5.zero", course)?.status).toBe("pass");
     expect(result(5, "case.5.topics", course)?.status).toBe("pass");
+  });
+
+  it("календарь в условиях проходит, а не пишет что модели нет", () => {
+    const course = copy();
+    expect(auditCourse(course).items.find((item) => item.id === "framework.calendar")?.status).toBe(
+      "pass",
+    );
+    course.brief.constraints.push("Календарный график: 8 занятий по 2 часа, 4 недели.");
+    course.brief.durationHours = 16;
+    expect(result(1, "case.1.calendar", course)?.status).toBe("pass");
+    expect(result(1, "case.1.calendar", course)?.details).not.toContain("нет календарного графика");
+    const notes = methodistNotes(course);
+    expect(notes.some((line) => /календарн/i.test(line))).toBe(true);
   });
 });

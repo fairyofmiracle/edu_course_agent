@@ -1,7 +1,7 @@
 
 import pytest
 
-from app.cloud import validate_llm_endpoint
+from backend.app.cloud import validate_llm_endpoint
 
 
 @pytest.mark.parametrize("url", [

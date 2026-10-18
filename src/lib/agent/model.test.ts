@@ -1,14 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+type OpenAIOptions = {
+  apiKey?: string;
+  baseURL?: string;
+  name?: string;
+};
+
 const chat = vi.fn((name: string) => ({ model: name }));
-const createOpenAI = vi.fn(() => ({ chat }));
+const createOpenAI = vi.fn((_options?: OpenAIOptions) => ({ chat }));
 
 vi.mock("@ai-sdk/openai", () => ({
-  createOpenAI: (...args: unknown[]) => createOpenAI(...args),
-}));
-
-vi.mock("@/lib/agent/cloudru-messages", () => ({
-  normalizeCloudRuBody: (body: string) => body.replace("RAW", "CLEAN"),
+  createOpenAI: (options?: OpenAIOptions) => createOpenAI(options),
 }));
 
 describe("getLanguageModel", () => {
@@ -17,6 +19,7 @@ describe("getLanguageModel", () => {
     delete process.env.OPENAI_API_KEY;
     delete process.env.CLOUDRU_API_KEY;
     delete process.env.OPENAI_BASE_URL;
+    delete process.env.CLOUDRU_BASE_URL;
     delete process.env.CLOUDRU_MODEL;
     delete process.env.CLOUDRU_MODEL_WRITER;
   });
@@ -36,23 +39,22 @@ describe("getLanguageModel", () => {
     expect(createOpenAI).toHaveBeenCalled();
   });
 
-  it("нормализует тело запроса и пишет ошибку Cloud.ru", async () => {
-    const fetchMock = vi.fn(async () => ({
-      ok: false,
-      status: 400,
-      clone: () => ({ text: async () => "bad" }),
-    }));
-    vi.stubGlobal("fetch", fetchMock);
+  it("берёт шлюз хакатона и отклоняет зарубежный API", async () => {
     process.env.OPENAI_API_KEY = "k";
+    process.env.OPENAI_BASE_URL = "https://hub.gigaschool.ru/api/v1/llm/v1";
+    process.env.CLOUDRU_BASE_URL = "https://foundation-models.api.cloud.ru/v1";
     const { getLanguageModel } = await import("./model");
     getLanguageModel("chat");
-    const customFetch = createOpenAI.mock.calls.at(-1)?.[0]?.fetch as typeof fetch;
-    await customFetch("https://example.test", { body: '{"x":"RAW"}' });
-    await customFetch("https://example.test");
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://example.test",
-      expect.objectContaining({ body: '{"x":"CLEAN"}' }),
+    expect(createOpenAI).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKey: "k",
+        baseURL: "https://hub.gigaschool.ru/api/v1/llm/v1",
+      }),
     );
-    vi.unstubAllGlobals();
+
+    process.env.OPENAI_BASE_URL = "https://api.openai.com/v1";
+    vi.resetModules();
+    const { getLanguageModel: getAgain } = await import("./model");
+    expect(() => getAgain("chat")).toThrow(/LLM API запрещён/);
   });
 });

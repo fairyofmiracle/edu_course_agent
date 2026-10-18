@@ -328,6 +328,53 @@ def test_complete_uses_reasoning_and_rejects_empty_choices(monkeypatch) -> None:
     assert message["content"] == "думаю"
 
 
+def test_complete_retries_then_succeeds(monkeypatch) -> None:
+    class Response:
+        def __init__(self, status: int, payload: dict | None = None):
+            self.status_code = status
+            self.is_error = status >= 400
+            self.text = "busy" if status >= 400 else ""
+            self._payload = payload or {
+                "choices": [{"message": {"role": "assistant", "content": "ок"}}],
+                "usage": {"total_tokens": 2},
+            }
+
+        def json(self):
+            return self._payload
+
+    calls = {"n": 0}
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+        async def post(self, *_args, **_kwargs):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                return Response(503)
+            return Response(200)
+
+    async def no_sleep(_seconds):
+        return None
+
+    monkeypatch.setenv("OPENAI_API_KEY", "k")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://hub.gigaschool.ru/api/v1/llm/v1")
+    monkeypatch.setattr("backend.app.cloud.httpx.AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr("backend.app.cloud.asyncio.sleep", no_sleep)
+    client = CloudRuClient()
+    message = asyncio.run(
+        client.complete(system="s", messages=[{"role": "user", "content": "hi"}], tools=[])
+    )
+    assert calls["n"] == 3
+    assert message["content"] == "ок"
+
+
 def test_complete_raises_on_http_error(monkeypatch) -> None:
     class Response:
         is_error = True

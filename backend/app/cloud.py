@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
@@ -30,6 +31,8 @@ ALLOWED_LLM_ENDPOINTS = frozenset({
     "https://foundation-models.api.cloud.ru/v1",
     "https://hub.gigaschool.ru/api/v1/llm/v1",
 })
+RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+RETRY_ATTEMPTS = 3
 
 
 def validate_llm_endpoint(value: str) -> str:
@@ -338,26 +341,41 @@ class CloudRuClient:
         )
         if payload_has_control_tokens(payload):
             raise RuntimeError("В запрос модели попали служебные токены. Запрос не отправлен.")
-        async with httpx.AsyncClient(timeout=180, trust_env=False) as client:
-            response = await client.post(
-                f"{self.base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-            )
-        if response.is_error:
-            detail = response.text[:400]
-            raise RuntimeError(f"Cloud.ru {response.status_code}: {detail}")
-        data = response.json()
-        self.add_usage(data.get("usage"))
-        choices = data.get("choices") or []
-        if not choices:
-            raise RuntimeError(f"Cloud.ru вернул ответ без choices: {json.dumps(data)[:500]}")
-        message = dict(choices[0]["message"])
-        if not str(message.get("content") or "").strip() and message.get("reasoning"):
-            message["content"] = message.get("reasoning")
-        if self.json_tools and not message.get("tool_calls"):
-            return parse_assistant_message(message.get("content"))
-        return sanitize(message)
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        last_error = "Cloud.ru не ответила"
+        for attempt in range(RETRY_ATTEMPTS):
+            try:
+                async with httpx.AsyncClient(timeout=180, trust_env=False) as client:
+                    response = await client.post(
+                        f"{self.base_url}/chat/completions",
+                        headers=headers,
+                        json=payload,
+                    )
+            except (httpx.TimeoutException, httpx.TransportError) as error:
+                last_error = f"Cloud.ru сеть: {error}"
+                if attempt + 1 < RETRY_ATTEMPTS:
+                    await asyncio.sleep(0.4 * (2 ** attempt))
+                    continue
+                raise RuntimeError(last_error) from error
+            status = getattr(response, "status_code", 500 if response.is_error else 200)
+            if status in RETRY_STATUSES and attempt + 1 < RETRY_ATTEMPTS:
+                last_error = f"Cloud.ru {status}: {response.text[:400]}"
+                await asyncio.sleep(0.4 * (2 ** attempt))
+                continue
+            if response.is_error:
+                raise RuntimeError(f"Cloud.ru {status}: {response.text[:400]}")
+            data = response.json()
+            self.add_usage(data.get("usage"))
+            choices = data.get("choices") or []
+            if not choices:
+                raise RuntimeError(f"Cloud.ru вернул ответ без choices: {json.dumps(data)[:500]}")
+            message = dict(choices[0]["message"])
+            if not str(message.get("content") or "").strip() and message.get("reasoning"):
+                message["content"] = message.get("reasoning")
+            if self.json_tools and not message.get("tool_calls"):
+                return parse_assistant_message(message.get("content"))
+            return sanitize(message)
+        raise RuntimeError(last_error)

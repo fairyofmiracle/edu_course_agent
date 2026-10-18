@@ -119,3 +119,27 @@ def test_versions_and_appended_message() -> None:
     assert copied.json()["course"]["brief"]["title"].endswith("— копия")
     client.delete(f"/api/courses/{course['id']}")
     client.delete(f"/api/courses/{copied.json()['id']}")
+
+
+def test_save_rejects_stale_expected_version() -> None:
+    course = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    course["id"] = "locked-course"
+    client = TestClient(app)
+    first = client.put(
+        f"/api/courses/{course['id']}",
+        json={"course": course, "reason": "first", "expectedVersion": 0},
+    )
+    assert first.status_code == 200
+    assert first.json()["version"] == 1
+    stale = client.put(
+        f"/api/courses/{course['id']}",
+        json={"course": course, "reason": "stale", "expectedVersion": 0},
+    )
+    assert stale.status_code == 409
+    fresh = client.put(
+        f"/api/courses/{course['id']}",
+        json={"course": course, "reason": "fresh", "expectedVersion": 1},
+    )
+    assert fresh.status_code == 200
+    assert fresh.json()["version"] == 2
+    client.delete(f"/api/courses/{course['id']}")

@@ -25,7 +25,7 @@ class RunRequest(BaseModel):
     request: str = Field(min_length=1)
     answers: str | None = None
     references: str | None = None
-    autoApprove: bool = True
+    autoApprove: bool = False
     caseId: int | None = Field(default=None, ge=1, le=5)
 
 
@@ -66,9 +66,11 @@ async def chat_turn(request: ChatTurnRequest) -> dict[str, Any]:
 
 @router.post(
     "/run",
-    summary="Прогнать запрос до каркаса и комплекта",
+    summary="Прогнать запрос до каркаса",
     description=(
-        "Несколько ходов модели: каркас, при готовности — утверждение и комплект. "
+        "Несколько ходов модели до каркаса. Комплект после этого собирает методист "
+        "кнопкой «Утвердить каркас» в студии. autoApprove=true только для тестов "
+        "и скрытых прогонов: тогда эндпоинт сам утверждает каркас и пишет комплект. "
         "Поле report.audit совпадает с правилами POST /api/audit."
     ),
     operation_id="runCase",

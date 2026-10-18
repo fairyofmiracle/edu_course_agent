@@ -58,6 +58,7 @@ for (const item of CASES.filter((entry) => only.includes(entry.id))) {
         caseId: item.id,
         request: item.request,
         answers: item.answers,
+        autoApprove: true,
         references: item.references ? await item.references() : undefined,
       }),
     });

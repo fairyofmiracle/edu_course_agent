@@ -53,7 +53,11 @@ describe("backend storage", () => {
     vi.stubGlobal("fetch", fetchImpl);
 
     expect(api.hasBackendStorage()).toBe(true);
-    expect(await api.saveCourseToBackend(SAMPLE_COURSE, [], "copy")).toBe(true);
+    expect(await api.saveCourseToBackend(SAMPLE_COURSE, [], "copy", 1)).toBe(true);
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toMatchObject({
+      reason: "copy",
+      expectedVersion: 1,
+    });
     const listed = await api.listCoursesFromBackend();
     expect(listed?.courses[0]?.durationHours).toBe(24);
     const copied = await api.copyCourseOnBackend(SAMPLE_COURSE.id);
@@ -85,5 +89,13 @@ describe("backend storage", () => {
     expect(await api.copyCourseOnBackend("missing")).toBeNull();
     expect(await api.loadCourseFromBackend("missing")).toBeNull();
     expect(await api.deleteCourseFromBackend("missing")).toBe(false);
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("conflict", { status: 409 })),
+    );
+    await expect(api.saveCourseToBackend(SAMPLE_COURSE, [], "autosave", 0)).rejects.toThrow(
+      /другая вкладка/,
+    );
   });
 });

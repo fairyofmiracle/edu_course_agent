@@ -15,14 +15,23 @@ export async function saveCourseToBackend(
   course: CourseDocument,
   messages: UIMessage[],
   reason = "autosave",
+  expectedVersion?: number,
 ) {
   const base = baseUrl();
   if (!base) return false;
   const response = await fetch(`${base}/api/courses/${encodeURIComponent(course.id)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ course, messages, reason }),
+    body: JSON.stringify({
+      course,
+      messages,
+      reason,
+      ...(expectedVersion === undefined ? {} : { expectedVersion }),
+    }),
   });
+  if (response.status === 409) {
+    throw new Error("Курс уже сохранила другая вкладка. Обновите программу и повторите.");
+  }
   if (!response.ok) {
     throw new Error(`Не удалось сохранить курс в Python backend: HTTP ${response.status}`);
   }

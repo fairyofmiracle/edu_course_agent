@@ -33,6 +33,7 @@ const cloudRuFetch: typeof fetch = async (input, init) => {
   return response;
 };
 
+/** Клиент для тестов и локальной отладки. Боевой чат и /api/run идут в FastAPI. */
 export function getLanguageModel(role: "chat" | "writer" = "writer") {
   const apiKey =
     process.env.OPENAI_API_KEY?.trim() || process.env.CLOUDRU_API_KEY?.trim();

@@ -5,8 +5,9 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .database import (
@@ -22,9 +23,12 @@ router = APIRouter(prefix="/api/courses", tags=["courses"])
 
 
 class SaveCourseRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     course: CourseDocument
     messages: list[dict[str, Any]] = Field(default_factory=list, max_length=500)
     reason: str = Field(default="autosave", max_length=200)
+    expected_version: int | None = Field(default=None, alias="expectedVersion")
 
 
 class AddMessageRequest(BaseModel):
@@ -96,11 +100,21 @@ def save_course(
 ) -> dict[str, Any]:
     if request.course.id != course_id:
         raise HTTPException(status_code=400, detail="course id does not match path")
-    record = session.get(CourseRecord, course_id)
+    record = session.scalar(
+        select(CourseRecord).where(CourseRecord.id == course_id).with_for_update()
+    )
     if record is None:
         record = CourseRecord(id=course_id)
         session.add(record)
         session.flush()
+    if (
+        request.expected_version is not None
+        and record.current_version != request.expected_version
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Курс уже сохранила другая вкладка. Обновите программу и повторите.",
+        )
     record.title = request.course.brief.title
     record.current_version += 1
     version = CourseVersion(
@@ -135,7 +149,14 @@ def save_course(
         )
         for reference in request.course.brief.references
     )
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError as error:
+        session.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Курс уже сохранила другая вкладка. Обновите программу и повторите.",
+        ) from error
     session.refresh(record)
     return _serialize(record, version)
 

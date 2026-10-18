@@ -1,15 +1,8 @@
 import {
-  convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
-  streamText,
   type UIMessage,
 } from "ai";
-import { getLanguageModel } from "@/lib/agent/model";
-import { sanitizeMessagesForCloudRu } from "@/lib/agent/chat-messages";
-import { createTurn, toolErrors } from "@/lib/agent/turn";
-import { messageText } from "@/lib/session-log";
-import { appendServerLog, describeError } from "@/lib/server-log";
 import { applyPatch, foldCourseFromMessages } from "@/lib/course-patches";
 import {
   briefSchema,
@@ -18,8 +11,14 @@ import {
   type CourseBrief,
   type CourseDocument,
 } from "@/lib/course-schema";
+import { describeError } from "@/lib/server-log";
+import { messageText } from "@/lib/session-log";
 
 export const maxDuration = 300;
+
+function pythonAgentUrl() {
+  return process.env.PYTHON_AGENT_URL?.trim().replace(/\/$/, "") ?? "";
+}
 
 async function pythonChatResponse(options: {
   baseUrl: string;
@@ -29,7 +28,7 @@ async function pythonChatResponse(options: {
   extraReferences?: string;
   formBrief?: Partial<CourseBrief>;
 }) {
-  const response = await fetch(`${options.baseUrl.replace(/\/$/, "")}/api/chat/turn`, {
+  const response = await fetch(`${options.baseUrl}/api/chat/turn`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -98,6 +97,17 @@ export async function POST(req: Request) {
     return Response.json({ error: "Некорректный запрос" }, { status: 400 });
   }
 
+  const pythonUrl = pythonAgentUrl();
+  if (!pythonUrl) {
+    return Response.json(
+      {
+        error:
+          "Не задан PYTHON_AGENT_URL. Чат идёт только через FastAPI — см. .env.example.",
+      },
+      { status: 503 },
+    );
+  }
+
   const parsedCourse = courseDocumentSchema.safeParse(body.course);
   const messages = body.messages ?? [];
   let course = parsedCourse.success
@@ -109,51 +119,19 @@ export async function POST(req: Request) {
   const userTexts = messages.filter((message) => message.role === "user").map(messageText);
 
   try {
-    const pythonUrl = process.env.PYTHON_AGENT_URL?.trim();
-    if (pythonUrl) {
-      return await pythonChatResponse({
-        baseUrl: pythonUrl,
-        messages,
-        course,
-        userTexts,
-        extraReferences: body.extraReferences,
-        formBrief,
-      });
-    }
-
-    const turn = createTurn({ course, userTexts, extraReferences: body.extraReferences, formBrief });
-    const history = sanitizeMessagesForCloudRu(messages);
-    console.log(`[chat] режим ${turn.mode}, реплик ${userTexts.length}, сообщений ${history.length}`);
-
-    const result = streamText({
-      model: getLanguageModel("writer"),
-      system: turn.system,
-      messages: await convertToModelMessages(history, { tools: turn.tools }),
-      tools: turn.tools,
-      stopWhen: turn.stopWhen,
-      prepareStep: turn.prepareStep,
-      onError: ({ error }) => {
-        console.error("[chat] ошибка модели:", error);
-        void appendServerLog({ text: describeError(error), mode: turn.mode, steps: turn.planned });
-      },
-      onFinish: ({ steps }) => {
-        const failed = toolErrors(steps);
-        void appendServerLog({
-          text: `Ход завершён: ${steps.length} шагов`,
-          mode: turn.mode,
-          steps: turn.planned,
-          toolErrors: failed.length ? failed : undefined,
-        });
-      },
-    });
-
-    return result.toUIMessageStreamResponse({
-      onError: (error) =>
-        error instanceof Error ? error.message : "Не удалось собрать программу",
+    return await pythonChatResponse({
+      baseUrl: pythonUrl,
+      messages,
+      course,
+      userTexts,
+      extraReferences: body.extraReferences,
+      formBrief,
     });
   } catch (error) {
     console.error("[chat] ошибка маршрута:", error);
-    const message = error instanceof Error ? error.message : "Не удалось подключить модель";
-    return Response.json({ error: message }, { status: 500 });
+    return Response.json(
+      { error: error instanceof Error ? error.message : describeError(error) },
+      { status: 500 },
+    );
   }
 }

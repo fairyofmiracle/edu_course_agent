@@ -322,6 +322,20 @@ class StopBudgetClient(LocalRunClient):
         return False
 
 
+def test_run_case_waits_for_human_approve(monkeypatch) -> None:
+    monkeypatch.setattr(agent_api_module, "CloudRuClient", LocalRunClient)
+    with TestClient(app) as client:
+        response = client.post("/api/run", json={"request": CASE1, "caseId": 1})
+    assert response.status_code == 200
+    payload = response.json()
+    course = payload["course"]
+    assert course["modules"]
+    assert course["frameworkApproved"] is False
+    assert payload["report"]["approvedBy"] is None
+    assert not any(item["mode"] == "approve" for item in payload["transcript"])
+    assert sum(len(item["questions"]) for item in course["assessments"]) == 0
+
+
 def test_run_case_auto_approves_and_fills_kit(monkeypatch) -> None:
     monkeypatch.setattr(agent_api_module, "CloudRuClient", LocalRunClient)
     with TestClient(app) as client:

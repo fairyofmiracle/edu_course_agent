@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, create_engine
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, create_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
 
 from .cloud import setting
@@ -47,6 +47,7 @@ class CourseRecord(Base):
 
 class CourseVersion(Base):
     __tablename__ = "course_versions"
+    __table_args__ = (UniqueConstraint("course_id", "version", name="course_version_uniq"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     course_id: Mapped[str] = mapped_column(

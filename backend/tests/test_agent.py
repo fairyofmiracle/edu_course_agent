@@ -120,12 +120,12 @@ def test_chat_turn_http_contract(monkeypatch) -> None:
 
 def test_vm_openai_settings_have_priority(monkeypatch) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "vm-key")
-    monkeypatch.setenv("OPENAI_BASE_URL", "https://vm.example/v1")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://hub.gigaschool.ru/api/v1/llm/v1")
     monkeypatch.setenv("CLOUDRU_API_KEY", "legacy-key")
-    monkeypatch.setenv("CLOUDRU_BASE_URL", "https://legacy.example/v1")
+    monkeypatch.setenv("CLOUDRU_BASE_URL", "https://foundation-models.api.cloud.ru/v1")
     client = CloudRuClient()
     assert client.api_key == "vm-key"
-    assert client.base_url == "https://vm.example/v1"
+    assert client.base_url == "https://hub.gigaschool.ru/api/v1/llm/v1"
 
 
 def test_complete_request_asks_to_approve_not_empty_intake() -> None:

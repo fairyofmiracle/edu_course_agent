@@ -1,5 +1,6 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { normalizeCloudRuBody } from "@/lib/agent/cloudru-messages";
+import { validateLlmEndpoint } from "@/lib/agent/llm-endpoint-policy";
 
 const DEFAULT_BASE_URL = "https://foundation-models.api.cloud.ru/v1";
 const DEFAULT_CHAT_MODEL = "GigaChat/GigaChat-3-Pro";
@@ -22,9 +23,9 @@ function describeBody(body: string) {
 }
 
 const cloudRuFetch: typeof fetch = async (input, init) => {
-  if (!init || typeof init.body !== "string") return fetch(input, init);
+  if (!init || typeof init.body !== "string") return fetch(input, { ...init, redirect: "error" });
   const body = normalizeCloudRuBody(init.body);
-  const response = await fetch(input, { ...init, body });
+  const response = await fetch(input, { ...init, redirect: "error" });
   if (!response.ok) {
     const text = await response.clone().text();
     console.error(`[cloudru] ${response.status} ${text.slice(0, 300)}\n  запрос: ${describeBody(body)}`);
@@ -44,11 +45,11 @@ export function getLanguageModel(role: "chat" | "writer" = "writer") {
   const cloud = createOpenAI({
     name: "cloudru",
     apiKey,
-    baseURL:
+    baseURL: validateLlmEndpoint(
       process.env.OPENAI_BASE_URL?.trim() ||
       process.env.CLOUDRU_BASE_URL?.trim() ||
-      DEFAULT_BASE_URL,
-    fetch: cloudRuFetch,
+      DEFAULT_BASE_URL
+    )
   });
 
   const chatModel = process.env.CLOUDRU_MODEL?.trim() || DEFAULT_CHAT_MODEL;

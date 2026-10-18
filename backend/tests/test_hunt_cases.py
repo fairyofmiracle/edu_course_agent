@@ -1,7 +1,7 @@
 from backend.app.agent import assemble_local_course, strengthen_framework
 from backend.app.models import CourseDocument
 from backend.app.brief_guard import attestation_hours_from_text, volume_from_text
-from backend.app.catalog import is_incomplete_brief, is_internship, profile_name
+from backend.app.catalog import is_incomplete_brief, is_internship, profile_name, promise_notes
 from backend.app.kit_content import is_teacher_ai
 from backend.app.planner import missing_brief_lines
 
@@ -47,6 +47,32 @@ H_CHATGPT = (
 
 def _titles(course) -> str:
     return " ".join(module.title for module in course.modules).lower()
+
+
+def test_cyber_without_job_promise_does_not_quote_customer() -> None:
+    course = assemble_local_course(
+        [
+            "Нужна программа повышения квалификации «Кибербезопасность Linux» "
+            "на 72 часа, очно. Слушатели: студенты 3 курса, знают сети и Linux. "
+            "Итоговая аттестация — экзамен."
+        ]
+    )
+    notes = " ".join(promise_notes(course))
+    assert "пойти работать" not in notes
+    assert "начальн" in notes
+
+
+def test_linux_in_cyber_is_not_internship() -> None:
+    course = assemble_local_course(
+        [
+            "Нужна программа повышения квалификации «Кибербезопасность Linux» "
+            "на 72 часа, очно. Слушатели: студенты 3 курса, знают сети и Linux. "
+            "Итоговая аттестация — экзамен. В программе контейнеры и анализ трафика."
+        ]
+    )
+    assert profile_name(course) == "cyber"
+    assert not is_internship(course)
+    assert sum(module.lecture_hours for module in course.modules) > 0
 
 
 def test_archive_internship_is_not_devops() -> None:

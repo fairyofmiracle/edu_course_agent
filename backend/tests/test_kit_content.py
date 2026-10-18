@@ -78,6 +78,42 @@ def test_teacher_ai_kit_follows_case2_document() -> None:
     assert hour_split(filled)[0] >= 0
 
 
+def test_fill_covers_every_outcome_on_each_module() -> None:
+    course = fixture_course()
+    course.brief.audience = "сотрудники музея без опыта"
+    course.brief.title = "Подписи к экспонатам"
+    course.brief.duration_hours = 30
+    second = course.modules[0].model_copy(
+        update={
+            "id": "M2",
+            "title": "Этикетка",
+            "learning_outcomes": ["Пишет короткую этикетку"],
+            "topics": ["Этикетка"],
+        }
+    )
+    course.modules.append(second)
+    filled = fill_missing_kit(course)
+    outcomes = [
+        (module.id, outcome)
+        for module in filled.modules
+        for outcome in module.learning_outcomes
+    ]
+    question_hits = {
+        (item.module_id, question.learning_outcome)
+        for item in filled.assessments
+        for question in item.questions
+    }
+    task_hits = {
+        (item.module_id, task.learning_outcome)
+        for item in filled.seminars
+        for task in item.tasks
+    }
+    assert outcomes
+    assert all(pair in question_hits for pair in outcomes)
+    assert all(pair in task_hits for pair in outcomes)
+    assert sum(len(item.questions) for item in filled.assessments) >= 10
+
+
 def test_fill_replaces_stub_kit() -> None:
     course = fixture_course()
     course.brief.audience = "школьники 8 и 9 классов без опыта"

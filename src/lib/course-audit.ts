@@ -108,22 +108,24 @@ function genericItems(course: CourseDocument): AuditItem[] {
   }));
 
   for (const courseModule of course.modules) {
+    const needsLecture = courseModule.lectureHours > 0;
     const hasLecture = course.lectures.some((entry) => entry.moduleId === courseModule.id);
     const hasSeminar = course.seminars.some((entry) => entry.moduleId === courseModule.id);
     const hasAssessment = course.assessments.some((entry) => entry.moduleId === courseModule.id);
+    const missing = [
+      hasLecture || !needsLecture ? "" : "нет лекции",
+      hasSeminar ? "" : "нет задания",
+      hasAssessment ? "" : "нет теста",
+    ].filter(Boolean);
+    const complete = missing.length === 0;
+    const partial = hasLecture || hasSeminar || hasAssessment;
     items.push({
       id: `content.${courseModule.id}`,
       label: `${courseModule.title}: лекция, практическое задание и тест`,
-      status: status(hasLecture && hasSeminar && hasAssessment),
+      status: complete ? "pass" : partial ? "warning" : "fail",
       section: "content",
       moduleId: courseModule.id,
-      details: [
-        hasLecture ? "" : "нет лекции",
-        hasSeminar ? "" : "нет задания",
-        hasAssessment ? "" : "нет теста",
-      ]
-        .filter(Boolean)
-        .join(", ") || undefined,
+      details: missing.join(", ") || undefined,
     });
   }
 
@@ -237,6 +239,20 @@ function genericItems(course: CourseDocument): AuditItem[] {
     );
   }
 
+  const calendarLine = course.brief.constraints.find((line) => /календарн/i.test(line));
+  if (course.brief.durationHours > 0) {
+    items.push(
+      calendarLine
+        ? item("framework.calendar", "Календарный график указан", true, "framework", calendarLine)
+        : warning(
+            "framework.calendar",
+            "Календарный график не указан",
+            "framework",
+            "Срок и нагрузка пишутся в условиях программы, не выдумываются.",
+          ),
+    );
+  }
+
   items.push(
     course.brief.references.length > 0
       ? item("sources.present", "Источники и референсы указаны", true, "sources")
@@ -295,12 +311,13 @@ function caseItems(course: CourseDocument, caseId: OpenCaseId): AuditItem[] {
       item("case.1.kind", "Выбран общеразвивающий шаблон", course.brief.programKind === "general", "case"),
       item("case.1.hours", "Объём программы — 16 часов", course.brief.durationHours === 16, "case"),
       item("case.1.practice", "Практики не меньше 8 часов", totals.practice >= 8, "case"),
-      item("case.1.questions", "Итоговый тест содержит 10 вопросов", totalQuestions === 10, "case"),
-      warning(
+      item("case.1.questions", "Итоговый тест содержит не меньше 10 вопросов", totalQuestions >= 10, "case"),
+      item(
         "case.1.calendar",
-        "График 8 × 2 часа за 4 недели проверяется вручную",
+        "График 8 занятий по 2 часа за 4 недели",
+        /8 занят/.test(text) && /4 недел/.test(text),
         "case",
-        "В текущей модели данных нет календарного графика.",
+        course.brief.constraints.find((line) => /календарн/i.test(line)),
       ),
     ];
   }
@@ -358,13 +375,37 @@ function caseItems(course: CourseDocument, caseId: OpenCaseId): AuditItem[] {
     item("case.5.self", "Самостоятельная работа занимает 254 часа", totals.selfStudy === 254, "case"),
     item("case.5.zero", "Лекции, практика и лабораторные равны нулю", totals.lecture === 0 && totals.practice === 0 && totals.lab === 0, "case"),
     item("case.5.topics", "Темы покрывают Linux, сети, контейнеры, CI/CD, мониторинг и IaC", has("linux", "сет", "контейнер", "ci/cd", "мониторинг") && (/iac|инфраструктур/.test(text)), "case"),
-    warning(
+    item(
       "case.5.calendar",
-      "Нагрузка не больше 4 часов в день проверяется вручную",
+      "Нагрузка не больше 4 часов в день",
+      /4 ч/.test(text) && /день/.test(text),
       "case",
-      "В текущей модели данных нет календарного графика.",
+      course.brief.constraints.find((line) => /календарн|4 ч/i.test(line)),
     ),
   ];
+}
+
+export function methodistNotes(course: CourseDocument): string[] {
+  const text = allText(course);
+  const notes: string[] = [];
+  const calendar = course.brief.constraints.find((line) => /календарн/i.test(line));
+  if (calendar) notes.push(calendar);
+  if (/пойти работать|работать в эту сферу/.test(text)) {
+    notes.push(
+      "Пожелание заказчика «пойти работать в сферу» шире объёма курса. Результаты — начальный уровень, без обещания трудоустройства.",
+    );
+  }
+  if (/стажиров|аудиторных нет/.test(text)) {
+    notes.push("Если в образце итоговая строка часов не сходится, ошибку не переносим.");
+  }
+  if (/приложен|образец|референс/.test(text) && /pandas|анализ данных|sql/.test(text)) {
+    notes.push("Старую программу используем как каркас разделов, текст и часы пишем заново.");
+  }
+  return listUnique(notes);
+}
+
+function listUnique(values: string[]): string[] {
+  return [...new Set(values)];
 }
 
 export function auditCourse(course: CourseDocument, caseId?: OpenCaseId): CourseAudit {

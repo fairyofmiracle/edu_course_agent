@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 from .domain import framework_fingerprint, framework_items
 from .catalog import is_data_analysis, is_internship
-from .kit_content import has_stub_lectures, has_stub_questions
+from .kit_content import has_stub_lectures, has_stub_questions, outcome_gaps
 from .models import CourseDocument
 
 TurnMode = Literal["intake", "framework", "kit", "free"]
@@ -26,8 +26,12 @@ def question_count(course: CourseDocument) -> int:
     return sum(len(item.questions) for item in course.assessments)
 
 
+def lectured_modules(course: CourseDocument) -> list[Any]:
+    return [item for item in course.modules if (item.lecture_hours or 0) > 0]
+
+
 def kit_lecture_target(course: CourseDocument) -> int:
-    return min(2, len(course.modules)) if course.modules else 0
+    return len(lectured_modules(course))
 
 
 def kit_needed(course: CourseDocument) -> bool:
@@ -35,9 +39,12 @@ def kit_needed(course: CourseDocument) -> bool:
         return False
     if question_count(course) < KIT_QUESTION_TARGET or has_stub_questions(course):
         return True
-    if len(course.lectures) < kit_lecture_target(course) or has_stub_lectures(course):
+    target = kit_lecture_target(course)
+    if target and (len(course.lectures) < target or has_stub_lectures(course)):
         return True
-    return not course.seminars
+    if not course.seminars:
+        return True
+    return outcome_gaps(course)
 
 
 def content_missing(course: CourseDocument) -> list[dict[str, Any]]:
@@ -57,10 +64,20 @@ def content_missing(course: CourseDocument) -> list[dict[str, Any]]:
 
 def decide_mode(course: CourseDocument, last_user_text: str) -> TurnMode:
     if is_framework_approved(course):
-        return "kit" if content_missing(course) else "free"
+        return "kit" if kit_needed(course) else "free"
     if FRAMEWORK_REQUEST.search(last_user_text.strip()):
         return "framework"
     return "intake"
+
+
+LEVEL_MARK = re.compile(
+    r"курс|класс|без опыта|linux|excel|сет|базов|школьник|учитель|программ",
+    re.IGNORECASE,
+)
+
+
+def audience_has_level(audience: str) -> bool:
+    return bool(LEVEL_MARK.search(audience or ""))
 
 
 def missing_brief_lines(course: CourseDocument) -> list[str]:
@@ -72,6 +89,10 @@ def missing_brief_lines(course: CourseDocument) -> list[str]:
         missing.append("точный объём в академических часах")
     if not brief.audience.strip():
         missing.append("аудитория")
+    elif not audience_has_level(brief.audience) and (
+        brief.program_kind == "unset" or brief.duration_hours <= 0
+    ):
+        missing.append("входной уровень слушателей")
     if not brief.attestation_form.strip():
         missing.append("форма итоговой аттестации")
     if brief.program_kind == "unset" or brief.duration_hours <= 0:
@@ -88,6 +109,7 @@ QUESTION_LABELS = {
         "точный объём в академических часах. «Месяц» объёмом не считается"
     ),
     "аудитория": "кто слушатели и какой у них входной уровень",
+    "входной уровень слушателей": "какой входной уровень: курс, навыки, что уже умеют",
     "форма итоговой аттестации": "как хотите принимать итоговую аттестацию",
     "форма обучения": "форма обучения: очно, очно-заочно или стажировка",
 }
@@ -117,20 +139,29 @@ def plan_step(
             module = next((item for item in course.modules if item.id not in used), course.modules[-1])
             key = f"set_assessment:{module.id}"
             if tried(key) < 2:
+                outcomes = [
+                    outcome
+                    for item in course.modules
+                    for outcome in item.learning_outcomes
+                ]
                 left = max(KIT_QUESTION_TARGET - question_count(course), 1)
                 return {
                     "kind": "tool",
                     "tool": "set_assessment",
                     "moduleId": module.id,
                     "task": (
-                        f"Собери итоговый тест модуля {module.id}: ровно {left} mcq. "
-                        "У каждого: stem, 4 options, answer, explanation из 3 слов, "
-                        "competencyId, learningOutcome."
+                        f"Собери итоговый тест: ровно {left} mcq на русском. "
+                        f"Закрой результаты: {'; '.join(outcomes[:8]) or module.title}. "
+                        "У каждого: stem, 4 options, answer, explanation, "
+                        "competencyId, learningOutcome дословно из модуля."
                     ),
                 }
-        if len(course.lectures) < kit_lecture_target(course) or has_stub_lectures(course):
+        lectured = lectured_modules(course)
+        if lectured and (
+            len(course.lectures) < kit_lecture_target(course) or has_stub_lectures(course)
+        ):
             used = {item.module_id for item in course.lectures}
-            module = next((item for item in course.modules if item.id not in used), course.modules[0])
+            module = next((item for item in lectured if item.id not in used), lectured[0])
             key = f"set_lecture:{module.id}"
             if tried(key) < 2:
                 return {
@@ -138,8 +169,9 @@ def plan_step(
                     "tool": "set_lecture",
                     "moduleId": module.id,
                     "task": (
-                        f"Собери слайды модуля {module.id}: 5–7 коротких пунктов. "
-                        "Поясни термин при первом упоминании."
+                        f"Собери лекцию модуля «{module.title}»: outline из его тем, "
+                        "слайды по 5–7 пунктов про эту тему и эту аудиторию. "
+                        "Без фразы «сначала называем понятие своими словами»."
                     ),
                 }
         if not course.seminars and course.modules:
@@ -151,7 +183,9 @@ def plan_step(
                     "tool": "set_seminar",
                     "moduleId": module.id,
                     "task": (
-                        f"Собери одно задание модуля {module.id}: шаги и критерии защиты проекта."
+                        f"Собери практические задания модуля «{module.title}»: "
+                        "шаги и критерии. Каждое закрывает результат обучения. "
+                        "Не пиши «учебное действие»."
                     ),
                 }
         return {"kind": "reply", "task": "Коротко подведи итог: что уже собрано."}
@@ -234,10 +268,14 @@ def plan_step(
             "kind": "tool",
             "tool": "set_structure",
             "task": (
-                f"Собери 3 модуля. Практики не меньше половины. "
+                f"Собери 3 модуля по теме запроса. Практики не меньше половины. "
+                f"Названия — про эту аудиторию, не «основные понятия». "
                 f"Часы модулей + аттестация = {hours:g}."
                 if short
-                else "Собери 3–5 модулей, связанные с компетенциями."
+                else (
+                    f"Собери 3–5 модулей на {hours:g} ч по теме и аудитории запроса. "
+                    "Не копируй тему и часы образца. Код трудовой функции не выдумывай."
+                )
             ),
         }
     failed = [item["id"] for item in framework_items(course) if not item["ok"]]

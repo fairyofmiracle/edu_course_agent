@@ -156,9 +156,20 @@ def _number(value: Any, default: float = 0) -> float:
 
 
 def coerce_competency_arguments(arguments: dict[str, Any], course: CourseDocument) -> dict[str, Any]:
+    from .catalog import profile_name
+
     nodes = arguments.get("nodes")
     if isinstance(nodes, list) and nodes and isinstance(nodes[0], dict) and nodes[0].get("name"):
         if not all(is_stub_competency_node(node) for node in nodes if isinstance(node, dict)):
+            if profile_name(course) == "generic":
+                cleaned = []
+                for node in nodes:
+                    if not isinstance(node, dict):
+                        continue
+                    row = dict(node)
+                    row.pop("laborFunctionCode", None)
+                    cleaned.append(row)
+                return {"nodes": cleaned or arguments.get("nodes")}
             return arguments
     return {"nodes": default_competencies(course)}
 
@@ -262,7 +273,11 @@ def coerce_assessment_arguments(
     for index, raw in enumerate(questions[:10]):
         if not isinstance(raw, dict):
             continue
-        outcome = str(raw.get("learningOutcome") or outcomes[index % len(outcomes)])
+        outcome = (
+            outcomes[index % len(outcomes)]
+            if outcomes and outcomes[0]
+            else str(raw.get("learningOutcome") or "")
+        )
         cleaned.append(
             {
                 "type": raw.get("type") or "mcq",
@@ -328,13 +343,27 @@ def coerce_seminar_arguments(
     course: CourseDocument,
     module_id: str | None,
 ) -> dict[str, Any]:
-    generated = project_seminar(course) or {}
+    from .kit_content import seminar_for_module
+
+    module = _module_by_id(course, arguments.get("moduleId") or module_id)
+    if module is None:
+        generated = project_seminar(course) or {}
+        if module_id and not generated.get("moduleId"):
+            generated["moduleId"] = module_id
+        return generated
     tasks = arguments.get("tasks")
     if isinstance(tasks, list) and tasks:
-        generated = {**generated, "tasks": tasks, "moduleId": arguments.get("moduleId") or generated.get("moduleId")}
-    if module_id and not generated.get("moduleId"):
-        generated["moduleId"] = module_id
-    return generated
+        try:
+            value = course.as_api()
+            value["seminars"] = [
+                item
+                for item in value["seminars"]
+                if item.get("moduleId") != module.id
+            ] + [{"moduleId": module.id, "tasks": tasks}]
+            return seminar_for_module(CourseDocument.model_validate(value), module)
+        except Exception:
+            return seminar_for_module(course, module)
+    return seminar_for_module(course, module)
 
 
 def _short_id(value: Any, fallback: str) -> str:

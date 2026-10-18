@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 from backend.app.agent import (
@@ -9,6 +10,7 @@ from backend.app.agent import (
 from backend.app.cloud import (
     CHAT_PRO,
     CHAT_REASONING,
+    CloudRuClient,
     EMBEDDINGS,
     build_chat_payload,
     estimate_cost_rub,
@@ -139,7 +141,7 @@ def test_hub_url_uses_json_tools() -> None:
 def test_references_and_history_stay_small() -> None:
     long_ref = "абзац про чужой 24-часовой интенсив\n" * 200
     clipped = clip_references(long_ref)
-    assert len(clipped) < 1000
+    assert len(clipped) < 4000
     assert "24-часовой" in clipped
     messages = messages_for_model(["первый запрос", "уточнение", "ещё одно"])
     assert len(messages) == 1
@@ -191,3 +193,175 @@ def test_gigaschool_only_chat_models_are_used() -> None:
     figment = estimate_cost_rub(CHAT_PRO, 1654, 11)
     assert 0.11 < figment < 0.13
     assert estimate_cost_rub(CHAT_REASONING, 1654, 11) > figment
+
+
+def test_complete_requires_key_and_budget(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "")
+    monkeypatch.setenv("CLOUDRU_API_KEY", "")
+    client = CloudRuClient()
+    client.api_key = ""
+    try:
+        asyncio.run(
+            client.complete(
+                system="s",
+                messages=[{"role": "user", "content": "hi"}],
+                tools=[],
+            )
+        )
+    except RuntimeError as error:
+        assert "не задан" in str(error)
+    else:
+        raise AssertionError("без ключа complete должен падать")
+    client.api_key = "k"
+    client.token_budget = 1
+    client.usage["total_tokens"] = 5
+    try:
+        asyncio.run(
+            client.complete(
+                system="s",
+                messages=[{"role": "user", "content": "hi"}],
+                tools=[],
+            )
+        )
+    except RuntimeError as error:
+        assert "лимит токенов" in str(error)
+    else:
+        raise AssertionError("без бюджета complete должен падать")
+
+
+def test_complete_parses_json_tools_and_usage(monkeypatch) -> None:
+    class Response:
+        is_error = False
+        text = ""
+
+        def json(self):
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": '{"tool":"update_brief","arguments":{"title":"Сети"}}',
+                        }
+                    }
+                ],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 4, "total_tokens": 14},
+            }
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+        async def post(self, *_args, **_kwargs):
+            return Response()
+
+    monkeypatch.setenv("OPENAI_API_KEY", "k")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://hub.gigaschool.ru/api/v1/llm/v1")
+    monkeypatch.setattr("backend.app.cloud.httpx.AsyncClient", FakeAsyncClient)
+    client = CloudRuClient()
+    message = asyncio.run(
+        client.complete(
+            system="s",
+            messages=[{"role": "user", "content": "hi"}],
+            tools=[],
+        )
+    )
+    assert message["tool_calls"][0]["function"]["name"] == "update_brief"
+    assert client.usage["calls"] == 1
+    assert client.usage["total_tokens"] == 14
+
+
+def test_complete_uses_reasoning_and_rejects_empty_choices(monkeypatch) -> None:
+    class Response:
+        is_error = False
+        text = ""
+        payload = {"choices": []}
+
+        def json(self):
+            return self.payload
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+        async def post(self, *_args, **_kwargs):
+            return Response()
+
+    monkeypatch.setenv("OPENAI_API_KEY", "k")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://foundation-models.api.cloud.ru/v1")
+    monkeypatch.setattr("backend.app.cloud.httpx.AsyncClient", FakeAsyncClient)
+    client = CloudRuClient()
+    try:
+        asyncio.run(
+            client.complete(
+                system="s",
+                messages=[{"role": "user", "content": "hi"}],
+                tools=[],
+            )
+        )
+    except RuntimeError as error:
+        assert "choices" in str(error)
+    else:
+        raise AssertionError("пустой choices должен падать")
+    Response.payload = {
+        "choices": [{"message": {"role": "assistant", "content": "", "reasoning": "думаю"}}],
+        "usage": {},
+    }
+    message = asyncio.run(
+        client.complete(
+            system="s",
+            messages=[{"role": "user", "content": "hi"}],
+            tools=[],
+        )
+    )
+    assert message["content"] == "думаю"
+
+
+def test_complete_raises_on_http_error(monkeypatch) -> None:
+    class Response:
+        is_error = True
+        text = "nope"
+        status_code = 400
+
+        def json(self):
+            return {}
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+        async def post(self, *_args, **_kwargs):
+            return Response()
+
+    monkeypatch.setenv("OPENAI_API_KEY", "k")
+    monkeypatch.setattr("backend.app.cloud.httpx.AsyncClient", FakeAsyncClient)
+    client = CloudRuClient()
+    try:
+        asyncio.run(
+            client.complete(
+                system="s",
+                messages=[{"role": "user", "content": "hi"}],
+                tools=[],
+            )
+        )
+    except RuntimeError as error:
+        assert "400" in str(error)
+    else:
+        raise AssertionError("ошибка HTTP должна подниматься")

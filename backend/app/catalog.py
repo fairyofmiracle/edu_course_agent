@@ -60,10 +60,12 @@ def is_internship(course: CourseDocument) -> bool:
     return any(
         token in text
         for token in ("стажиров", "аудиторных нет", "аудиторных занятий нет")
-    ) or is_devops_internship(course)
+    )
 
 
 def is_devops_internship(course: CourseDocument) -> bool:
+    if not is_internship(course):
+        return False
     text = course_text(course)
     return any(token in text for token in ("devops", "ci/cd", "контейнер")) or (
         "linux" in text and "мониторинг" in text
@@ -437,17 +439,14 @@ def generic_structure(course: CourseDocument) -> list[dict[str, Any]] | None:
     hours = course.brief.duration_hours - course.brief.attestation_hours
     if hours <= 0:
         return None
-    title = course.brief.title or "программы"
-    hints = [item for item in course.brief.goals if item.strip()][:4]
-    if len(hints) < 3:
-        hints = [
-            f"Основные понятия «{title}»",
-            f"Практика по теме «{title}»",
-            f"Итоговая работа по программе «{title}»",
-        ]
+    from .reference_outline import generic_module_titles, subject_name
+
+    subject = subject_name(course)
+    audience = (course.brief.audience or "слушатель").rstrip(" .")
+    hints = generic_module_titles(course)
     count = 3 if hours <= 24 else 4 if hours <= 80 else 5
     while len(hints) < count:
-        hints.append(f"Раздел {len(hints) + 1} программы «{title}»")
+        hints.append(f"Раздел {len(hints) + 1}: {subject}")
     chunks = [max(0.5, round((hours / count) * 2) / 2) for _ in range(count)]
     chunks[-1] = hours - sum(chunks[:-1])
     modules = []
@@ -468,6 +467,7 @@ def generic_structure(course: CourseDocument) -> list[dict[str, Any]] | None:
             lecture = round(module_hours * 0.35 * 2) / 2
             self_study = round(module_hours * 0.15 * 2) / 2
             practice = module_hours - lecture - self_study
+        short = hint[:70]
         modules.append(
             _module(
                 str(index + 1),
@@ -476,8 +476,15 @@ def generic_structure(course: CourseDocument) -> list[dict[str, Any]] | None:
                 lecture=lecture,
                 practice=practice,
                 self_study=self_study,
-                topics=[hint, "Разбор примера", "Самостоятельное действие"],
-                outcomes=[f"Выполняет учебное действие по теме «{hint}»"],
+                topics=[
+                    f"Зачем {audience} нужна тема «{short}»",
+                    f"Базовые приёмы «{subject}» в этом разделе",
+                    f"Учебный пример для {audience}",
+                    "Критерий готовности: работу можно показать и объяснить",
+                ],
+                outcomes=[
+                    f"Выполняет работу по теме «{short}» и объясняет результат",
+                ],
                 competency_ids=[competency],
             )
         )
@@ -1089,10 +1096,15 @@ def extra_constraints(course: CourseDocument) -> list[str]:
         "4 ч" in text and "день" in text
     ):
         days = int((hours + 3) // 4) if hours else 0
-        lines.append(
-            f"Календарный график: не больше 4 ч в день"
-            + (f", ориентир {days} учебных дней." if days else ".")
-        )
+        if hours >= 200:
+            lines.append(
+                "Календарный график: около двух месяцев, нагрузка не больше 4 ч в день."
+            )
+        else:
+            lines.append(
+                f"Календарный график: не больше 4 ч в день"
+                + (f", ориентир {days} учебных дней." if days else ".")
+            )
     if name == "data_analysis":
         lines.extend(
             [
@@ -1118,6 +1130,14 @@ def extra_constraints(course: CourseDocument) -> list[str]:
         )
     if name == "intro_python":
         lines.append("Сложные темы вроде классов не идут раньше переменных, условий и циклов.")
+    if name == "generic" and hours > 0:
+        weeks = max(1, round(hours / 10))
+        if course.brief.format == "workshop":
+            lines.append(
+                f"Календарный график: около {weeks} недель, нагрузка не больше 4 ч в день."
+            )
+        else:
+            lines.append(f"Календарный график ориентировочно {weeks} недель.")
     return lines
 
 
@@ -1184,11 +1204,16 @@ def extra_slide(topic: str) -> dict[str, Any] | None:
 def promise_notes(course: CourseDocument) -> list[str]:
     notes: list[str] = []
     text = course_text(course)
-    if is_cyber(course) or "пойти работать" in text or "работать в эту сферу" in text:
+    if "пойти работать" in text or "работать в эту сферу" in text:
         notes.append(
             "Пожелание заказчика «пойти работать в сферу» шире объёма курса. "
             "Результаты формулируем как начальный уровень, без обещания полной "
             "подготовки специалиста и трудоустройства."
+        )
+    elif is_cyber(course):
+        notes.append(
+            "Результаты — начальный уровень, без обещания полной подготовки "
+            "специалиста и трудоустройства."
         )
     if is_internship(course):
         notes.append(
@@ -1203,13 +1228,19 @@ def promise_notes(course: CourseDocument) -> list[str]:
 
 
 def lecture_modules(course: CourseDocument, limit: int) -> list[Any]:
+    if limit <= 0:
+        return []
     picked: list[Any] = []
     seen: set[str] = set()
-    for module in course.modules[:limit]:
+    lectured = [module for module in course.modules if (module.lecture_hours or 0) > 0]
+    pool = lectured or list(course.modules)
+    for module in pool[:limit]:
         picked.append(module)
         seen.add(module.id)
     text = course_text(course)
     for module in course.modules:
+        if len(picked) >= limit:
+            break
         if module.id in seen:
             continue
         title = module.title.lower()

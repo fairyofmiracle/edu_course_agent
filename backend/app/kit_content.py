@@ -5,8 +5,12 @@ from typing import Any
 
 from .models import CourseDocument, CourseModule
 
-STUB_QUESTION = re.compile(r"^Что верно про тему")
-STUB_BULLET = re.compile(r"Практика по теме|Проверка понимания")
+STUB_QUESTION = re.compile(
+    r"^Что верно про тему|^Что слушатель должен уметь после темы"
+)
+STUB_BULLET = re.compile(
+    r"Практика по теме|Проверка понимания|Сначала называем понятие своими словами"
+)
 STUB_COMPETENCY = re.compile(r"^(Осваивает |Знает: |Умеет применить: |Владеет: )")
 
 
@@ -89,6 +93,35 @@ def has_stub_lectures(course: CourseDocument) -> bool:
         for lecture in course.lectures
         for slide in lecture.slides
     )
+
+
+def _module_question_outcomes(course: CourseDocument, module_id: str) -> set[str]:
+    return {
+        question.learning_outcome.strip()
+        for assessment in course.assessments
+        if assessment.module_id == module_id
+        for question in assessment.questions
+        if question.learning_outcome
+    }
+
+
+def _module_task_outcomes(course: CourseDocument, module_id: str) -> set[str]:
+    return {
+        (task.learning_outcome or "").strip()
+        for seminar in course.seminars
+        if seminar.module_id == module_id
+        for task in seminar.tasks
+    }
+
+
+def outcome_gaps(course: CourseDocument) -> bool:
+    for module in course.modules:
+        questions = _module_question_outcomes(course, module.id)
+        tasks = _module_task_outcomes(course, module.id)
+        for outcome in module.learning_outcomes:
+            if outcome.strip() not in questions or outcome.strip() not in tasks:
+                return True
+    return False
 
 
 def _extra_competencies(course: CourseDocument) -> list[dict[str, Any]] | None:
@@ -190,33 +223,37 @@ def default_competencies(course: CourseDocument) -> list[dict[str, Any]]:
                 "abilities": ["Отвечает на вопрос «что будет, если ввести другое число?»"],
             },
         ]
-    title = course.brief.title or "программу"
+    from .reference_outline import subject_name
+
+    subject = subject_name(course)
+    audience = course.brief.audience or "слушатель"
+    attestation = course.brief.attestation_form or "итоговую работу"
     return [
         {
             "id": id1,
-            "name": f"Ориентируется в теме «{title}»",
+            "name": f"Ориентируется в теме «{subject}»",
             "bloomLevel": "understand",
             "moduleIds": first,
-            "knowledge": [f"Называет основные понятия курса «{title}»"],
-            "skills": ["Выполняет учебное задание по образцу"],
-            "abilities": ["Своими словами говорит, что уже умеет"],
+            "knowledge": [f"Называет, зачем «{subject}» нужна аудитории: {audience}"],
+            "skills": [f"Повторяет базовый приём по теме «{subject}»"],
+            "abilities": ["Своими словами объясняет, что уже умеет сделать"],
         },
         {
             "id": id2,
-            "name": "Решает практическую задачу курса",
+            "name": f"Делает практическую работу по программе «{subject}»",
             "bloomLevel": "apply",
             "moduleIds": middle,
-            "knowledge": ["Знает, из каких шагов состоит учебная задача"],
-            "skills": ["Собирает решение из изученных приёмов"],
+            "knowledge": [f"Знает шаги учебной задачи по теме «{subject}»"],
+            "skills": [f"Собирает работу по теме «{subject}» под свою задачу"],
             "abilities": ["Проверяет результат по понятному критерию"],
         },
         {
             "id": id3,
-            "name": "Представляет результат работы",
+            "name": f"Представляет {attestation}",
             "bloomLevel": "evaluate",
             "moduleIds": last or middle,
-            "knowledge": ["Знает, что показать на итоговой работе"],
-            "skills": ["Коротко рассказывает ход работы"],
+            "knowledge": [f"Знает, что показать на аттестации: {attestation}"],
+            "skills": ["Коротко рассказывает ход работы и показывает результат"],
             "abilities": ["Отвечает на уточняющий вопрос по своему результату"],
         },
     ]
@@ -665,30 +702,123 @@ def fallback_questions(course: CourseDocument, module_id: str | None = None) -> 
         while len(questions) < 10:
             questions.append(seed[len(questions) % len(seed)])
         return questions[:10]
-    module = host
-    topics = list(module.topics) if module and module.topics else ["тема занятия"]
-    outcomes = list(module.learning_outcomes) if module and module.learning_outcomes else ["результат"]
-    competency = module.competency_ids[0] if module and module.competency_ids else "c1"
+    return generic_questions(course, host)
+
+
+def generic_questions(
+    course: CourseDocument, module: CourseModule | None
+) -> list[dict[str, Any]]:
+    from .reference_outline import subject_name
+
+    subject = subject_name(course)
+    audience = course.brief.audience or "слушатель"
+    attestation = course.brief.attestation_form or "итоговая работа"
+    host = module or (course.modules[0] if course.modules else None)
+    topics = (
+        [item.title for item in course.modules]
+        + (list(host.topics) if host else [])
+        + [subject]
+    )
+    topics = [item for item in topics if item][:8] or [subject]
+    outcomes = list(host.learning_outcomes) if host and host.learning_outcomes else [f"Работает с темой «{subject}»"]
+    competency = host.competency_ids[0] if host and host.competency_ids else "c1"
+    bank = [
+        (
+            f"Зачем аудитории «{audience}» программа «{subject}»?",
+            f"Чтобы выполнить свою рабочую задачу по теме «{subject}»",
+            "Чтобы выучить наизусть чужой приказ",
+            "Чтобы скопировать часы из чужого образца",
+            "Чтобы заменить тему другой программой",
+            "Курс собирается под названную аудиторию и тему.",
+        ),
+        (
+            f"С чего начинают работу по теме «{topics[0]}»?",
+            "С понятного примера и одного действия, которое можно повторить",
+            "С копирования чужой программы целиком",
+            "С выдуманного кода трудовой функции",
+            "С обещания полной переквалификации",
+            "Сначала пример и повтор, не чужой документ.",
+        ),
+        (
+            f"Что должно получиться на аттестации: {attestation}?",
+            f"Результат по теме «{subject}», который можно показать и объяснить",
+            "Только подпись на титульном листе",
+            "Скопированный текст образца на 248 часов",
+            "Список приказов без работы",
+            "Аттестация проверяет работу слушателя, не бланк.",
+        ),
+        (
+            f"Какой результат считается освоенным после «{topics[min(1, len(topics)-1)]}»?",
+            "Слушатель делает шаг сам и объясняет, что получилось",
+            "Слушатель только слышал название темы",
+            "Слушатель переписал часы из образца",
+            "Слушатель выучил ФИО преподавателя",
+            "Результат — действие и объяснение, не название модуля.",
+        ),
+        (
+            "Что нельзя переносить из приложенного образца?",
+            "Чужую тему, кривые часы и дословный текст",
+            "Идею, что у программы есть разделы",
+            "Требование сверить суммы часов",
+            "Просьбу писать на русском",
+            "Образец — про структуру, не про чужие часы.",
+        ),
+        (
+            f"Как понять, что работа по «{subject}» готова?",
+            "Её можно показать коллеге и ответить на вопрос по ходу",
+            "В файле много страниц без результата",
+            "Есть только название модуля",
+            "Скопирован титульный лист другой программы",
+            "Готовность — проверяемый результат.",
+        ),
+        (
+            f"Что важнее для слушателя «{audience}»?",
+            f"Связь темы «{subject}» с его рабочей задачей",
+            "Общие слова без примера",
+            "Обещание трудоустройства",
+            "Выдуманный номер приказа",
+            "Программа должна садиться на аудиторию.",
+        ),
+        (
+            f"Какой шаг уместен в практике «{topics[min(2, len(topics)-1)]}»?",
+            "Повторить разобранный приём на своей задаче",
+            "Выучить чужой учебный план наизусть",
+            "Пропустить критерии оценки",
+            "Подставить часы из другого курса",
+            "Практика повторяет приём на своей задаче.",
+        ),
+        (
+            "Как в программе появляются коды трудовых функций?",
+            "Только если методист принёс их в файле стандарта",
+            "Студия придумывает любой код вида A/01.6",
+            "Код берётся из объёма часов",
+            "Код обязателен для общеразвивающей программы",
+            "Код трудовой функции не выдумывается.",
+        ),
+        (
+            f"Что проверяет вопрос по модулю «{host.title if host else subject}»?",
+            (host.learning_outcomes[0] if host and host.learning_outcomes else f"Работу по теме «{subject}»"),
+            "ФИО директора организации",
+            "Номер пустого бланка приказа",
+            "Чужой 248-часовой учебный план",
+            "Вопрос закрывает результат модуля.",
+        ),
+    ]
     built: list[dict[str, Any]] = []
-    for index in range(10):
-        topic = topics[index % len(topics)]
+    for index, item in enumerate(bank):
+        stem, answer, wrong1, wrong2, wrong3, explanation = item
         built.append(
             {
                 "type": "mcq",
-                "stem": f"Что слушатель должен уметь после темы «{topic}»?",
-                "options": [
-                    f"Выполнить учебное действие по теме «{topic}»",
-                    "Выучить наизусть текст приказа",
-                    "Пропустить эту тему",
-                    "Заменить тему другой программой",
-                ],
-                "answer": f"Выполнить учебное действие по теме «{topic}»",
-                "explanation": "Вопрос проверяет результат модуля, а не название темы.",
+                "stem": stem,
+                "options": [answer, wrong1, wrong2, wrong3],
+                "answer": answer,
+                "explanation": explanation,
                 "competencyId": competency,
                 "learningOutcome": outcomes[index % len(outcomes)],
             }
         )
-    return built
+    return built[:10]
 
 
 def slides_for_topic(topic: str, course: CourseDocument | None = None) -> dict[str, Any]:
@@ -704,14 +834,21 @@ def slides_for_topic(topic: str, course: CourseDocument | None = None) -> dict[s
             continue
         if any(key in blob for key in keys):
             return {"title": slide["title"], "bullets": list(slide["bullets"])}
+    audience = "слушатель"
+    subject = topic
+    if course is not None:
+        from .reference_outline import subject_name
+
+        audience = (course.brief.audience or "слушатель").rstrip(" .")
+        subject = subject_name(course)
     return {
-        "title": topic,
+        "title": topic[:80],
         "bullets": [
-            f"Тема занятия: {topic}.",
-            "Сначала называем понятие своими словами.",
-            "Потом смотрим короткий пример.",
-            "Дальше повторяем действие на своём примере.",
-            "В конце проверяем: могу объяснить и могу сделать.",
+            f"На занятии разбираем: {topic}.",
+            f"Это часть программы «{subject}» для аудитории: {audience}.",
+            "Сначала показываем один понятный пример.",
+            "Потом слушатель повторяет приём на своей задаче.",
+            "Тема закрыта, если результат можно показать и объяснить.",
         ],
     }
 
@@ -739,6 +876,118 @@ def project_module(course: CourseDocument) -> CourseModule | None:
     return (content[-1] if content else None) or (course.modules[-1] if course.modules else None)
 
 
+def seminar_for_module(course: CourseDocument, module: CourseModule) -> dict[str, Any]:
+    existing = next((item for item in course.seminars if item.module_id == module.id), None)
+    tasks: list[dict[str, Any]] = []
+    if existing:
+        tasks = [task.model_dump(by_alias=True) for task in existing.tasks]
+    special = project_seminar(course)
+    if special and special.get("moduleId") == module.id:
+        have = {str(task.get("title") or "") for task in tasks}
+        for task in special.get("tasks") or []:
+            if str(task.get("title") or "") not in have:
+                tasks.append(task)
+    covered = {str(task.get("learningOutcome") or "").strip() for task in tasks}
+    competency = module.competency_ids[0] if module.competency_ids else "c1"
+    for outcome in module.learning_outcomes:
+        if outcome.strip() in covered:
+            continue
+        tasks.append(
+            {
+                "title": f"Практическая работа: {outcome[:70]}",
+                "prompt": (
+                    f"Сделайте работу по модулю «{module.title}», "
+                    f"которая показывает результат: {outcome}."
+                ),
+                "steps": [
+                    f"Сформулируйте, что должно получиться: {outcome}.",
+                    f"Соберите работу по теме «{module.title}».",
+                    "Проверьте результат по критериям и коротко объясните ход.",
+                ],
+                "timeMin": 40,
+                "criteria": [
+                    f"Результат закрывает: {outcome}.",
+                    "Его можно проверить без догадок.",
+                    "Слушатель объясняет ход своими словами.",
+                ],
+                "competencyId": competency,
+                "learningOutcome": outcome,
+            }
+        )
+        covered.add(outcome.strip())
+    if not tasks:
+        tasks = [
+            {
+                "title": f"Практическая работа: {module.title}",
+                "prompt": f"Сделайте проверяемую работу по модулю «{module.title}».",
+                "steps": [
+                    "Уточните ожидаемый результат.",
+                    "Соберите работу по теме модуля.",
+                    "Проверьте результат по критериям.",
+                ],
+                "timeMin": 40,
+                "criteria": [
+                    "Результат относится к теме модуля.",
+                    "Его можно проверить без догадок.",
+                ],
+                "competencyId": competency,
+                "learningOutcome": module.learning_outcomes[0] if module.learning_outcomes else module.title,
+            }
+        ]
+    return {"moduleId": module.id, "tasks": tasks}
+
+
+def cover_learning_outcomes(course: CourseDocument) -> CourseDocument:
+    pairs = [
+        (module, outcome.strip())
+        for module in course.modules
+        for outcome in module.learning_outcomes
+        if outcome.strip()
+    ]
+    if not pairs:
+        return course
+    bank: list[dict[str, Any]] = []
+    for assessment in course.assessments:
+        for question in assessment.questions:
+            row = question.model_dump(by_alias=True)
+            if not STUB_QUESTION.search(str(row.get("stem") or "")):
+                bank.append(row)
+    if len(bank) < max(10, len(pairs)):
+        bank.extend(fallback_questions(course))
+    target = max(10, len(pairs))
+    while len(bank) < target:
+        bank.extend(fallback_questions(course))
+    bank = bank[:target]
+    primary = project_module(course) or course.modules[-1]
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for index, row in enumerate(bank):
+        if index < len(pairs):
+            module, outcome = pairs[index]
+        else:
+            module = primary
+            outcome = module.learning_outcomes[index % len(module.learning_outcomes)]
+        item = dict(row)
+        item["learningOutcome"] = outcome
+        if module.competency_ids:
+            item["competencyId"] = module.competency_ids[0]
+        grouped.setdefault(module.id, []).append(item)
+    value = course.as_api()
+    value["assessments"] = [
+        {"moduleId": module_id, "questions": questions}
+        for module_id, questions in grouped.items()
+    ]
+    course = CourseDocument.model_validate(value)
+    for module in course.modules:
+        value = course.as_api()
+        seminars = [
+            item for item in value["seminars"] if item.get("moduleId") != module.id
+        ]
+        seminars.append(seminar_for_module(course, module))
+        value["seminars"] = seminars
+        course = CourseDocument.model_validate(value)
+    return course
+
+
 def project_seminar(course: CourseDocument) -> dict[str, Any] | None:
     if is_teacher_ai(course):
         return teacher_ai_seminar(course)
@@ -753,26 +1002,32 @@ def project_seminar(course: CourseDocument) -> dict[str, Any] | None:
     outcome = module.learning_outcomes[-1] if module.learning_outcomes else module.title
     competency = module.competency_ids[-1] if module.competency_ids else "c3"
     if not is_intro_python(course):
+        from .reference_outline import subject_name
+
+        subject = subject_name(course)
+        audience = course.brief.audience or "слушатель"
+        attestation = course.brief.attestation_form or "итоговая работа"
         return {
             "moduleId": module.id,
             "tasks": [
                 {
-                    "title": f"Практическое задание: {module.title}",
+                    "title": f"Практическая работа: {subject}",
                     "prompt": (
-                        f"Выполните учебное задание модуля «{module.title}» "
-                        "и покажите результат по понятным критериям."
+                        f"Сделайте работу по программе «{subject}» для аудитории "
+                        f"«{audience}». К аттестации «{attestation}» должен быть "
+                        "проверяемый результат, а не пересказ чужого образца."
                     ),
                     "steps": [
-                        "Уточните, что нужно получить.",
-                        "Сделайте работу по шагам модуля.",
-                        "Проверьте результат.",
-                        "Коротко объясните ход.",
+                        f"Уточните результат аттестации: {attestation}.",
+                        f"Соберите работу по темам программы «{subject}».",
+                        "Проверьте, что результат можно оценить по критериям.",
+                        "Коротко объясните ход и покажите, что получилось.",
                     ],
                     "timeMin": 60,
                     "criteria": [
-                        "Результат можно проверить.",
-                        "Шаги соответствуют теме модуля.",
-                        "Можно объяснить, что сделано.",
+                        f"Результат относится к теме «{subject}».",
+                        "Его можно проверить без догадок.",
+                        "Слушатель объясняет ход своими словами.",
                     ],
                     "competencyId": competency,
                     "learningOutcome": outcome,

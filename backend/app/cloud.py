@@ -5,6 +5,7 @@ import os
 import re
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -22,6 +23,43 @@ PRICE_PER_MILLION = {
     CHAT_REASONING: (96.22, 288.60),
     EMBEDDINGS: (32.22, 0.0),
 }
+
+
+
+ALLOWED_LLM_ENDPOINTS = frozenset({
+    "https://foundation-models.api.cloud.ru/v1",
+    "https://hub.gigaschool.ru/api/v1/llm/v1",
+})
+
+
+def validate_llm_endpoint(value: str) -> str:
+    try:
+        url = urlsplit(value.strip())
+        port = url.port
+    except ValueError as exc:
+        raise ValueError("Некорректный адрес LLM API") from exc
+
+    if (
+        url.scheme != "https"
+        or not url.hostname
+        or url.username is not None
+        or url.password is not None
+        or port is not None
+        or url.query
+        or url.fragment
+    ):
+        raise ValueError("Недопустимый адрес LLM API")
+
+    normalized = (
+        f"https://{url.hostname}{url.path.rstrip('/')}"
+    )
+
+    if normalized not in ALLOWED_LLM_ENDPOINTS:
+        raise ValueError(
+            f"LLM API запрещён политикой проекта: {url.hostname}"
+        )
+
+    return normalized
 
 
 def _env_file() -> dict[str, str]:
@@ -237,7 +275,7 @@ def payload_has_control_tokens(payload: dict[str, Any]) -> bool:
 class CloudRuClient:
     def __init__(self) -> None:
         self.api_key = setting("OPENAI_API_KEY") or setting("CLOUDRU_API_KEY")
-        self.base_url = (
+        self.base_url = validate_llm_endpoint(
             setting("OPENAI_BASE_URL")
             or setting(
                 "CLOUDRU_BASE_URL", "https://foundation-models.api.cloud.ru/v1"

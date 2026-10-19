@@ -51,6 +51,16 @@ export async function POST(req: Request) {
     }
 
     const name = file.name.toLowerCase();
+    const allowed = [".txt", ".md", ".pdf", ".docx"];
+    if (!allowed.some((ext) => name.endsWith(ext))) {
+      return Response.json({ error: "Нужен файл .txt, .md, .pdf или .docx." }, { status: 400 });
+    }
+    if (file.size === 0) {
+      return Response.json({ error: "Файл пустой." }, { status: 400 });
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      return Response.json({ error: "Файл больше 8 МБ." }, { status: 400 });
+    }
     const buffer = new Uint8Array(await file.arrayBuffer());
 
     if (name.endsWith(".docx")) {

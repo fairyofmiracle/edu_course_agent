@@ -132,6 +132,20 @@ export function RequestComposer({
   }, [fileNote]);
 
   const attachFile = async (file: File) => {
+    const allowed = [".txt", ".md", ".pdf", ".docx"];
+    const lower = file.name.toLowerCase();
+    if (!allowed.some((ext) => lower.endsWith(ext))) {
+      setFileNote("Нужен файл .txt, .md, .pdf или .docx.");
+      return;
+    }
+    if (file.size === 0) {
+      setFileNote("Файл пустой.");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setFileNote("Файл больше 8 МБ.");
+      return;
+    }
     setBusyFile(true);
     setFileNote("");
     try {

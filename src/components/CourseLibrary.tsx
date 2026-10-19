@@ -19,10 +19,32 @@ import {
   type CopyAdaptation,
   type CourseSummary,
 } from "@/lib/course-library";
-import { PROGRAM_KIND_LABELS, type CourseDocument } from "@/lib/course-schema";
-import { dropStoredCourse, saveCourse } from "@/lib/storage";
+import { PROGRAM_KIND_LABELS, courseDocumentSchema, type CourseDocument } from "@/lib/course-schema";
+import { dropStoredCourse, newSessionId, saveCourse } from "@/lib/storage";
+import type { UIMessage } from "ai";
 
 type LibraryItem = CourseSummary & { where: "server" | "browser" };
+
+function asUiMessages(value: unknown): UIMessage[] {
+  if (!Array.isArray(value)) return [];
+  const messages: UIMessage[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const record = item as { id?: unknown; role?: unknown; parts?: unknown; content?: unknown };
+    if (record.role !== "user" && record.role !== "assistant") continue;
+    if (Array.isArray(record.parts)) {
+      messages.push(record as UIMessage);
+      continue;
+    }
+    const text = typeof record.content === "string" ? record.content : "";
+    messages.push({
+      id: typeof record.id === "string" ? record.id : crypto.randomUUID(),
+      role: record.role,
+      parts: text ? [{ type: "text", text }] : [],
+    });
+  }
+  return messages;
+}
 
 function formatWhen(iso: string) {
   const date = new Date(iso);
@@ -103,8 +125,14 @@ export function CourseCatalog() {
       setNote("Курс не найден.");
       return;
     }
-    saveCourse(next.course, next.messages);
-    router.push("/");
+    const parsed = courseDocumentSchema.safeParse(next.course);
+    if (!parsed.success) {
+      setNote("Курс не открылся: запись не совпала со схемой программы.");
+      return;
+    }
+    saveCourse(parsed.data, asUiMessages(next.messages));
+    newSessionId();
+    router.push(`/?course=${encodeURIComponent(courseId)}&open=${Date.now()}`);
   }
 
   async function copyCourse(courseId: string, adaptation: CopyAdaptation) {
@@ -183,7 +211,15 @@ export function CourseCatalog() {
                 item.programKind;
               return (
                 <li key={item.id}>
-                  <div>
+                  <button
+                    type="button"
+                    className="catalog-open"
+                    disabled={busy || draft.id === item.id || pendingDelete === item.id}
+                    onClick={() => {
+                      setBusy(true);
+                      void openCourse(item.id).finally(() => setBusy(false));
+                    }}
+                  >
                     <strong>{item.title.trim() || "Новая образовательная программа"}</strong>
                     <span>
                       {item.audience.trim() || "Аудитория не указана"}
@@ -194,6 +230,37 @@ export function CourseCatalog() {
                       {" · "}
                       {formatWhen(item.updatedAt)}
                     </span>
+                  </button>
+                  {draft.id === item.id || pendingDelete === item.id ? null : (
+                    <span className="library-actions">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          setPendingDelete("");
+                          setDraft({
+                            id: item.id,
+                            audience: item.audience,
+                            duration: item.durationHours ? String(item.durationHours).replace(".", ",") : "",
+                            attestation: String(item.attestationHours ?? 0).replace(".", ","),
+                            error: "",
+                          });
+                        }}
+                      >
+                        Копия
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          setDraft({ id: "", audience: "", duration: "", attestation: "", error: "" });
+                          setPendingDelete(item.id);
+                        }}
+                      >
+                        Удалить
+                      </button>
+                    </span>
+                  )}
                     {draft.id === item.id ? (
                       <form
                         className="copy-form"
@@ -279,40 +346,6 @@ export function CourseCatalog() {
                         </span>
                       </div>
                     ) : null}
-                  </div>
-                  {draft.id === item.id || pendingDelete === item.id ? null : (
-                    <span className="library-actions">
-                      <button type="button" disabled={busy} onClick={() => void openCourse(item.id)}>
-                        Открыть
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => {
-                          setPendingDelete("");
-                          setDraft({
-                            id: item.id,
-                            audience: item.audience,
-                            duration: item.durationHours ? String(item.durationHours).replace(".", ",") : "",
-                            attestation: String(item.attestationHours ?? 0).replace(".", ","),
-                            error: "",
-                          });
-                        }}
-                      >
-                        Копия
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => {
-                          setDraft({ id: "", audience: "", duration: "", attestation: "", error: "" });
-                          setPendingDelete(item.id);
-                        }}
-                      >
-                        Удалить
-                      </button>
-                    </span>
-                  )}
                 </li>
               );
             })}

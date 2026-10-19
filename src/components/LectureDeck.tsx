@@ -85,11 +85,25 @@ export function LectureDeck({ course }: LectureDeckProps) {
         </p>
       </div>
 
-      <ol className="outline">
-        {lecture.outline.map((item) => (
-          <li key={item}>{item}</li>
-        ))}
-      </ol>
+      <article className="plan-sheet">
+        <p className="kicker">План лекции</p>
+        <h3>{courseModule?.title ?? lecture.moduleId}</h3>
+        <p className="muted">
+          {lecture.durationMin} минут
+          {courseModule ? ` · ${courseModule.lectureHours} ч в учебном плане` : ""}
+        </p>
+        <ol className="plan-list">
+          {lecture.outline.map((item, index) => {
+            const planned = lecture.slides[index];
+            return (
+              <li key={`${item}-${index}`}>
+                <strong>{planned?.title || item}</strong>
+                {planned?.bullets[0] ? <span>{planned.bullets[0]}</span> : null}
+              </li>
+            );
+          })}
+        </ol>
+      </article>
 
       <article className="slide-card">
         <p className="kicker">Слайд {safeIndex + 1}</p>

@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -116,41 +116,45 @@ def save_course(
             status_code=409,
             detail="Курс уже сохранила другая вкладка. Обновите программу и повторите.",
         )
-    record.title = request.course.brief.title
-    record.current_version += 1
-    version = CourseVersion(
-        course_id=course_id,
-        version=record.current_version,
-        payload=request.course.as_api(),
-        reason=request.reason,
+    latest = session.scalar(
+        select(func.max(CourseVersion.version)).where(CourseVersion.course_id == course_id)
     )
-    session.add(version)
-
-    if request.messages:
-        session.execute(
-            delete(ChatMessageRecord).where(ChatMessageRecord.course_id == course_id)
-        )
-        session.add_all(
-            ChatMessageRecord(
-                course_id=course_id,
-                role=str(message.get("role") or "assistant"),
-                payload=message,
-            )
-            for message in request.messages
-        )
-
-    session.execute(delete(SourceRecord).where(SourceRecord.course_id == course_id))
-    session.add_all(
-        SourceRecord(
-            course_id=course_id,
-            title=reference.title,
-            source=reference.source,
-            note=reference.note,
-            status="source_attached" if reference.source else "unconfirmed",
-        )
-        for reference in request.course.brief.references
-    )
+    next_version = max(record.current_version, int(latest or 0)) + 1
     try:
+        record.title = request.course.brief.title
+        record.current_version = next_version
+        version = CourseVersion(
+            course_id=course_id,
+            version=next_version,
+            payload=request.course.as_api(),
+            reason=request.reason,
+        )
+        session.add(version)
+
+        if request.messages:
+            session.execute(
+                delete(ChatMessageRecord).where(ChatMessageRecord.course_id == course_id)
+            )
+            session.add_all(
+                ChatMessageRecord(
+                    course_id=course_id,
+                    role=str(message.get("role") or "assistant"),
+                    payload=message,
+                )
+                for message in request.messages
+            )
+
+        session.execute(delete(SourceRecord).where(SourceRecord.course_id == course_id))
+        session.add_all(
+            SourceRecord(
+                course_id=course_id,
+                title=reference.title,
+                source=reference.source,
+                note=reference.note,
+                status="source_attached" if reference.source else "unconfirmed",
+            )
+            for reference in request.course.brief.references
+        )
         session.commit()
     except IntegrityError as error:
         session.rollback()

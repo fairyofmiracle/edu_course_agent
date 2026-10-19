@@ -32,10 +32,10 @@ export type WorkspaceTab =
 const TABS: { id: WorkspaceTab; label: string; hint: string }[] = [
   { id: "overview", label: "Обзор", hint: "Шаблон, аудитория и проверка часов. Каркас утверждают здесь." },
   { id: "structure", label: "План", hint: "Модули и темы: лекции, практика, лабораторные, самостоятельная работа." },
-  { id: "competencies", label: "Компетенции", hint: "Знания, умения и навыки. Каждая компетенция входит в модуль." },
-  { id: "lectures", label: "Лекции", hint: "Планы и слайды. Появляются после кнопки «Утвердить каркас»." },
-  { id: "seminars", label: "Семинары", hint: "Задания с критериями. Тоже после утверждения каркаса." },
-  { id: "tests", label: "Тесты", hint: "Вопросы с ключами и привязкой к результату обучения." },
+  { id: "competencies", label: "Компетенции", hint: "Колесо баланса: знания, умения, навыки и покрытие лекцией, заданием и тестом." },
+  { id: "lectures", label: "Лекции", hint: "План занятия и слайды. Появляются после кнопки «Утвердить каркас»." },
+  { id: "seminars", label: "Семинары", hint: "План практической работы: ход, критерии и результат." },
+  { id: "tests", label: "Тесты", hint: "План проверки: вопрос, варианты, ключ и компетенция." },
   { id: "checks", label: "Проверка", hint: "Часы, связи, комплект, источники и оценивание каждого результата." },
 ];
 
@@ -402,6 +402,10 @@ function Structure({ course }: { course: CourseDocument }) {
   );
 }
 
+function competencyName(course: CourseDocument, id: string) {
+  return course.competencies.nodes.find((node) => node.id === id)?.name ?? id;
+}
+
 function Seminars({ course }: { course: CourseDocument }) {
   if (course.seminars.length === 0) {
     return <p className="empty-hint">Семинары появятся, когда агент соберёт задания.</p>;
@@ -411,22 +415,24 @@ function Seminars({ course }: { course: CourseDocument }) {
       {course.seminars.map((seminar) => {
         const courseModule = course.modules.find((item) => item.id === seminar.moduleId);
         return (
-          <article key={seminar.moduleId} className="block">
+          <article key={seminar.moduleId} className="plan-sheet">
+            <p className="kicker">План семинара</p>
             <h3>{courseModule?.title ?? seminar.moduleId}</h3>
-            {seminar.tasks.map((task) => (
+            {seminar.tasks.map((task, index) => (
               <div key={task.title} className="task">
                 <header>
-                  <h4>{task.title}</h4>
-                  <span>
-                    {task.timeMin} мин · {task.competencyId}
-                  </span>
+                  <h4>
+                    {index + 1}. {task.title}
+                  </h4>
+                  <span>{task.timeMin} мин</span>
                 </header>
-                {task.learningOutcome ? (
-                  <p className="muted">Результат обучения: {task.learningOutcome}</p>
-                ) : null}
-                <p>{task.prompt}</p>
-                <h5>Ход</h5>
-                <ol>
+                <p className="plan-lead">{task.prompt}</p>
+                <p className="muted">
+                  Компетенция: {competencyName(course, task.competencyId)}
+                  {task.learningOutcome ? ` · результат: ${task.learningOutcome}` : ""}
+                </p>
+                <h5>Ход работы</h5>
+                <ol className="plan-list">
                   {task.steps.map((step) => (
                     <li key={step}>{step}</li>
                   ))}
@@ -455,12 +461,13 @@ function Tests({ course }: { course: CourseDocument }) {
       {course.assessments.map((assessment) => {
         const courseModule = course.modules.find((item) => item.id === assessment.moduleId);
         return (
-          <article key={assessment.moduleId} className="block">
+          <article key={assessment.moduleId} className="plan-sheet">
+            <p className="kicker">План теста · {assessment.questions.length} вопр.</p>
             <h3>{courseModule?.title ?? assessment.moduleId}</h3>
             <ol className="questions">
               {assessment.questions.map((question, index) => (
                 <li key={`${question.stem}-${index}`}>
-                  <p>
+                  <p className="plan-lead">
                     <span className="qtype">{QUESTION_LABELS[question.type]}</span> {question.stem}
                   </p>
                   {question.options?.length ? (
@@ -470,22 +477,24 @@ function Tests({ course }: { course: CourseDocument }) {
                           key={option}
                           className={option === question.answer ? "correct" : undefined}
                         >
+                          {option === question.answer ? "Ключ. " : ""}
                           {option}
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="answer">Ответ: {question.answer}</p>
+                    <p className="answer">Ключ: {question.answer}</p>
                   )}
                   <p className="muted">
-                    Ключ: {question.answer}
+                    {question.explanation}
                     {question.learningOutcome ? ` · результат: ${question.learningOutcome}` : ""}
                     {" · "}
-                    {question.explanation} · {BLOOM_LABELS[
+                    {competencyName(course, question.competencyId)}
+                    {" · "}
+                    {BLOOM_LABELS[
                       course.competencies.nodes.find((node) => node.id === question.competencyId)
                         ?.bloomLevel ?? "apply"
-                    ]}{" "}
-                    ({question.competencyId})
+                    ]}
                   </p>
                 </li>
               ))}

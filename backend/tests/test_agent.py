@@ -252,6 +252,72 @@ def test_approved_kit_with_key_asks_model() -> None:
     assert result["course"].seminars
 
 
+def test_gateway_silence_still_returns_kit_patches() -> None:
+    raw = fixture_course().as_api()
+    raw["brief"]["durationHours"] = 16
+    raw["brief"]["attestationHours"] = 2
+    raw["modules"] = [
+        {
+            "id": module_id,
+            "title": title,
+            "hours": hours,
+            "lectureHours": lecture,
+            "practiceHours": practice,
+            "labHours": 0,
+            "selfStudyHours": 0,
+            "topics": [title],
+            "plan": [
+                {
+                    "title": title,
+                    "lectureHours": lecture,
+                    "practiceHours": practice,
+                    "labHours": 0,
+                    "selfStudyHours": 0,
+                }
+            ],
+            "learningOutcomes": [outcome],
+            "competencyIds": ["C1"],
+        }
+        for module_id, title, hours, lecture, practice, outcome in (
+            ("M1", "Старт", 4, 2, 2, "Пишет первую программу"),
+            ("M2", "Ветвления", 4, 2, 2, "Использует ветвления"),
+            ("M3", "Мини-проект", 6, 2, 4, "Собирает мини-проект"),
+        )
+    ]
+    course = approve_framework(CourseDocument.model_validate(raw))
+    seen: dict[str, int | float] = {"calls": 0}
+
+    class Silent:
+        api_key = "test-key"
+        usage = None
+
+        async def complete(self, **kwargs):
+            seen["calls"] += 1
+            seen["timeout"] = kwargs["timeout"]
+            seen["attempts"] = kwargs["attempts"]
+            raise RuntimeError("шлюз молчит")
+
+    result = asyncio.run(
+        run_turn(
+            course,
+            user_texts=["Каркас утверждён. Для каждого модуля вызови set_assessment, set_seminar и set_lecture."],
+            model_messages=[{"role": "user", "content": "Каркас утверждён."}],
+            client=Silent(),
+        )
+    )
+    assert seen["calls"] == 1
+    assert seen["timeout"] == 70
+    assert seen["attempts"] == 1
+    for module_id in ("M1", "M2", "M3"):
+        assert any(item.module_id == module_id for item in result["course"].lectures)
+        assert any(item.module_id == module_id for item in result["course"].seminars)
+        assert any(item.module_id == module_id for item in result["course"].assessments)
+        assert any(
+            patch["type"] == "set_lecture" and patch["lecture"]["moduleId"] == module_id
+            for patch in result["patches"]
+        )
+
+
 def test_generic_competency_asks_model_and_drops_invented_code() -> None:
     text = "Собери каркас по заполненному шаблону"
     course = empty_course()

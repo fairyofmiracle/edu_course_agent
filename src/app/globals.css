@@ -1,15 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --ink: #111;
-  --ink-soft: #444;
-  --paper: #fff;
+  --ink: #1c1614;
+  --ink-soft: #5c534c;
+  --paper: #f6f4f1;
   --panel: #fff;
   --chat: #fff;
-  --chat-soft: #fafafa;
-  --line: #ccc;
-  --accent: #111;
-  --accent-2: #111;
+  --chat-soft: #f7f3f0;
+  --line: #ddd6cf;
+  --accent: #6e2432;
+  --accent-2: #6e2432;
   --warn: #111;
   --on-accent: #fff;
   --soft: #f6f6f6;
@@ -34,7 +34,7 @@ html[data-theme="dark"] {
   --chat: #1c1b18;
   --chat-soft: #242320;
   --line: #3d3a34;
-  --accent: #f4efe6;
+  --accent: #d46a78;
   --accent-2: #e2b39a;
   --warn: #e2b39a;
   --on-accent: #141311;
@@ -109,9 +109,9 @@ button {
 
 .site-mark {
   margin: 0;
-  color: var(--ink);
+  color: var(--accent);
   font-size: 13px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   text-decoration: none;
 }
@@ -149,14 +149,17 @@ button {
 .topbar h1 {
   margin: 2px 0 0;
   font-family: var(--font-serif);
-  font-size: 26px;
+  font-size: 34px;
   font-weight: 600;
-  line-height: 1.15;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
 }
 
 .kicker {
   margin: 0;
-  font-size: 14px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--ink-soft);
 }
 
@@ -265,11 +268,68 @@ button.primary {
   color: var(--ink);
 }
 
+.topbar-side {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chat-dock {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 11px;
+  line-height: 1.15;
+}
+
+.chat-dock[aria-expanded="false"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
 .studio-body {
   display: grid;
+  position: relative;
   flex: 1;
-  grid-template-columns: minmax(420px, 1.15fr) minmax(0, 1fr);
+  grid-template-columns: minmax(380px, 42%) minmax(0, 1fr);
   min-height: 0;
+  overflow: hidden;
+  transition: grid-template-columns 320ms ease;
+}
+
+.studio-body.chat-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.studio-body.chat-away {
+  grid-template-columns: 0px minmax(0, 1fr);
+}
+
+.chat-only .pane-write {
+  border-right: 0;
+}
+
+.chat-only .messages,
+.chat-only .composer,
+.chat-only .pane-head {
+  width: min(760px, 100%);
+  margin-inline: auto;
+}
+
+.studio-body.chat-away .pane-write {
+  transform: translateX(-8%);
+  opacity: 0;
+  pointer-events: none;
+  border-right-color: transparent;
 }
 
 .catalog-page {
@@ -311,11 +371,28 @@ button.primary {
   border-top: 1px solid var(--line);
 }
 
+.catalog-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.catalog-open:disabled {
+  cursor: default;
+}
+
 .catalog-list strong,
 .catalog-list span {
   display: block;
 }
 
+.catalog-open > span,
 .catalog-list li > div > span {
   margin-top: 3px;
   color: var(--ink-soft);
@@ -343,6 +420,7 @@ button.primary {
 .pane-write {
   grid-template-rows: auto 1fr auto;
   border-right: 1px solid var(--line);
+  transition: transform 320ms ease, opacity 320ms ease;
 }
 
 .pane-doc {
@@ -359,6 +437,11 @@ button.primary {
   font-family: var(--font-serif);
   font-size: 22px;
   font-weight: 600;
+}
+
+.chat-only .pane-head h2 {
+  font-size: 40px;
+  line-height: 1.05;
 }
 
 .pane-label {
@@ -440,6 +523,10 @@ button.primary {
   display: grid;
   gap: 6px;
   margin-top: 8px;
+}
+
+.catalog-list .copy-form {
+  grid-column: 1 / -1;
 }
 
 .copy-form label {
@@ -990,8 +1077,46 @@ button.primary {
   font-family: var(--font-serif);
 }
 
-.outline {
+.outline,
+.plan-list {
   padding-left: 18px;
+}
+
+.plan-sheet {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 22px 24px 8px;
+}
+
+.plan-sheet h3,
+.zun-card h3,
+.balance-head h3 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: 28px;
+  margin: 4px 0 8px;
+}
+
+.plan-lead {
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.plan-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0 18px;
+}
+
+.plan-list li strong {
+  display: block;
+}
+
+.plan-list li span {
+  display: block;
+  color: var(--ink-soft);
+  margin-top: 2px;
 }
 
 .slide-card {
@@ -1024,6 +1149,77 @@ button.primary {
   color: var(--warn);
   font-size: 13px;
   margin: 10px 0 0;
+}
+
+.balance-wheel {
+  width: min(640px, 100%);
+  height: auto;
+  display: block;
+  margin: 8px auto 28px;
+}
+
+.wheel-ring,
+.wheel-spoke {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.wheel-spoke {
+  fill: none;
+}
+
+.wheel-shape {
+  fill: var(--accent);
+  fill-opacity: 0.16;
+  stroke: var(--accent);
+  stroke-width: 1.6;
+}
+
+.wheel-dot {
+  fill: var(--accent);
+}
+
+.wheel-label,
+.wheel-score {
+  fill: var(--ink);
+  font-family: var(--font-serif);
+}
+
+.wheel-label {
+  font-size: 13px;
+}
+
+.wheel-score {
+  font-size: 28px;
+}
+
+.wheel-caption {
+  fill: var(--ink-soft);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.zun-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.zun-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 16px 18px 8px;
+}
+
+.zun-card h4,
+.task h5 {
+  margin: 14px 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
 }
 
 .map-shell {
@@ -1102,8 +1298,13 @@ button.primary {
 
   .studio-body,
   .meta-grid,
-  .two-col {
+  .two-col,
+  .zun-grid {
     grid-template-columns: 1fr;
+  }
+
+  .studio-body.chat-away .pane-write {
+    display: none;
   }
 
   .studio {

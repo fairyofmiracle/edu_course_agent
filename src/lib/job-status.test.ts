@@ -10,8 +10,8 @@ describe("job status labels", () => {
   it("чат идёт от отправки к повторам", () => {
     expect(chatWaitLabel(0)).toMatch(/Отправляю/);
     expect(chatWaitLabel(4000)).toMatch(/думает/);
-    expect(chatWaitLabel(25000)).toMatch(/повтор 2 из 3/);
-    expect(chatWaitLabel(80000)).toMatch(/3 из 3/);
+    expect(chatWaitLabel(25000)).toMatch(/Жду ответ шлюза/);
+    expect(chatWaitLabel(80000)).toMatch(/Жду ответ шлюза/);
   });
 
   it("файл и выгрузка показывают этап", () => {

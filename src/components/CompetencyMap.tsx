@@ -2,138 +2,139 @@
 
 import { BLOOM_LABELS, type CourseDocument } from "@/lib/course-schema";
 
-const COLUMNS = [
-  "remember",
-  "understand",
-  "apply",
-  "analyze",
-  "evaluate",
-  "create",
-] as const;
-
-function borderPoint(
-  from: { x: number; y: number },
-  to: { x: number; y: number },
-) {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const halfW = 86;
-  const halfH = 32;
-  if (dx === 0 && dy === 0) return to;
-  const scaleX = dx === 0 ? Number.POSITIVE_INFINITY : halfW / Math.abs(dx);
-  const scaleY = dy === 0 ? Number.POSITIVE_INFINITY : halfH / Math.abs(dy);
-  const scale = Math.min(scaleX, scaleY);
-  return { x: to.x - dx * scale, y: to.y - dy * scale };
-}
+type CompetencyNode = CourseDocument["competencies"]["nodes"][number];
 
 type CompetencyMapProps = {
   course: CourseDocument;
 };
 
+const SIZE = 640;
+const CENTER = SIZE / 2;
+const RADIUS = 210;
+
+function coverage(course: CourseDocument, node: CompetencyNode) {
+  const zun = [node.knowledge, node.skills, node.abilities].filter((items) => items.length > 0).length / 3;
+  const linked = node.moduleIds.length > 0 || course.modules.some((item) => item.competencyIds.includes(node.id));
+  const moduleIds = new Set([
+    ...node.moduleIds,
+    ...course.modules.filter((item) => item.competencyIds.includes(node.id)).map((item) => item.id),
+  ]);
+  const lecture = course.lectures.some((item) => moduleIds.has(item.moduleId));
+  const seminar = course.seminars.some((item) =>
+    item.tasks.some((task) => task.competencyId === node.id) || moduleIds.has(item.moduleId),
+  );
+  const test = course.assessments.some((item) =>
+    item.questions.some((question) => question.competencyId === node.id) || moduleIds.has(item.moduleId),
+  );
+  const score = zun * 0.45 + (linked ? 0.1 : 0) + (lecture ? 0.15 : 0) + (seminar ? 0.15 : 0) + (test ? 0.15 : 0);
+  return Math.max(0.08, Math.min(1, score));
+}
+
+function point(index: number, count: number, scale: number) {
+  const angle = -Math.PI / 2 + (index * 2 * Math.PI) / count;
+  return {
+    x: CENTER + Math.cos(angle) * RADIUS * scale,
+    y: CENTER + Math.sin(angle) * RADIUS * scale,
+  };
+}
+
 export function CompetencyMap({ course }: CompetencyMapProps) {
-  const { nodes, edges } = course.competencies;
+  const { nodes } = course.competencies;
   if (nodes.length === 0) {
     return (
       <p className="empty-hint">
-        Карта появится, когда агент соберёт компетенции, или загрузите пример.
+        Колесо появится, когда агент соберёт компетенции, или загрузите пример.
       </p>
     );
   }
 
-  const width = 920;
-  const columnWidth = width / COLUMNS.length;
-  const positions = new Map<string, { x: number; y: number }>();
-
-  COLUMNS.forEach((level, column) => {
-    const columnNodes = nodes.filter((node) => node.bloomLevel === level);
-    columnNodes.forEach((node, row) => {
-      positions.set(node.id, {
-        x: column * columnWidth + columnWidth / 2,
-        y: 88 + row * 118,
-      });
-    });
-  });
-
-  const height = Math.max(
-    240,
-    ...[...positions.values()].map((point) => point.y + 70),
-  );
+  const scores = nodes.map((node) => coverage(course, node));
+  const average = Math.round((scores.reduce((sum, value) => sum + value, 0) / scores.length) * 100);
+  const polygon = scores
+    .map((score, index) => {
+      const spot = point(index, nodes.length, score);
+      return `${spot.x},${spot.y}`;
+    })
+    .join(" ");
+  const label = nodes
+    .map((node, index) => `${node.name}: ${Math.round(scores[index] * 100)}%`)
+    .join(". ");
 
   return (
-    <div className="map-shell">
-      <svg viewBox={`0 0 ${width} ${height}`} className="map-svg" role="img" aria-label="Карта компетенций">
-        <defs>
-          <marker
-            id="competency-arrow"
-            markerWidth="8"
-            markerHeight="8"
-            refX="7"
-            refY="4"
-            orient="auto"
-          >
-            <path d="M0,0 L8,4 L0,8 Z" className="map-arrow" />
-          </marker>
-        </defs>
-        {COLUMNS.map((level, index) => (
-          <text
-            key={level}
-            x={index * columnWidth + columnWidth / 2}
-            y={28}
-            textAnchor="middle"
-            className="map-col"
-          >
-            {BLOOM_LABELS[level]}
-          </text>
+    <div className="balance">
+      <div className="balance-head">
+        <p className="kicker">Колесо баланса</p>
+        <h3>Компетенции программы</h3>
+        <p className="muted">
+          Радиус спицы — полнота: знания, умения, навыки, связь с модулем, лекция, задание и тест.
+        </p>
+      </div>
+      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="balance-wheel" role="img" aria-label={label}>
+        {[1, 0.66, 0.33].map((ring) => (
+          <circle key={ring} cx={CENTER} cy={CENTER} r={RADIUS * ring} className="wheel-ring" />
         ))}
-        {edges.map((edge) => {
-          const from = positions.get(edge.from);
-          const to = positions.get(edge.to);
-          if (!from || !to) return null;
-          const start = borderPoint(to, from);
-          const end = borderPoint(from, to);
+        {nodes.map((node, index) => {
+          const end = point(index, nodes.length, 1);
+          const spot = point(index, nodes.length, scores[index]);
+          const labelPoint = point(index, nodes.length, 1.18);
+          const anchor = labelPoint.x < CENTER - 8 ? "end" : labelPoint.x > CENTER + 8 ? "start" : "middle";
           return (
-            <line
-              key={`${edge.from}-${edge.to}`}
-              x1={start.x}
-              y1={start.y}
-              x2={end.x}
-              y2={end.y}
-              className="map-edge"
-              markerEnd="url(#competency-arrow)"
-            />
-          );
-        })}
-        {nodes.map((node) => {
-          const point = positions.get(node.id);
-          if (!point) return null;
-          const moduleLabel = node.moduleIds.join(", ");
-          return (
-            <g key={node.id} transform={`translate(${point.x}, ${point.y})`}>
-              <rect x={-86} y={-28} width={172} height={64} rx={2} className="map-node" />
-              <text y={-6} textAnchor="middle" className="map-id">
-                {node.id}
-              </text>
-              <text y={14} textAnchor="middle" className="map-name">
-                {node.name.length > 22 ? `${node.name.slice(0, 22)}…` : node.name}
-              </text>
-              <text y={28} textAnchor="middle" className="map-mod">
-                {moduleLabel}
+            <g key={node.id}>
+              <line x1={CENTER} y1={CENTER} x2={end.x} y2={end.y} className="wheel-spoke" />
+              <circle cx={spot.x} cy={spot.y} r={4} className="wheel-dot" />
+              <text x={labelPoint.x} y={labelPoint.y} textAnchor={anchor} className="wheel-label">
+                {node.name.length > 28 ? `${node.name.slice(0, 28)}…` : node.name}
               </text>
             </g>
           );
         })}
+        {nodes.length >= 3 ? (
+          <polygon points={polygon} className="wheel-shape" />
+        ) : (
+          <circle cx={CENTER} cy={CENTER} r={RADIUS * scores[0]} className="wheel-shape" />
+        )}
+        <text x={CENTER} y={CENTER - 8} textAnchor="middle" className="wheel-score">
+          {average}%
+        </text>
+        <text x={CENTER} y={CENTER + 16} textAnchor="middle" className="wheel-caption">
+          полнота
+        </text>
       </svg>
-      <ul className="map-legend">
-        {nodes.map((node) => (
-          <li key={node.id}>
-            <strong>{node.id}</strong> {node.name}
-            {node.laborFunctionCode ? ` · ${node.laborFunctionCode}` : ""}
-            {node.knowledge.length ? ` · знания: ${node.knowledge.join("; ")}` : ""}
-            {node.skills.length ? ` · умения: ${node.skills.join("; ")}` : ""}
-            {node.abilities.length ? ` · навыки: ${node.abilities.join("; ")}` : ""}
-          </li>
-        ))}
-      </ul>
+      <div className="zun-grid">
+        {nodes.map((node, index) => {
+          const titles = course.modules
+            .filter((item) => item.competencyIds.includes(node.id) || node.moduleIds.includes(item.id))
+            .map((item) => item.title);
+          return (
+            <article key={node.id} className="zun-card">
+              <p className="kicker">
+                {node.id} · {BLOOM_LABELS[node.bloomLevel]} · {Math.round(scores[index] * 100)}%
+              </p>
+              <h3>{node.name}</h3>
+              {node.laborFunctionCode ? <p className="muted">{node.laborFunctionCode}</p> : null}
+              <p className="muted">{titles.length ? titles.join(" · ") : "Модуль ещё не связан"}</p>
+              <h4>Знания</h4>
+              <ul>
+                {(node.knowledge.length ? node.knowledge : ["—"]).map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+              <h4>Умения</h4>
+              <ul>
+                {(node.skills.length ? node.skills : ["—"]).map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+              <h4>Навыки</h4>
+              <ul>
+                {(node.abilities.length ? node.abilities : ["—"]).map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </article>
+          );
+        })}
+      </div>
     </div>
   );
 }

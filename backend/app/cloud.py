@@ -297,6 +297,7 @@ class CloudRuClient:
             "total_tokens": 0,
             "calls": 0,
         }
+        self.gateway_retries: list[int] = []
 
     def add_usage(self, usage: dict[str, Any] | None) -> None:
         data = usage or {}
@@ -320,6 +321,8 @@ class CloudRuClient:
         tool_choice: str | dict[str, Any] = "auto",
         max_tokens: int = 400,
         model: str | None = None,
+        timeout: float = 180,
+        attempts: int | None = None,
     ) -> dict[str, Any]:
         if not self.api_key:
             raise RuntimeError(
@@ -345,28 +348,32 @@ class CloudRuClient:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        last_error = "Cloud.ru не ответила"
-        for attempt in range(RETRY_ATTEMPTS):
+        total_attempts = RETRY_ATTEMPTS if attempts is None else max(1, attempts)
+        for attempt in range(total_attempts):
             try:
-                async with httpx.AsyncClient(timeout=180, trust_env=False) as client:
+                async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
                     response = await client.post(
                         f"{self.base_url}/chat/completions",
                         headers=headers,
                         json=payload,
                     )
             except (httpx.TimeoutException, httpx.TransportError) as error:
-                last_error = f"Cloud.ru сеть: {error}"
-                if attempt + 1 < RETRY_ATTEMPTS:
+                if attempt + 1 < total_attempts:
+                    self.gateway_retries.append(attempt + 2)
                     await asyncio.sleep(0.4 * (2 ** attempt))
                     continue
-                raise RuntimeError(last_error) from error
+                raise RuntimeError(f"Шлюз не ответил после {RETRY_ATTEMPTS} попыток.") from error
             status = getattr(response, "status_code", 500 if response.is_error else 200)
-            if status in RETRY_STATUSES and attempt + 1 < RETRY_ATTEMPTS:
-                last_error = f"Cloud.ru {status}: {response.text[:400]}"
+            if status in RETRY_STATUSES and attempt + 1 < total_attempts:
+                self.gateway_retries.append(attempt + 2)
                 await asyncio.sleep(0.4 * (2 ** attempt))
                 continue
+            if status in RETRY_STATUSES:
+                raise RuntimeError(f"Шлюз не ответил после {RETRY_ATTEMPTS} попыток.")
             if response.is_error:
-                raise RuntimeError(f"Cloud.ru {status}: {response.text[:400]}")
+                raise RuntimeError(
+                    f"Cloud.ru вернул ошибку {status}: {getattr(response, 'text', '')[:300]}"
+                )
             data = response.json()
             self.add_usage(data.get("usage"))
             choices = data.get("choices") or []
@@ -378,4 +385,4 @@ class CloudRuClient:
             if self.json_tools and not message.get("tool_calls"):
                 return parse_assistant_message(message.get("content"))
             return sanitize(message)
-        raise RuntimeError(last_error)
+        raise RuntimeError(f"Шлюз не ответил после {RETRY_ATTEMPTS} попыток.")

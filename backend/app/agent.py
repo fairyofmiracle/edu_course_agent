@@ -39,6 +39,7 @@ from .planner import (
     intake_questions,
     is_framework_approved,
     kit_needed,
+    kit_request_ready,
     kit_lecture_target,
     missing_brief_lines,
     plan_step,
@@ -51,6 +52,8 @@ from .reference_outline import (
 from .tools import course_tools, execute_tool
 
 MAX_STEPS = 12
+KIT_MODEL_STEPS = 2
+KIT_CALL_TIMEOUT = 70
 REF_LIMIT = 3500
 USER_LIMIT = 1800
 
@@ -202,15 +205,19 @@ async def run_turn(
     client: CloudRuClient | None = None,
 ) -> dict[str, Any]:
     client = client or CloudRuClient()
-    mode = decide_mode(course, user_texts[-1] if user_texts else "")
+    last_text = user_texts[-1] if user_texts else ""
+    if kit_request_ready(course, last_text):
+        course = approve_framework(course)
+    mode = decide_mode(course, last_text)
     if is_framework_approved(course) and kit_needed(course) and not getattr(client, "api_key", None):
+        before = course
         course = fill_missing_kit(course, references, user_texts)
         return {
             "course": course,
             "assistant": "Собрала комплект по каркасу: тест, слайды и семинар.",
             "mode": "kit",
             "steps": ["fill_missing_kit"],
-            "patches": [],
+            "patches": kit_delta_patches(before, course),
             "calls": [],
             "modelMessages": model_messages,
             "usage": getattr(client, "usage", None),
@@ -222,6 +229,7 @@ async def run_turn(
     calls: list[dict[str, Any]] = []
     assistant_text = ""
     outgoing = messages_for_model(user_texts)
+    kit_calls = 0
 
     for _ in range(MAX_STEPS):
         if hasattr(client, "budget_left") and not client.budget_left():
@@ -272,7 +280,11 @@ async def run_turn(
                     course = next_course
                     patches.append(output)
             continue
+        if mode == "kit" and kit_calls >= KIT_MODEL_STEPS:
+            break
         use_fast = step.get("kind") == "reply"
+        if mode == "kit":
+            kit_calls += 1
         try:
             message = await client.complete(
                 system=build_system_prompt(course, step, references),
@@ -285,6 +297,8 @@ async def run_turn(
                     if use_fast
                     else getattr(client, "model_writer", None)
                 ),
+                timeout=KIT_CALL_TIMEOUT if mode == "kit" else 180,
+                attempts=1 if mode == "kit" else None,
             )
         except Exception:
             if step.get("tool") in KIT_TOOLS:
@@ -300,6 +314,8 @@ async def run_turn(
                 if output.get("type") != "tool_error":
                     course = apply_patch(course, output)
                     patches.append(output)
+                if mode == "kit":
+                    break
                 continue
             if step.get("tool") == "set_competency_map":
                 output = execute_tool(
@@ -335,27 +351,13 @@ async def run_turn(
         content = message.get("content")
         if isinstance(content, str) and content.strip():
             assistant_text = content.strip()
-            if not tool_calls:
-                if step.get("tool") == "set_structure":
-                    modules = default_structure(course)
-                    if modules:
-                        output = execute_tool(
-                            "set_structure",
-                            {"modules": modules},
-                            course,
-                            user_texts,
-                            form_brief,
-                        )
-                        if output.get("type") != "tool_error":
-                            next_course = apply_patch(course, output)
-                            if next_course != course:
-                                course = next_course
-                                patches.append(output)
-                                calls.append({"tool": "set_structure", "input": "local_fallback"})
-                if step.get("tool") == "set_competency_map":
+        if not tool_calls:
+            if step.get("tool") == "set_structure":
+                modules = default_structure(course)
+                if modules:
                     output = execute_tool(
-                        "set_competency_map",
-                        {"nodes": default_competencies(course)},
+                        "set_structure",
+                        {"modules": modules},
                         course,
                         user_texts,
                         form_brief,
@@ -365,10 +367,40 @@ async def run_turn(
                         if next_course != course:
                             course = next_course
                             patches.append(output)
-                            calls.append({"tool": "set_competency_map", "input": "local_fallback"})
-                if step["kind"] in {"reply", "auto"}:
-                    break
-                continue
+                            calls.append({"tool": "set_structure", "input": "local_fallback"})
+            if step.get("tool") == "set_competency_map":
+                output = execute_tool(
+                    "set_competency_map",
+                    {"nodes": default_competencies(course)},
+                    course,
+                    user_texts,
+                    form_brief,
+                )
+                if output.get("type") != "tool_error":
+                    next_course = apply_patch(course, output)
+                    if next_course != course:
+                        course = next_course
+                        patches.append(output)
+                        calls.append({"tool": "set_competency_map", "input": "local_fallback"})
+            if step.get("tool") in KIT_TOOLS:
+                output = execute_tool(
+                    str(step["tool"]),
+                    {},
+                    course,
+                    user_texts,
+                    form_brief,
+                    module_id=step.get("moduleId"),
+                )
+                calls.append({"tool": step["tool"], "input": "local_fallback"})
+                if output.get("type") != "tool_error":
+                    next_course = apply_patch(course, output)
+                    if next_course != course:
+                        course = next_course
+                        patches.append(output)
+                break
+            if step["kind"] in {"reply", "auto"}:
+                break
+            continue
 
         call = tool_calls[0]
         function = call.get("function") or {}
@@ -416,8 +448,15 @@ async def run_turn(
         if planned.count("reply") >= 2:
             break
 
-    if is_framework_approved(course) and kit_needed(course):
+    if (
+        mode == "kit"
+        and kit_needed(course)
+        and all(item["ok"] for item in framework_items(course))
+    ):
+        course = approve_framework(course)
+        before_fill = course
         course = fill_missing_kit(course, references, user_texts)
+        patches.extend(kit_delta_patches(before_fill, course))
         planned.append("fill_missing_kit")
     if is_framework_approved(course) and not assistant_text:
         assistant_text = "Собрала комплект по каркасу: тест, слайды и семинар."
@@ -431,6 +470,7 @@ async def run_turn(
         "calls": calls,
         "modelMessages": model_messages,
         "usage": getattr(client, "usage", None),
+        "gatewayRetries": list(getattr(client, "gateway_retries", []) or []),
     }
 
 
@@ -522,6 +562,22 @@ def strengthen_framework(course: CourseDocument) -> CourseDocument:
         )[:12]
         course = CourseDocument.model_validate(value)
     return course
+
+
+def kit_delta_patches(before: CourseDocument, after: CourseDocument) -> list[dict[str, Any]]:
+    before_api = before.as_api()
+    after_api = after.as_api()
+    patches: list[dict[str, Any]] = []
+    for kind, collection, field in (
+        ("set_assessment", "assessments", "assessment"),
+        ("set_seminar", "seminars", "seminar"),
+        ("set_lecture", "lectures", "lecture"),
+    ):
+        previous = {row.get("moduleId"): row for row in before_api[collection]}
+        for row in after_api[collection]:
+            if previous.get(row.get("moduleId")) != row:
+                patches.append({"type": kind, field: row})
+    return patches
 
 
 def _lecture_is_stub(course: CourseDocument, module_id: str) -> bool:

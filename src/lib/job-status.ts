@@ -7,8 +7,7 @@ const EXPORT_NAMES: Record<string, string> = {
 export function chatWaitLabel(elapsedMs: number): string {
   if (elapsedMs < 2500) return "Отправляю запрос…";
   if (elapsedMs < 20000) return "Модель думает…";
-  if (elapsedMs < 70000) return "Жду шлюз. При обрыве будет повтор 2 из 3…";
-  return "Долгий ответ. Повтор 3 из 3 или собираю запасной комплект…";
+  return "Жду ответ шлюза…";
 }
 
 export function fileWaitLabel(elapsedMs: number): string {

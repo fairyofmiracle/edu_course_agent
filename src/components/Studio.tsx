@@ -66,12 +66,15 @@ export function Studio() {
   if (!isClient) {
     return <div className="boot">Открываю студию…</div>;
   }
-  const showSample = new URLSearchParams(window.location.search).get("sample") === "1";
+  const params = new URLSearchParams(window.location.search);
+  const showSample = params.get("sample") === "1";
+  const openedCourse = Boolean(params.get("course"));
   return (
     <StudioSession
       initialCourse={showSample ? SAMPLE_COURSE : loadStoredCourse()}
       initialMessages={showSample ? [] : loadStoredMessages()}
-      initialSessionId={showSample ? newSessionId() : loadSessionId()}
+      initialSessionId={showSample || openedCourse ? newSessionId() : loadSessionId()}
+      initialChatOpen={!openedCourse}
     />
   );
 }
@@ -80,10 +83,12 @@ function StudioSession({
   initialCourse,
   initialMessages,
   initialSessionId,
+  initialChatOpen,
 }: {
   initialCourse: CourseDocument;
   initialMessages: UIMessage[];
   initialSessionId: string;
+  initialChatOpen: boolean;
 }) {
   const [storedCourse, setStoredCourse] = useState(initialCourse);
   const [extraReferences, setExtraReferences] = useState("");
@@ -96,6 +101,7 @@ function StudioSession({
   const [exportJob, setExportJob] = useState<{ kind: "json" | "docx" | "pptx"; phase: "work" | "done" | "error" } | null>(
     null,
   );
+  const [chatOpen, setChatOpen] = useState(initialChatOpen);
   const exportElapsed = useElapsed(exportJob?.phase === "work");
   const courseRef = useRef(storedCourse);
   const refsRef = useRef("");
@@ -119,6 +125,9 @@ function StudioSession({
   const frameworkReady = checks.every((item) => item.ok);
   const frameworkApproved = isFrameworkApproved(course);
   const stage = frameworkApproved ? "kit" : course.modules.length ? "framework" : "ask";
+  const showDocument = Boolean(
+    course.brief.title.trim() || course.modules.length || messages.length > 0,
+  );
   const missingChecks = checks.filter((item) => !item.ok).map((item) => item.label);
 
   const exportFromServer = async (kind: "json" | "docx" | "pptx", fallback: () => void) => {
@@ -249,6 +258,7 @@ function StudioSession({
     setMessages([]);
     setExtraReferences("");
     setTab("overview");
+    setChatOpen(true);
     persistLog(actionEntry(nextSession, "Новый курс"));
   };
 
@@ -347,6 +357,17 @@ function StudioSession({
                       : "Сохранено на этом компьютере"}
           </p>
         </div>
+        <div className="topbar-side">
+        {showDocument ? (
+          <button
+            type="button"
+            className="chat-dock"
+            aria-expanded={chatOpen}
+            onClick={() => setChatOpen((open) => !open)}
+          >
+            {chatOpen ? "Скрыть чат" : "Чат"}
+          </button>
+        ) : null}
         <ol className="stages" aria-label="Шаги">
           <li className={stage === "ask" ? "current" : "done"}>Запрос</li>
           <li className={stage === "framework" ? "current" : stage === "kit" ? "done" : ""}>
@@ -354,8 +375,13 @@ function StudioSession({
           </li>
           <li className={stage === "kit" ? "current" : ""}>Комплект</li>
         </ol>
+        </div>
       </div>
-      <div className="studio-body">
+      <div
+        className={`studio-body${showDocument ? "" : " chat-only"}${
+          showDocument && !chatOpen ? " chat-away" : ""
+        }`}
+      >
         <ChatPanel
           messages={messages}
           status={status}
@@ -369,6 +395,7 @@ function StudioSession({
           onSend={send}
           onStop={() => stop()}
         />
+        {showDocument ? (
         <div className="pane pane-doc">
           <header className="pane-head">
             <p className="pane-label">2. Результат</p>
@@ -456,6 +483,7 @@ function StudioSession({
           </header>
           <CourseWorkspace course={course} tab={tab} onTabChange={setTab} />
         </div>
+        ) : null}
       </div>
     </SiteFrame>
   );

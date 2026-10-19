@@ -25,6 +25,7 @@ export function loadStoredCourse(): CourseDocument {
 export function saveCourse(course: CourseDocument, messages: UIMessage[] = []) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(COURSE_KEY, JSON.stringify(course));
+  window.localStorage.setItem(MESSAGES_KEY, JSON.stringify(messages));
   rememberCourse(course, messages, window.localStorage);
 }
 

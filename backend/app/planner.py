@@ -10,6 +10,7 @@ from .models import CourseDocument
 
 TurnMode = Literal["intake", "framework", "kit", "free"]
 FRAMEWORK_REQUEST = re.compile(r"^Собери (только каркас|каркас по заполненному шаблону)")
+KIT_REQUEST = re.compile(r"^Каркас утверждён\.")
 KIT_TOOLS = ("set_assessment", "set_seminar", "set_lecture")
 KIT_QUESTION_TARGET = 10
 
@@ -62,8 +63,14 @@ def content_missing(course: CourseDocument) -> list[dict[str, Any]]:
     ]
 
 
+def kit_request_ready(course: CourseDocument, last_user_text: str) -> bool:
+    return bool(KIT_REQUEST.search(last_user_text.strip())) and all(
+        item["ok"] for item in framework_items(course)
+    )
+
+
 def decide_mode(course: CourseDocument, last_user_text: str) -> TurnMode:
-    if is_framework_approved(course):
+    if is_framework_approved(course) or kit_request_ready(course, last_user_text):
         return "kit" if kit_needed(course) else "free"
     if FRAMEWORK_REQUEST.search(last_user_text.strip()):
         return "framework"

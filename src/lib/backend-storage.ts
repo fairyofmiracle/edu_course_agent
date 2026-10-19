@@ -85,6 +85,34 @@ export async function deleteCourseFromBackend(courseId: string) {
   return true;
 }
 
+export async function downloadCourseFromBackend(
+  course: CourseDocument,
+  kind: "json" | "docx" | "pptx",
+) {
+  const base = baseUrl();
+  if (!base) return false;
+  const response = await fetch(`${base}/api/export/${kind}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(course),
+  });
+  if (!response.ok) {
+    throw new Error(`Не удалось выгрузить ${kind}: HTTP ${response.status}`);
+  }
+  const blob = await response.blob();
+  const slug = (course.brief.title.trim() || "course")
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 60);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${slug}.${kind}`;
+  link.click();
+  URL.revokeObjectURL(url);
+  return true;
+}
+
 export async function loadCourseFromBackend(courseId: string) {
   const base = baseUrl();
   if (!base) return null;

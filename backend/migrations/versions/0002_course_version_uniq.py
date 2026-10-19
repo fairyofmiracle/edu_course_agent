@@ -6,6 +6,7 @@ Create Date: 2026-10-18
 """
 
 from alembic import op
+import sqlalchemy as sa
 
 revision = "0002"
 down_revision = "0001"
@@ -14,12 +15,18 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_unique_constraint(
-        "course_version_uniq",
-        "course_versions",
-        ["course_id", "version"],
-    )
+    inspector = sa.inspect(op.get_bind())
+    existing = {item["name"] for item in inspector.get_unique_constraints("course_versions")}
+    if "course_version_uniq" not in existing:
+        op.create_unique_constraint(
+            "course_version_uniq",
+            "course_versions",
+            ["course_id", "version"],
+        )
 
 
 def downgrade() -> None:
-    op.drop_constraint("course_version_uniq", "course_versions", type_="unique")
+    inspector = sa.inspect(op.get_bind())
+    existing = {item["name"] for item in inspector.get_unique_constraints("course_versions")}
+    if "course_version_uniq" in existing:
+        op.drop_constraint("course_version_uniq", "course_versions", type_="unique")

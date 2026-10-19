@@ -1,0 +1,242 @@
+from __future__ import annotations
+
+import json
+import re
+from io import BytesIO
+from typing import Any
+
+from .legal_basis import required_legal_basis
+from .models import CourseDocument
+
+FORMAT_LABELS = {
+    "lecture": "очная",
+    "blended": "очно-заочная",
+    "workshop": "практическая",
+}
+KIND_MEDIA = {
+    "json": "application/json",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
+
+
+def hours(value: float) -> str:
+    return str(round(value * 2) / 2).replace(".", ",")
+
+
+def artifact_filename(course: CourseDocument, kind: str) -> str:
+    base = re.sub(r"[^\w\-]+", "-", (course.brief.title or "course").strip(), flags=re.UNICODE)
+    base = base.strip("-")[:60] or "course"
+    return f"{base}.{kind}"
+
+
+def build_artifact(kind: str, course: CourseDocument) -> tuple[bytes, str, str]:
+    fmt = kind.lower().strip()
+    if fmt not in KIND_MEDIA:
+        raise ValueError("Доступны форматы json, docx и pptx")
+    if fmt == "json":
+        payload = json.dumps(course.as_api(), ensure_ascii=False, indent=2).encode("utf-8")
+    elif fmt == "docx":
+        payload = build_docx(course)
+    else:
+        payload = build_pptx(course)
+    return payload, KIND_MEDIA[fmt], artifact_filename(course, fmt)
+
+
+def _program_title(kind: str) -> str:
+    if kind == "qualification":
+        return "ДОПОЛНИТЕЛЬНАЯ ПРОФЕССИОНАЛЬНАЯ ПРОГРАММА ПОВЫШЕНИЯ КВАЛИФИКАЦИИ"
+    if kind == "general":
+        return "ДОПОЛНИТЕЛЬНАЯ ОБЩЕОБРАЗОВАТЕЛЬНАЯ ОБЩЕРАЗВИВАЮЩАЯ ПРОГРАММА"
+    return "ДОПОЛНИТЕЛЬНАЯ ОБРАЗОВАТЕЛЬНАЯ ПРОГРАММА"
+
+
+def _basis_lines(course: CourseDocument) -> list[str]:
+    lines: list[str] = []
+    seen: set[str] = set()
+    for document in required_legal_basis(course.brief.program_kind):
+        seen.add(document["source"])
+        lines.append(" · ".join(part for part in (document["title"], document["source"]) if part))
+    for reference in course.brief.references:
+        key = reference.source or reference.title
+        if key in seen:
+            continue
+        seen.add(key)
+        lines.append(" · ".join(part for part in (reference.title, reference.source) if part))
+    return lines or ["Нормативное основание не указано."]
+
+
+def _add_table(doc: Document, headers: list[str], rows: list[list[str]]) -> None:
+    table = doc.add_table(rows=1 + len(rows), cols=len(headers))
+    table.style = "Table Grid"
+    for index, header in enumerate(headers):
+        table.rows[0].cells[index].text = header
+    for row_index, row in enumerate(rows, start=1):
+        for col_index, value in enumerate(row):
+            table.rows[row_index].cells[col_index].text = value or "—"
+
+
+def build_docx(course: CourseDocument) -> bytes:
+    from docx import Document
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.shared import Pt
+
+    brief = course.brief
+    doc = Document()
+    style = doc.styles["Normal"]
+    style.font.name = "Times New Roman"
+    style.font.size = Pt(12)
+
+    for line in (
+        "Автономная некоммерческая организация дополнительного профессионального образования",
+        "«Академия Информационных Технологий»",
+        _program_title(brief.program_kind),
+        f"«{brief.title or 'Без названия'}»",
+        f"Объём: {hours(brief.duration_hours)} академических часов",
+        f"Категория обучающихся: {brief.audience or '____________________'}",
+        f"Форма обучения: {FORMAT_LABELS.get(brief.format, brief.format)}",
+        f"Итоговая аттестация: {brief.attestation_form or '____________________'}, {hours(brief.attestation_hours)} ч.",
+    ):
+        paragraph = doc.add_paragraph(line)
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    doc.add_heading("1. Общая характеристика", level=1)
+    for goal in brief.goals or ["Цель не заполнена."]:
+        doc.add_paragraph(goal, style="List Bullet")
+    doc.add_heading("Нормативные основания", level=2)
+    for line in _basis_lines(course):
+        doc.add_paragraph(line, style="List Bullet")
+
+    doc.add_heading("1.1. Компетенции", level=2)
+    nodes = course.competencies.nodes
+    _add_table(
+        doc,
+        ["Компетенция", "Трудовая функция", "Знания", "Умения"],
+        [
+            [
+                node.name,
+                node.labor_function_code or "—",
+                "; ".join(node.knowledge) or "—",
+                "; ".join(node.skills) or "—",
+            ]
+            for node in nodes
+        ]
+        or [["—", "—", "—", "—"]],
+    )
+
+    doc.add_heading("2. Учебный план", level=1)
+    plan_rows = [
+        [
+            str(index + 1),
+            module.title,
+            hours(module.hours),
+            hours(module.lecture_hours),
+            hours(module.practice_hours),
+            hours(module.lab_hours),
+            hours(module.self_study_hours),
+        ]
+        for index, module in enumerate(course.modules)
+    ]
+    plan_rows.append(
+        [
+            "",
+            "Итоговая аттестация",
+            hours(brief.attestation_hours),
+            "0",
+            "0",
+            "0",
+            "0",
+        ]
+    )
+    _add_table(doc, ["№", "Наименование", "Всего", "ЛК", "ПР", "ЛБ", "СРС"], plan_rows)
+
+    doc.add_heading("2.1. Результаты обучения", level=2)
+    for module in course.modules:
+        doc.add_heading(module.title, level=3)
+        for outcome in module.learning_outcomes:
+            doc.add_paragraph(outcome, style="List Bullet")
+
+    doc.add_heading("Приложение 1. Оценочные материалы", level=1)
+    questions = [
+        (assessment.module_id, question)
+        for assessment in course.assessments
+        for question in assessment.questions
+    ]
+    if not questions:
+        doc.add_paragraph("Вопросы заполняются после утверждения каркаса.")
+    titles = {module.id: module.title for module in course.modules}
+    for index, (module_id, question) in enumerate(questions, start=1):
+        doc.add_paragraph(f"{index}. {question.stem}")
+        doc.add_paragraph(f"Модуль: {titles.get(module_id, module_id)}")
+        for option in question.options or []:
+            doc.add_paragraph(option, style="List Bullet")
+        doc.add_paragraph(f"Ключ: {question.answer}")
+        doc.add_paragraph(f"Результат обучения: {question.learning_outcome}")
+
+    doc.add_heading("Приложение 2. Практические задания", level=1)
+    tasks = [
+        (seminar.module_id, task)
+        for seminar in course.seminars
+        for task in seminar.tasks
+    ]
+    if not tasks:
+        doc.add_paragraph("Задания заполняются после утверждения каркаса.")
+    for module_id, task in tasks:
+        doc.add_heading(f"{task.title} · {hours(task.time_min)} мин", level=2)
+        doc.add_paragraph(f"Модуль: {titles.get(module_id, module_id)}")
+        doc.add_paragraph(task.prompt)
+        for step in task.steps:
+            doc.add_paragraph(step, style="List Number")
+        doc.add_paragraph("Критерии")
+        for criterion in task.criteria:
+            doc.add_paragraph(criterion, style="List Bullet")
+
+    buffer = BytesIO()
+    doc.save(buffer)
+    return buffer.getvalue()
+
+
+def _add_textbox(slide: Any, left: float, top: float, width: float, height: float, text: str, size: int = 20, bold: bool = False) -> None:
+    from pptx.util import Inches, Pt as PptPt
+
+    box = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
+    frame = box.text_frame
+    frame.word_wrap = True
+    paragraph = frame.paragraphs[0]
+    run = paragraph.add_run()
+    run.text = text
+    run.font.size = PptPt(size)
+    run.font.bold = bold
+
+
+def build_pptx(course: CourseDocument) -> bytes:
+    from pptx import Presentation
+    from pptx.util import Inches
+
+    presentation = Presentation()
+    presentation.slide_width = Inches(13.333)
+    presentation.slide_height = Inches(7.5)
+    blank = presentation.slide_layouts[6]
+    cover = presentation.slides.add_slide(blank)
+    _add_textbox(cover, 0.8, 1.6, 11.7, 1.2, course.brief.title or "Программа", 28, True)
+    _add_textbox(cover, 0.8, 2.9, 11.7, 0.6, "Материалы лекций", 18)
+
+    lectures = course.lectures
+    if not lectures:
+        empty = presentation.slides.add_slide(blank)
+        _add_textbox(empty, 0.8, 2.4, 11.7, 1, "Слайды появятся после утверждения каркаса.", 20)
+
+    titles = {module.id: module.title for module in course.modules}
+    for lecture in lectures:
+        module_title = titles.get(lecture.module_id, lecture.module_id)
+        opener = presentation.slides.add_slide(blank)
+        _add_textbox(opener, 0.8, 2.2, 11.7, 1, module_title, 26, True)
+        for slide in lecture.slides:
+            page = presentation.slides.add_slide(blank)
+            _add_textbox(page, 0.8, 0.4, 11.7, 0.8, slide.title, 24, True)
+            bullets = "\n".join(f"• {item}" for item in slide.bullets[:8])
+            _add_textbox(page, 0.8, 1.4, 11.7, 5.4, bullets or "—", 18)
+
+    buffer = BytesIO()
+    presentation.save(buffer)
+    return buffer.getvalue()

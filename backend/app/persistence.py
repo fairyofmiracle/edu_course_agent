@@ -17,6 +17,7 @@ from .database import (
     SourceRecord,
     get_db,
 )
+from .export_api import file_response
 from .models import CourseDocument
 
 router = APIRouter(prefix="/api/courses", tags=["courses"])
@@ -203,6 +204,25 @@ def load_course(
             for source in sources
         ],
     }
+
+
+@router.get(
+    "/{course_id}/export/{kind}",
+    summary="Выгрузить сохранённую версию курса",
+    description="Последняя версия из базы в json, docx или pptx.",
+    operation_id="exportSavedCourse",
+)
+def export_saved_course(
+    course_id: str,
+    kind: str,
+    session: Session = Depends(get_db),
+) -> Any:
+    if session.get(CourseRecord, course_id) is None:
+        raise HTTPException(status_code=404, detail="course not found")
+    version = _latest_version(session, course_id)
+    if version is None:
+        raise HTTPException(status_code=404, detail="course has no versions")
+    return file_response(kind, CourseDocument.model_validate(version.payload))
 
 
 @router.get(

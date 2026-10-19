@@ -10,7 +10,8 @@ logs
 backend/data
 coverage
 notebooks
-materials
+materials/*
+!materials/*.txt
 *.pdf
 *.png
 checkpoint-*.html

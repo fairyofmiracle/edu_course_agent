@@ -7,6 +7,7 @@ import { ChatPanel } from "@/components/ChatPanel";
 import { CourseWorkspace, type WorkspaceTab } from "@/components/CourseWorkspace";
 import { SiteFrame } from "@/components/SiteFrame";
 import {
+  downloadCourseFromBackend,
   hasBackendStorage,
   loadCourseFromBackend,
   saveCourseToBackend,
@@ -113,6 +114,15 @@ function StudioSession({
   const frameworkApproved = isFrameworkApproved(course);
   const stage = frameworkApproved ? "kit" : course.modules.length ? "framework" : "ask";
   const missingChecks = checks.filter((item) => !item.ok).map((item) => item.label);
+
+  const exportFromServer = async (kind: "json" | "docx" | "pptx", fallback: () => void) => {
+    try {
+      if (await downloadCourseFromBackend(course, kind)) return;
+    } catch {
+      /* браузерный запасной путь */
+    }
+    fallback();
+  };
 
   useEffect(() => {
     courseRef.current = course;
@@ -371,7 +381,7 @@ function StudioSession({
               <details className="export-menu">
                 <summary>Выгрузить</summary>
                 <div>
-                  <button type="button" title="Данные программы" disabled={isCourseEmpty(course)} onClick={() => exportCourseJson(course)}>
+                  <button type="button" title="Данные программы" disabled={isCourseEmpty(course)} onClick={() => void exportFromServer("json", () => exportCourseJson(course))}>
                     Данные
                   </button>
                   <button type="button" title="Программа обычным текстом" disabled={isCourseEmpty(course)} onClick={() => exportCourseMarkdown(course)}>
@@ -380,13 +390,13 @@ function StudioSession({
                   <button type="button" title="Отчёт проверки" disabled={isCourseEmpty(course)} onClick={() => exportCourseAudit(course)}>
                     Отчёт
                   </button>
-                  <button type="button" title="Программа Word" disabled={isCourseEmpty(course)} onClick={() => void exportCourseDocx(course)}>
+                  <button type="button" title="Программа Word" disabled={isCourseEmpty(course)} onClick={() => void exportFromServer("docx", () => void exportCourseDocx(course))}>
                     Программа
                   </button>
                   <button type="button" title="Слайды в браузере" disabled={course.lectures.length === 0} onClick={() => exportLectureHtml(course)}>
                     Слайды
                   </button>
-                  <button type="button" title="Слайды PowerPoint" disabled={course.lectures.length === 0} onClick={() => void exportCoursePptx(course)}>
+                  <button type="button" title="Слайды PowerPoint" disabled={course.lectures.length === 0} onClick={() => void exportFromServer("pptx", () => void exportCoursePptx(course))}>
                     Презентация
                   </button>
                   <div className="export-tests">

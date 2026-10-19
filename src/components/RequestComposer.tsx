@@ -1,6 +1,8 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { fileWaitLabel } from "@/lib/job-status";
+import { useElapsed } from "@/lib/use-elapsed";
 import {
   FORMAT_LABELS,
   LEVEL_LABELS,
@@ -113,16 +115,25 @@ export function RequestComposer({
   const [input, setInput] = useState("");
   const [fields, setFields] = useState<TemplateFields>(emptyTemplate);
   const [busyFile, setBusyFile] = useState(false);
+  const [fileNote, setFileNote] = useState("");
   const [showRefs, setShowRefs] = useState(false);
   const [formError, setFormError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const fileElapsed = useElapsed(busyFile);
 
   const setField = <K extends keyof TemplateFields>(key: K, value: TemplateFields[K]) => {
     setFields((current) => ({ ...current, [key]: value }));
   };
 
+  useEffect(() => {
+    if (!fileNote.startsWith("Готово")) return;
+    const timer = window.setTimeout(() => setFileNote(""), 3000);
+    return () => window.clearTimeout(timer);
+  }, [fileNote]);
+
   const attachFile = async (file: File) => {
     setBusyFile(true);
+    setFileNote("");
     try {
       const form = new FormData();
       form.set("file", file);
@@ -137,8 +148,9 @@ export function RequestComposer({
         note: "Файл загружен методистом",
       });
       setShowRefs(true);
+      setFileNote(`Готово: ${payload.title || file.name}`);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Ошибка файла");
+      setFileNote(err instanceof Error ? err.message : "Ошибка файла");
     } finally {
       setBusyFile(false);
     }
@@ -148,6 +160,7 @@ export function RequestComposer({
     const url = window.prompt("URL референса");
     if (!url) return;
     setBusyFile(true);
+    setFileNote("");
     try {
       const response = await fetch("/api/extract", {
         method: "POST",
@@ -164,8 +177,9 @@ export function RequestComposer({
         note: "Ссылка добавлена методистом",
       });
       setShowRefs(true);
+      setFileNote(`Готово: ${payload.title || url}`);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Ошибка URL");
+      setFileNote(err instanceof Error ? err.message : "Ошибка URL");
     } finally {
       setBusyFile(false);
     }
@@ -364,6 +378,14 @@ export function RequestComposer({
           }}
         />
       </div>
+      {busyFile || fileNote ? (
+        <p
+          className={`job-status ${fileNote && !busyFile && !fileNote.startsWith("Готово") ? "chat-error" : ""}`}
+          aria-live="polite"
+        >
+          {busyFile ? fileWaitLabel(fileElapsed) : fileNote}
+        </p>
+      ) : null}
       {showRefs ? (
         <textarea
           className="refs-box"

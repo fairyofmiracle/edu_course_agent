@@ -1,0 +1,24 @@
+import { describe, expect, it } from "vitest";
+import {
+  chatWaitLabel,
+  exportDoneLabel,
+  exportWaitLabel,
+  fileWaitLabel,
+} from "./job-status";
+
+describe("job status labels", () => {
+  it("чат идёт от отправки к повторам", () => {
+    expect(chatWaitLabel(0)).toMatch(/Отправляю/);
+    expect(chatWaitLabel(4000)).toMatch(/думает/);
+    expect(chatWaitLabel(25000)).toMatch(/повтор 2 из 3/);
+    expect(chatWaitLabel(80000)).toMatch(/3 из 3/);
+  });
+
+  it("файл и выгрузка показывают этап", () => {
+    expect(fileWaitLabel(200)).toMatch(/Читаю/);
+    expect(fileWaitLabel(4000)).toMatch(/Разбираю/);
+    expect(exportWaitLabel("docx", 500)).toMatch(/DOCX на сервере/);
+    expect(exportWaitLabel("pptx", 4000)).toMatch(/тяжёл/);
+    expect(exportDoneLabel("json")).toBe("JSON готов");
+  });
+});

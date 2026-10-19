@@ -164,10 +164,16 @@ button {
   color: #e2b39a;
 }
 
-.save-state {
+.save-state,
+.job-status {
   margin: 3px 0 0;
   color: var(--ink-soft);
   font-size: 11px;
+}
+
+.job-status {
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .top-actions,

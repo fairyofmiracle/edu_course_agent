@@ -12,6 +12,8 @@ import {
   loadCourseFromBackend,
   saveCourseToBackend,
 } from "@/lib/backend-storage";
+import { exportDoneLabel, exportWaitLabel } from "@/lib/job-status";
+import { useElapsed } from "@/lib/use-elapsed";
 import { applyPatch, foldCourseFromMessages } from "@/lib/course-patches";
 import {
   frameworkFingerprint,
@@ -91,6 +93,10 @@ function StudioSession({
   const [saveState, setSaveState] = useState<"local" | "saving" | "synced" | "offline">(
     hasBackendStorage() ? "saving" : "local",
   );
+  const [exportJob, setExportJob] = useState<{ kind: "json" | "docx" | "pptx"; phase: "work" | "done" | "error" } | null>(
+    null,
+  );
+  const exportElapsed = useElapsed(exportJob?.phase === "work");
   const courseRef = useRef(storedCourse);
   const refsRef = useRef("");
   const sessionRef = useRef(initialSessionId);
@@ -116,12 +122,24 @@ function StudioSession({
   const missingChecks = checks.filter((item) => !item.ok).map((item) => item.label);
 
   const exportFromServer = async (kind: "json" | "docx" | "pptx", fallback: () => void) => {
+    setExportJob({ kind, phase: "work" });
     try {
-      if (await downloadCourseFromBackend(course, kind)) return;
+      if (await downloadCourseFromBackend(course, kind)) {
+        setExportJob({ kind, phase: "done" });
+        window.setTimeout(() => setExportJob((current) => (current?.phase === "done" ? null : current)), 3200);
+        return;
+      }
+      fallback();
+      setExportJob({ kind, phase: "done" });
     } catch {
-      /* браузерный запасной путь */
+      try {
+        fallback();
+        setExportJob({ kind, phase: "done" });
+      } catch {
+        setExportJob({ kind, phase: "error" });
+      }
     }
-    fallback();
+    window.setTimeout(() => setExportJob((current) => (current && current.phase !== "work" ? null : current)), 3200);
   };
 
   useEffect(() => {
@@ -316,11 +334,17 @@ function StudioSession({
           </p>
           <h1>{course.brief.title || "Новая образовательная программа"}</h1>
           <p className="save-state" aria-live="polite">
-            {saveState === "synced"
-              ? "Сохранено"
-              : saveState === "saving"
-                ? "Сохраняю…"
-                : "Сохранено на этом компьютере"}
+            {exportJob?.phase === "work"
+              ? exportWaitLabel(exportJob.kind, exportElapsed)
+              : exportJob?.phase === "done"
+                ? exportDoneLabel(exportJob.kind)
+                : exportJob?.phase === "error"
+                  ? "Выгрузка не собралась"
+                  : saveState === "synced"
+                    ? "Сохранено"
+                    : saveState === "saving"
+                      ? "Сохраняю…"
+                      : "Сохранено на этом компьютере"}
           </p>
         </div>
         <ol className="stages" aria-label="Шаги">
@@ -379,9 +403,9 @@ function StudioSession({
                 </button>
               )}
               <details className="export-menu">
-                <summary>Выгрузить</summary>
+                <summary>{exportJob?.phase === "work" ? "Собираю файл…" : "Выгрузить"}</summary>
                 <div>
-                  <button type="button" title="Данные программы" disabled={isCourseEmpty(course)} onClick={() => void exportFromServer("json", () => exportCourseJson(course))}>
+                  <button type="button" title="Данные программы" disabled={isCourseEmpty(course) || exportJob?.phase === "work"} onClick={() => void exportFromServer("json", () => exportCourseJson(course))}>
                     Данные
                   </button>
                   <button type="button" title="Программа обычным текстом" disabled={isCourseEmpty(course)} onClick={() => exportCourseMarkdown(course)}>
@@ -390,13 +414,13 @@ function StudioSession({
                   <button type="button" title="Отчёт проверки" disabled={isCourseEmpty(course)} onClick={() => exportCourseAudit(course)}>
                     Отчёт
                   </button>
-                  <button type="button" title="Программа Word" disabled={isCourseEmpty(course)} onClick={() => void exportFromServer("docx", () => void exportCourseDocx(course))}>
+                  <button type="button" title="Программа Word" disabled={isCourseEmpty(course) || exportJob?.phase === "work"} onClick={() => void exportFromServer("docx", () => void exportCourseDocx(course))}>
                     Программа
                   </button>
                   <button type="button" title="Слайды в браузере" disabled={course.lectures.length === 0} onClick={() => exportLectureHtml(course)}>
                     Слайды
                   </button>
-                  <button type="button" title="Слайды PowerPoint" disabled={course.lectures.length === 0} onClick={() => void exportFromServer("pptx", () => void exportCoursePptx(course))}>
+                  <button type="button" title="Слайды PowerPoint" disabled={course.lectures.length === 0 || exportJob?.phase === "work"} onClick={() => void exportFromServer("pptx", () => void exportCoursePptx(course))}>
                     Презентация
                   </button>
                   <div className="export-tests">

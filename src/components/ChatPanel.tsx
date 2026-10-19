@@ -23,6 +23,7 @@ type ChatPanelProps = {
   error?: Error;
   extraReferences: string;
   frameworkApproved: boolean;
+  kitComplete: boolean;
   stage: "ask" | "framework" | "kit";
   missingChecks: string[];
   onReferencesChange: (value: string) => void;
@@ -37,6 +38,7 @@ export function ChatPanel({
   error,
   extraReferences,
   frameworkApproved,
+  kitComplete,
   stage,
   missingChecks,
   onReferencesChange,
@@ -122,7 +124,9 @@ export function ChatPanel({
                 ? missingChecks.length
                   ? `Проверьте справа: ${missingChecks.slice(0, 2).join("; ")}.`
                   : "Каркас готов: проверьте часы справа и нажмите «Утвердить каркас»."
-                : "Каркас утверждён. Нажмите «Собрать комплект» внизу."}
+                : kitComplete
+                  ? "Комплект собран. Дальше смотрите программу справа и выгружайте файлы."
+                  : "Каркас утверждён. Нажмите «Собрать комплект» внизу."}
           </span>
         </div>
         {pending ? (
@@ -142,6 +146,7 @@ export function ChatPanel({
       <RequestComposer
         extraReferences={extraReferences}
         frameworkApproved={frameworkApproved}
+        kitComplete={kitComplete}
         stage={stage}
         pending={pending}
         onReferencesChange={onReferencesChange}

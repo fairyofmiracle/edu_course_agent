@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+function absent<T extends z.ZodType>(schema: T) {
+  return z.preprocess((value) => (value === null ? undefined : value), schema);
+}
+
 const positionSchema = z.object({
   x: z.number().min(0).max(13.33),
   y: z.number().min(0).max(7.5),
@@ -12,13 +16,19 @@ const textElementSchema = positionSchema.extend({
   text: z.string().min(1).max(2000),
   fontSize: z.number().min(8).max(48).default(20),
   bold: z.boolean().default(false),
-  color: z.string().regex(/^[0-9A-Fa-f]{6}$/).default("18233B"),
+  color: z.string().regex(/^[0-9A-Fa-f]{6}$/).default("1C1614"),
 });
 
 const shapeElementSchema = positionSchema.extend({
   type: z.literal("shape"),
   shape: z.enum(["rect", "roundRect", "ellipse", "line"]),
-  fill: z.string().regex(/^[0-9A-Fa-f]{6}$/).default("EEF2F8"),
+  fill: z.string().regex(/^[0-9A-Fa-f]{6}$/).default("F7F3F0"),
+});
+
+const tableElementSchema = positionSchema.extend({
+  type: z.literal("table"),
+  headers: z.array(z.string().min(1).max(40)).min(2).max(6),
+  rows: z.array(z.array(z.string().min(1).max(80)).min(1).max(6)).min(1).max(8),
 });
 
 const diagramElementSchema = positionSchema.extend({
@@ -81,6 +91,7 @@ export const slideElementSchema = z.discriminatedUnion("type", [
   shapeElementSchema,
   diagramElementSchema,
   flowchartElementSchema,
+  tableElementSchema,
 ]).refine(
   (element) =>
     element.x + element.w <= 13.33 &&
@@ -91,7 +102,7 @@ export const slideElementSchema = z.discriminatedUnion("type", [
 export const presentationSlideSchema = z.object({
   title: z.string().min(1).max(140),
   elements: z.array(slideElementSchema).min(1).max(40),
-  speakerNotes: z.string().max(2000).optional(),
+  speakerNotes: absent(z.string().max(2000).optional()),
 });
 
 export const presentationDocumentSchema = z.object({

@@ -14,6 +14,7 @@ from .kit_content import (
     is_stub_competency_node,
     lecture_for_module,
     project_seminar,
+    chart_slide,
     slides_for_topic,
 )
 from .models import CourseDocument
@@ -153,6 +154,60 @@ def _number(value: Any, default: float = 0) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+_BLOOM = {
+    "remember": "remember",
+    "understand": "understand",
+    "apply": "apply",
+    "analyze": "analyze",
+    "analyse": "analyze",
+    "evaluate": "evaluate",
+    "create": "create",
+    "знание": "remember",
+    "понимание": "understand",
+    "применение": "apply",
+    "анализ": "analyze",
+    "оценка": "evaluate",
+    "создание": "create",
+}
+
+
+def _text_list(value: Any, fallback: str) -> list[str]:
+    if isinstance(value, str):
+        value = [part.strip() for part in re.split(r"[;\n]", value) if part.strip()]
+    if not isinstance(value, list):
+        value = []
+    items = []
+    for item in value:
+        text = str(item.get("name") if isinstance(item, dict) else item).strip()
+        if text:
+            items.append(text[:240])
+        if len(items) == 8:
+            break
+    return items or [fallback[:240]]
+
+
+def _clean_competency_node(raw: dict[str, Any], index: int, drop_labor_code: bool) -> dict[str, Any]:
+    name = str(raw.get("name") or f"Компетенция {index + 1}").strip()[:180] or f"Компетенция {index + 1}"
+    bloom = _BLOOM.get(str(raw.get("bloomLevel") or "").strip().lower(), "apply")
+    module_ids = raw.get("moduleIds") if isinstance(raw.get("moduleIds"), list) else []
+    node: dict[str, Any] = {
+        "id": _short_id(raw.get("id"), f"c{index + 1}"),
+        "name": name,
+        "bloomLevel": bloom,
+        "moduleIds": [_short_id(item, f"m{i + 1}") for i, item in enumerate(module_ids[:24])],
+        "knowledge": _text_list(raw.get("knowledge"), f"Знает основу: {name}"),
+        "skills": _text_list(raw.get("skills"), f"Умеет применить: {name}"),
+        "abilities": _text_list(raw.get("abilities"), f"Владеет приёмом: {name}"),
+    }
+    description = str(raw.get("description") or "").strip()
+    if description:
+        node["description"] = description[:400]
+    code = str(raw.get("laborFunctionCode") or "").strip()
+    if code and not drop_labor_code:
+        node["laborFunctionCode"] = code[:40]
+    return node
 
 
 def coerce_competency_arguments(arguments: dict[str, Any], course: CourseDocument) -> dict[str, Any]:
@@ -319,13 +374,38 @@ def coerce_lecture_arguments(
             if not isinstance(bullets, list) or not bullets or STUB_BULLET.search(" ".join(map(str, bullets))):
                 cleaned_slides.append(slides_for_topic(str(slide["title"]), course))
                 continue
-            cleaned_slides.append(
-                {"title": str(slide["title"]), "bullets": [str(item) for item in bullets[:6]]}
-            )
+            payload: dict[str, Any] = {
+                "title": str(slide["title"]),
+                "bullets": [str(item) for item in bullets[:6]],
+            }
+            if isinstance(slide.get("mermaid"), str) and slide["mermaid"].strip():
+                payload["mermaid"] = slide["mermaid"].strip()[:1500]
+            if isinstance(slide.get("visualPrompt"), str) and slide["visualPrompt"].strip():
+                payload["visualPrompt"] = slide["visualPrompt"].strip()[:280]
+            if isinstance(slide.get("speakerNotes"), str) and slide["speakerNotes"].strip():
+                payload["speakerNotes"] = slide["speakerNotes"].strip()[:600]
+            table = slide.get("table")
+            if isinstance(table, list) and table:
+                payload["table"] = [
+                    [str(cell).strip()[:80] or "—" for cell in row]
+                    for row in table
+                    if isinstance(row, list) and row
+                ]
+            cleaned_slides.append(payload)
     if not cleaned_slides:
         built = lecture_for_module(module, course) if module else None
         cleaned_slides = built["slides"] if built else [slides_for_topic(item, course) for item in outline]
         outline = built["outline"] if built else outline
+    elif module is not None:
+        cleaned_slides = [
+            item for item in cleaned_slides if item.get("title") != "Часы модуля" and not item.get("table")
+        ]
+        if not any(item.get("mermaid") for item in cleaned_slides):
+            cleaned_slides.append(chart_slide(module))
+        if len(cleaned_slides) > 12:
+            visuals = [item for item in cleaned_slides if item.get("mermaid")]
+            body = [item for item in cleaned_slides if item not in visuals]
+            cleaned_slides = body[: 12 - len(visuals)] + visuals
     duration = _number(arguments.get("durationMin"), 45)
     if duration <= 0 or duration > 180:
         hours = module.lecture_hours if module else 1
@@ -396,19 +476,24 @@ def execute_tool(
         return {"type": "update_brief", "brief": brief}
     if name == "set_competency_map":
         arguments = coerce_competency_arguments(arguments, course)
-        nodes = []
-        for index, raw in enumerate(arguments.get("nodes") or []):
-            node = dict(raw)
-            node["id"] = _short_id(node.get("id"), f"c{index + 1}")
-            node.setdefault("bloomLevel", "apply")
-            node.setdefault("moduleIds", [])
-            node.setdefault("knowledge", [f"Знает: {node.get('name', 'компетенция')}"])
-            node.setdefault("skills", [f"Умеет применить: {node.get('name', 'компетенция')}"])
-            node.setdefault("abilities", [f"Владеет: {node.get('name', 'компетенция')}"])
-            nodes.append(node)
+        drop_labor_code = course.brief.program_kind != "qualification"
+        nodes = [
+            _clean_competency_node(raw, index, drop_labor_code)
+            for index, raw in enumerate(arguments.get("nodes") or [])
+            if isinstance(raw, dict)
+        ]
+        edges = []
+        for edge in arguments.get("edges") or []:
+            if isinstance(edge, dict) and edge.get("from") and edge.get("to"):
+                edges.append(
+                    {
+                        "from": _short_id(edge.get("from"), "c1"),
+                        "to": _short_id(edge.get("to"), "c2"),
+                    }
+                )
         return {
             "type": "set_competency_map",
-            "competencies": {"nodes": nodes, "edges": arguments.get("edges") or []},
+            "competencies": {"nodes": nodes, "edges": edges[:80]},
         }
     if name == "set_structure":
         arguments = coerce_structure_arguments(arguments)

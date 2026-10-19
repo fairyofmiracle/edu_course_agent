@@ -63,29 +63,23 @@ export async function POST(req: Request) {
     const buffer = new Uint8Array(await file.arrayBuffer());
 
 
+    let text = "";
     if (name.endsWith(".docx")) {
-      return Response.json({
-        title: file.name,
-        text: clip(docxToText(buffer)),
-      });
-    }
-
-    if (name.endsWith(".pdf")) {
+      text = docxToText(buffer);
+    } else if (name.endsWith(".pdf")) {
       const pdf = await getDocumentProxy(buffer);
       const extracted = await extractText(pdf, { mergePages: true });
-
-      return Response.json({
-        title: file.name,
-        text: clip(extracted.text),
-      });
+      text = extracted.text;
+    } else {
+      text = new TextDecoder().decode(buffer);
     }
-
-    // Обработка остальных текстовых файлов
-    const decoded = new TextDecoder().decode(buffer);
+    if (!text.trim()) {
+      return Response.json({ error: "В файле нет текста." }, { status: 400 });
+    }
 
     return Response.json({
       title: file.name,
-      text: clip(decoded),
+      text: clip(text),
     });
   } catch (error) {
     // Ошибки безопасной загрузки ссылок
@@ -97,9 +91,9 @@ export async function POST(req: Request) {
     }
 
     // Остальные ошибки обработки
-    const message =
-      error instanceof Error ? error.message : "Ошибка извлечения";
-
-    return Response.json({ error: message }, { status: 500 });
+    return Response.json(
+      { error: "Файл не разобрался. Нужен целый .txt, .md, .pdf или .docx." },
+      { status: 422 },
+    );
   }
 }

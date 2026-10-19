@@ -14,6 +14,19 @@ describe("Presentation renderer", () => {
     expect(presentationDocumentSchema.safeParse(presentation).success).toBe(true);
   });
 
+  it("пустые заметки null не ломают предпросмотр", () => {
+    const course = structuredClone(SAMPLE_COURSE);
+    const lecture = course.lectures[0];
+    lecture.slides[1].speakerNotes = null as unknown as string;
+    lecture.slides[3].speakerNotes = null as unknown as string;
+
+    const presentation = courseToPresentation(course, lecture.moduleId);
+
+    expect(presentationDocumentSchema.safeParse(presentation).success).toBe(true);
+    expect(presentation.slides[1]?.speakerNotes).toBeUndefined();
+    expect(presentation.slides[3]?.speakerNotes).toBeUndefined();
+  });
+
   it("создаёт PPTX из универсальных элементов", async () => {
     const pptx = new PptxGenJS();
     pptx.layout = "LAYOUT_WIDE";

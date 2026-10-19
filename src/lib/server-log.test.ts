@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { appendServerLog, describeError } from "@/lib/server-log";
+import { appendServerLog, chatFailureText, describeError } from "@/lib/server-log";
 
 describe("server log", () => {
   const dirs: string[] = [];
@@ -19,6 +19,10 @@ describe("server log", () => {
     const coded = new Error("отказ");
     (coded as Error & { statusCode?: number }).statusCode = 429;
     expect(describeError(coded)).toBe("429 отказ");
+    expect(chatFailureText(Object.assign(new Error("The operation was aborted"), { name: "TimeoutError" }))).toMatch(
+      /Шлюз не ответил/,
+    );
+    expect(chatFailureText(new Error("fetch failed"))).toMatch(/не достучалась/);
   });
 
   it("дописывает строку журнала и молчит, если каталог недоступен", async () => {

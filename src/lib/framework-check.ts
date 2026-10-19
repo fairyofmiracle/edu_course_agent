@@ -170,6 +170,18 @@ export function contentGaps(course: CourseDocument) {
     .map((node) => node.id);
 }
 
+export function isKitComplete(course: CourseDocument) {
+  if (course.modules.length === 0) return false;
+  return course.modules.every((module) => {
+    const hasLecture =
+      module.lectureHours <= 0 ||
+      course.lectures.some((entry) => entry.moduleId === module.id);
+    const hasSeminar = course.seminars.some((entry) => entry.moduleId === module.id);
+    const hasAssessment = course.assessments.some((entry) => entry.moduleId === module.id);
+    return hasLecture && hasSeminar && hasAssessment;
+  });
+}
+
 export function isFrameworkApproved(course: CourseDocument) {
   return (
     course.frameworkApproved &&

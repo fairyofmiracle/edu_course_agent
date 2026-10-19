@@ -11,7 +11,7 @@ describe("job status labels", () => {
     expect(chatWaitLabel(0)).toMatch(/Отправляю/);
     expect(chatWaitLabel(4000)).toMatch(/думает/);
     expect(chatWaitLabel(25000)).toMatch(/Жду ответ шлюза/);
-    expect(chatWaitLabel(80000)).toMatch(/Жду ответ шлюза/);
+    expect(chatWaitLabel(80000)).toMatch(/пишет комплект/);
   });
 
   it("файл и выгрузка показывают этап", () => {

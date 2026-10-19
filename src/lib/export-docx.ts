@@ -444,3 +444,82 @@ export async function exportCourseDocx(course: CourseDocument) {
   link.click();
   URL.revokeObjectURL(url);
 }
+
+export async function exportSeminarDocx(course: CourseDocument, moduleId: string) {
+  const seminar = course.seminars.find((item) => item.moduleId === moduleId);
+  if (!seminar) return;
+  const title = moduleTitle(course, moduleId);
+  const children: Block[] = [
+    paragraph(course.brief.title || "Программа", HeadingLevel.HEADING_1),
+    paragraph(title, HeadingLevel.HEADING_2),
+    paragraph("Практическое занятие"),
+  ];
+  for (const task of seminar.tasks) {
+    children.push(paragraph(task.title, HeadingLevel.HEADING_3));
+    children.push(paragraph(`${task.timeMin} мин`));
+    children.push(paragraph(task.prompt));
+    if (task.learningOutcome) children.push(paragraph(`Результат: ${task.learningOutcome}`));
+    children.push(paragraph("Ход работы"));
+    task.steps.forEach((step) => children.push(bullet(step)));
+    children.push(paragraph("Критерии"));
+    task.criteria.forEach((item) => children.push(bullet(item)));
+  }
+  const document = new Document({
+    creator: "Студия методиста",
+    title,
+    styles: {
+      default: {
+        document: {
+          run: { font: "Times New Roman", size: 24 },
+        },
+      },
+    },
+    sections: [{ properties: {}, children }],
+  });
+  const blob = await Packer.toBlob(document);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${slug(title)}-семинар.docx`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function exportAssessmentDocx(course: CourseDocument, moduleId: string) {
+  const assessment = course.assessments.find((item) => item.moduleId === moduleId);
+  if (!assessment) return;
+  const title = moduleTitle(course, moduleId);
+  const children: Block[] = [
+    paragraph(course.brief.title || "Программа", HeadingLevel.HEADING_1),
+    paragraph(title, HeadingLevel.HEADING_2),
+    paragraph("Проверочная работа"),
+  ];
+  assessment.questions.forEach((question, index) => {
+    children.push(paragraph(`${index + 1}. ${question.stem}`, HeadingLevel.HEADING_3));
+    if (question.options?.length) {
+      question.options.forEach((option) => children.push(bullet(option)));
+    }
+    children.push(paragraph(`Ключ: ${question.answer}`));
+    if (question.explanation) children.push(paragraph(question.explanation));
+    if (question.learningOutcome) children.push(paragraph(`Результат: ${question.learningOutcome}`));
+  });
+  const document = new Document({
+    creator: "Студия методиста",
+    title,
+    styles: {
+      default: {
+        document: {
+          run: { font: "Times New Roman", size: 24 },
+        },
+      },
+    },
+    sections: [{ properties: {}, children }],
+  });
+  const blob = await Packer.toBlob(document);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${slug(title)}-тест.docx`;
+  link.click();
+  URL.revokeObjectURL(url);
+}

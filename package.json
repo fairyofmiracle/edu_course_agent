@@ -16,6 +16,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^4.0.84",
     "@ai-sdk/react": "^4.0.131",
+    "@aiden0z/pptx-renderer": "^1.4.0",
     "ai": "^7.0.128",
     "docx": "^9.11.0",
     "mermaid": "^12.1.0",

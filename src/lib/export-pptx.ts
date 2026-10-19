@@ -21,8 +21,8 @@ function createPresentation(course: CourseDocument): PptxGenJS {
   pptx.company = "Академия цифрового развития";
 
   pptx.theme = {
-    headFontFace: "Aptos Display",
-    bodyFontFace: "Aptos",
+    headFontFace: "Georgia",
+    bodyFontFace: "Calibri",
   };
 
   return pptx;
@@ -30,28 +30,48 @@ function createPresentation(course: CourseDocument): PptxGenJS {
 
 function addCover(pptx: PptxGenJS, title: string): void {
   const cover = pptx.addSlide();
-  cover.background = { color: "F7F8FA" };
+  cover.background = { color: "F6F4F1" };
+
+  cover.addText("СТУДИЯ МЕТОДИСТА", {
+    x: 0.75,
+    y: 1.35,
+    w: 11.5,
+    h: 0.35,
+    fontFace: "Calibri",
+    fontSize: 14,
+    color: "6E2432",
+    margin: 0,
+  });
 
   cover.addText(title, {
-    x: 0.8,
-    y: 1.55,
-    w: 11.7,
-    h: 1.1,
-    fontFace: "Aptos Display",
-    fontSize: 28,
-    bold: true,
-    color: "18233B",
+    x: 0.75,
+    y: 1.85,
+    w: 11.5,
+    h: 1.5,
+    fontFace: "Georgia",
+    fontSize: 40,
+    color: "1C1614",
     margin: 0,
     fit: "shrink",
   });
 
+  cover.addShape(pptx.ShapeType.rect, {
+    x: 0.75,
+    y: 3.55,
+    w: 2.2,
+    h: 0.045,
+    fill: { color: "6E2432" },
+    line: { color: "6E2432", width: 0 },
+  });
+
   cover.addText("Материалы лекций", {
-    x: 0.8,
-    y: 2.85,
-    w: 11.7,
-    h: 0.5,
+    x: 0.75,
+    y: 3.8,
+    w: 11.5,
+    h: 0.45,
+    fontFace: "Calibri",
     fontSize: 18,
-    color: "4F5B6B",
+    color: "5C534C",
     margin: 0,
   });
 }

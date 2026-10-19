@@ -47,7 +47,7 @@ export async function renderPresentationSlide(
   const validated = presentationSlideSchema.parse(source);
 
   const slide = pptx.addSlide();
-  slide.background = { color: "FFFFFF" };
+  slide.background = { color: "F6F4F1" };
 
   for (const element of validated.elements) {
     const { x, y, w, h } = element;
@@ -70,7 +70,7 @@ export async function renderPresentationSlide(
           y,
           w,
           h,
-          fontFace: "Aptos",
+          fontFace: element.fontSize >= 28 ? "Georgia" : "Calibri",
           fontSize: element.fontSize,
           bold: element.bold,
           color: element.color,
@@ -105,6 +105,45 @@ export async function renderPresentationSlide(
           },
         });
 
+        break;
+      }
+
+      case "table": {
+        const header = element.headers.map((text) => ({
+          text,
+          options: {
+            fill: { color: "6E2432" },
+            color: "F6F4F1",
+            bold: true,
+            align: "left" as const,
+          },
+        }));
+        const body = element.rows.map((row, rowIndex) =>
+          element.headers.map((_, cellIndex) => ({
+            text: row[cellIndex] || "—",
+            options: {
+              fill: { color: rowIndex % 2 === 0 ? "F6F4F1" : "F7F3F0" },
+              color: "1C1614",
+              align: "left" as const,
+            },
+          })),
+        );
+        slide.addTable([header, ...body], {
+          x,
+          y,
+          w,
+          h,
+          fontFace: "Calibri",
+          fontSize: 14,
+          color: "1C1614",
+          valign: "middle",
+          border: [
+            { pt: 0.5, color: "E4DDD6" },
+            { pt: 0.5, color: "E4DDD6" },
+            { pt: 0.5, color: "E4DDD6" },
+            { pt: 0.5, color: "E4DDD6" },
+          ],
+        });
         break;
       }
 

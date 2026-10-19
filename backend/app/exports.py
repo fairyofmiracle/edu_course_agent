@@ -96,6 +96,9 @@ def build_docx(course: CourseDocument) -> bytes:
         f"Категория обучающихся: {brief.audience or '____________________'}",
         f"Форма обучения: {FORMAT_LABELS.get(brief.format, brief.format)}",
         f"Итоговая аттестация: {brief.attestation_form or '____________________'}, {hours(brief.attestation_hours)} ч.",
+        "Реквизиты приказа организации: ____________________",
+        "Преподаватель: ____________________",
+        "Подпись: ____________________",
     ):
         paragraph = doc.add_paragraph(line)
         paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -196,7 +199,42 @@ def build_docx(course: CourseDocument) -> bytes:
     return buffer.getvalue()
 
 
-def _add_textbox(slide: Any, left: float, top: float, width: float, height: float, text: str, size: int = 20, bold: bool = False) -> None:
+def _rgb(value: str):
+    from pptx.dml.color import RGBColor
+
+    return RGBColor.from_string(value)
+
+
+def _paint(slide: Any) -> None:
+    fill = slide.background.fill
+    fill.solid()
+    fill.fore_color.rgb = _rgb("F6F4F1")
+
+
+def _rule(slide: Any, left: float, top: float, width: float = 2.2) -> None:
+    from pptx.enum.shapes import MSO_SHAPE
+    from pptx.util import Emu, Inches
+
+    shape = slide.shapes.add_shape(
+        MSO_SHAPE.RECTANGLE, Inches(left), Inches(top), Inches(width), Emu(32000)
+    )
+    shape.fill.solid()
+    shape.fill.fore_color.rgb = _rgb("6E2432")
+    shape.line.fill.background()
+
+
+def _add_textbox(
+    slide: Any,
+    left: float,
+    top: float,
+    width: float,
+    height: float,
+    text: str,
+    size: int = 20,
+    bold: bool = False,
+    color: str = "1C1614",
+    font: str = "Calibri",
+) -> None:
     from pptx.util import Inches, Pt as PptPt
 
     box = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
@@ -207,6 +245,24 @@ def _add_textbox(slide: Any, left: float, top: float, width: float, height: floa
     run.text = text
     run.font.size = PptPt(size)
     run.font.bold = bold
+    run.font.color.rgb = _rgb(color)
+    run.font.name = font
+
+
+def _add_bullets(slide: Any, items: list[str]) -> None:
+    from pptx.util import Inches, Pt as PptPt
+
+    box = slide.shapes.add_textbox(Inches(0.85), Inches(2.35), Inches(11.5), Inches(4.5))
+    frame = box.text_frame
+    frame.word_wrap = True
+    for index, item in enumerate(items[:6]):
+        paragraph = frame.paragraphs[0] if index == 0 else frame.add_paragraph()
+        paragraph.text = f"•  {item}"
+        paragraph.level = 0
+        paragraph.space_after = PptPt(12)
+        paragraph.font.size = PptPt(20)
+        paragraph.font.color.rgb = _rgb("1C1614")
+        paragraph.font.name = "Calibri"
 
 
 def build_pptx(course: CourseDocument) -> bytes:
@@ -218,24 +274,56 @@ def build_pptx(course: CourseDocument) -> bytes:
     presentation.slide_height = Inches(7.5)
     blank = presentation.slide_layouts[6]
     cover = presentation.slides.add_slide(blank)
-    _add_textbox(cover, 0.8, 1.6, 11.7, 1.2, course.brief.title or "Программа", 28, True)
-    _add_textbox(cover, 0.8, 2.9, 11.7, 0.6, "Материалы лекций", 18)
+    _paint(cover)
+    _add_textbox(cover, 0.75, 1.35, 11.5, 0.35, "СТУДИЯ МЕТОДИСТА", 14, False, "6E2432", "Calibri")
+    _add_textbox(
+        cover,
+        0.75,
+        1.85,
+        11.5,
+        1.6,
+        course.brief.title or "Программа",
+        40,
+        False,
+        "1C1614",
+        "Georgia",
+    )
+    _rule(cover, 0.75, 3.6, 2.4)
+    audience = course.brief.audience.strip()
+    hours = course.brief.duration_hours
+    subtitle = " · ".join(
+        part
+        for part in (
+            audience,
+            f"{hours:g} ч" if hours else "",
+            "Материалы лекций",
+        )
+        if part
+    )
+    _add_textbox(cover, 0.75, 3.85, 11.5, 0.6, subtitle, 18, False, "5C534C")
 
     lectures = course.lectures
     if not lectures:
         empty = presentation.slides.add_slide(blank)
-        _add_textbox(empty, 0.8, 2.4, 11.7, 1, "Слайды появятся после утверждения каркаса.", 20)
+        _paint(empty)
+        _add_textbox(empty, 0.8, 3.1, 11.7, 1, "Слайды появятся после утверждения каркаса.", 22, False, "5C534C", "Georgia")
 
     titles = {module.id: module.title for module in course.modules}
     for lecture in lectures:
         module_title = titles.get(lecture.module_id, lecture.module_id)
         opener = presentation.slides.add_slide(blank)
-        _add_textbox(opener, 0.8, 2.2, 11.7, 1, module_title, 26, True)
-        for slide in lecture.slides:
+        _paint(opener)
+        _add_textbox(opener, 0.75, 2.35, 11.5, 0.35, "МОДУЛЬ", 14, False, "6E2432")
+        _add_textbox(opener, 0.75, 2.85, 11.5, 1.4, module_title, 36, False, "1C1614", "Georgia")
+        _rule(opener, 0.75, 4.45, 2.2)
+        for index, slide in enumerate(lecture.slides, start=1):
             page = presentation.slides.add_slide(blank)
-            _add_textbox(page, 0.8, 0.4, 11.7, 0.8, slide.title, 24, True)
-            bullets = "\n".join(f"• {item}" for item in slide.bullets[:8])
-            _add_textbox(page, 0.8, 1.4, 11.7, 5.4, bullets or "—", 18)
+            _paint(page)
+            _add_textbox(page, 0.75, 0.38, 10.4, 0.32, module_title, 13, False, "6E2432")
+            _add_textbox(page, 11.2, 0.38, 1.3, 0.32, f"{index} / {len(lecture.slides)}", 13, False, "5C534C")
+            _add_textbox(page, 0.75, 0.9, 11.7, 0.9, slide.title, 32, False, "1C1614", "Georgia")
+            _rule(page, 0.75, 1.9, 1.8)
+            _add_bullets(page, list(slide.bullets))
 
     buffer = BytesIO()
     presentation.save(buffer)

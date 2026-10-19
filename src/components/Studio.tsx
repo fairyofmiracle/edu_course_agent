@@ -19,6 +19,7 @@ import {
   frameworkFingerprint,
   frameworkItems,
   isFrameworkApproved,
+  isKitComplete,
 } from "@/lib/framework-check";
 import {
   createEmptyCourse,
@@ -98,7 +99,11 @@ function StudioSession({
   const [saveState, setSaveState] = useState<"local" | "saving" | "synced" | "offline">(
     hasBackendStorage() ? "saving" : "local",
   );
-  const [exportJob, setExportJob] = useState<{ kind: "json" | "docx" | "pptx"; phase: "work" | "done" | "error" } | null>(
+  const [exportJob, setExportJob] = useState<{
+    kind: "json" | "docx" | "pptx";
+    phase: "work" | "done" | "error";
+    place?: "сервере" | "браузере";
+  } | null>(
     null,
   );
   const [chatOpen, setChatOpen] = useState(initialChatOpen);
@@ -124,31 +129,36 @@ function StudioSession({
   const checks = frameworkItems(course);
   const frameworkReady = checks.every((item) => item.ok);
   const frameworkApproved = isFrameworkApproved(course);
+  const kitComplete = isKitComplete(course);
   const stage = frameworkApproved ? "kit" : course.modules.length ? "framework" : "ask";
   const showDocument = Boolean(
     course.brief.title.trim() || course.modules.length || messages.length > 0,
   );
   const missingChecks = checks.filter((item) => !item.ok).map((item) => item.label);
 
-  const exportFromServer = async (kind: "json" | "docx" | "pptx", fallback: () => void) => {
-    setExportJob({ kind, phase: "work" });
+  const exportFromServer = async (kind: "json" | "docx" | "pptx", fallback: () => void | Promise<void>) => {
+    setExportJob({ kind, phase: "work", place: "сервере" });
+    const finish = (phase: "done" | "error", place?: "сервере" | "браузере") => {
+      setExportJob({ kind, phase, place });
+      window.setTimeout(() => setExportJob((current) => (current && current.phase !== "work" ? null : current)), 3200);
+    };
     try {
       if (await downloadCourseFromBackend(course, kind)) {
-        setExportJob({ kind, phase: "done" });
-        window.setTimeout(() => setExportJob((current) => (current?.phase === "done" ? null : current)), 3200);
+        finish("done", "сервере");
         return;
       }
-      fallback();
-      setExportJob({ kind, phase: "done" });
+      setExportJob({ kind, phase: "work", place: "браузере" });
+      await fallback();
+      finish("done", "браузере");
     } catch {
       try {
-        fallback();
-        setExportJob({ kind, phase: "done" });
+        setExportJob({ kind, phase: "work", place: "браузере" });
+        await fallback();
+        finish("done", "браузере");
       } catch {
-        setExportJob({ kind, phase: "error" });
+        finish("error");
       }
     }
-    window.setTimeout(() => setExportJob((current) => (current && current.phase !== "work" ? null : current)), 3200);
   };
 
   useEffect(() => {
@@ -340,12 +350,14 @@ function StudioSession({
               ? "1. Запрос. Слева напишите, для кого программа и сколько в ней часов."
               : stage === "framework"
                 ? "2. Каркас. Справа сверьте часы и компетенции, затем утвердите каркас."
-                : "3. Комплект. Каркас утверждён: можно собирать лекции, задания и тесты."}
+                : kitComplete
+                  ? "3. Комплект собран. Смотрите программу и выгружайте файлы."
+                  : "3. Комплект. Каркас утверждён: можно собирать лекции, задания и тесты."}
           </p>
           <h1>{course.brief.title || "Новая образовательная программа"}</h1>
           <p className="save-state" aria-live="polite">
             {exportJob?.phase === "work"
-              ? exportWaitLabel(exportJob.kind, exportElapsed)
+              ? exportWaitLabel(exportJob.kind, exportElapsed, exportJob.place)
               : exportJob?.phase === "done"
                 ? exportDoneLabel(exportJob.kind)
                 : exportJob?.phase === "error"
@@ -373,7 +385,7 @@ function StudioSession({
           <li className={stage === "framework" ? "current" : stage === "kit" ? "done" : ""}>
             Каркас
           </li>
-          <li className={stage === "kit" ? "current" : ""}>Комплект</li>
+          <li className={stage === "kit" ? (kitComplete ? "done" : "current") : ""}>Комплект</li>
         </ol>
         </div>
       </div>
@@ -388,6 +400,7 @@ function StudioSession({
           error={error}
           extraReferences={extraReferences}
           frameworkApproved={frameworkApproved}
+          kitComplete={kitComplete}
           stage={stage}
           missingChecks={missingChecks}
           onReferencesChange={setExtraReferences}
@@ -402,7 +415,9 @@ function StudioSession({
             <h2>Документ программы</h2>
             <p className="kicker">
               {frameworkApproved
-                ? "Каркас утверждён. Соберите содержание или выгрузите программу."
+                ? kitComplete
+                  ? "Комплект собран. Смотрите программу справа и выгружайте файлы."
+                  : "Каркас утверждён. Соберите содержание или выгрузите программу."
                 : frameworkReady
                   ? "Часы и связи сходятся. Утвердите каркас, чтобы открыть лекции, задания и тесты."
                   : stage === "ask"
@@ -441,13 +456,18 @@ function StudioSession({
                   <button type="button" title="Отчёт проверки" disabled={isCourseEmpty(course)} onClick={() => exportCourseAudit(course)}>
                     Отчёт
                   </button>
-                  <button type="button" title="Программа Word" disabled={isCourseEmpty(course) || exportJob?.phase === "work"} onClick={() => void exportFromServer("docx", () => void exportCourseDocx(course))}>
+                  <button type="button" title="Программа Word" disabled={isCourseEmpty(course) || exportJob?.phase === "work"} onClick={() => void exportFromServer("docx", () => exportCourseDocx(course))}>
                     Программа
                   </button>
                   <button type="button" title="Слайды в браузере" disabled={course.lectures.length === 0} onClick={() => exportLectureHtml(course)}>
                     Слайды
                   </button>
-                  <button type="button" title="Слайды PowerPoint" disabled={course.lectures.length === 0 || exportJob?.phase === "work"} onClick={() => void exportFromServer("pptx", () => void exportCoursePptx(course))}>
+                  <button
+                    type="button"
+                    title="Слайды PowerPoint"
+                    disabled={course.lectures.length === 0 || exportJob?.phase === "work"}
+                    onClick={() => void exportFromServer("pptx", () => exportCoursePptx(course))}
+                  >
                     Презентация
                   </button>
                   <div className="export-tests">

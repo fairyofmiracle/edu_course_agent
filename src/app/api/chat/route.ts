@@ -11,7 +11,7 @@ import {
   type CourseBrief,
   type CourseDocument,
 } from "@/lib/course-schema";
-import { describeError } from "@/lib/server-log";
+import { chatFailureText } from "@/lib/server-log";
 import { messageText } from "@/lib/session-log";
 
 export const maxDuration = 300;
@@ -133,7 +133,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("[chat] ошибка маршрута:", error);
     return Response.json(
-      { error: error instanceof Error ? error.message : describeError(error) },
+      { error: chatFailureText(error) },
       { status: 500 },
     );
   }

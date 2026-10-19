@@ -93,6 +93,7 @@ export function fieldsToBrief(fields: TemplateFields): Partial<CourseBrief> {
 type RequestComposerProps = {
   extraReferences: string;
   frameworkApproved: boolean;
+  kitComplete: boolean;
   stage: "ask" | "framework" | "kit";
   pending: boolean;
   onReferencesChange: (value: string) => void;
@@ -104,6 +105,7 @@ type RequestComposerProps = {
 export function RequestComposer({
   extraReferences,
   frameworkApproved,
+  kitComplete,
   stage,
   pending,
   onReferencesChange,
@@ -131,6 +133,13 @@ export function RequestComposer({
     return () => window.clearTimeout(timer);
   }, [fileNote]);
 
+  const readFailure = (error: unknown, fallback: string) => {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      return "Чтение заняло слишком много времени. Возьмите файл меньше или повторите.";
+    }
+    return error instanceof Error && error.message ? error.message : fallback;
+  };
+
   const attachFile = async (file: File) => {
     const allowed = [".txt", ".md", ".pdf", ".docx"];
     const lower = file.name.toLowerCase();
@@ -151,7 +160,11 @@ export function RequestComposer({
     try {
       const form = new FormData();
       form.set("file", file);
-      const response = await fetch("/api/extract", { method: "POST", body: form });
+      const response = await fetch("/api/extract", {
+        method: "POST",
+        body: form,
+        signal: AbortSignal.timeout(25_000),
+      });
       const payload = (await response.json()) as { text?: string; title?: string; error?: string };
       if (!response.ok) throw new Error(payload.error || "Не удалось прочитать файл");
       const chunk = `[${payload.title}]\n${payload.text ?? ""}`;
@@ -164,7 +177,7 @@ export function RequestComposer({
       setShowRefs(true);
       setFileNote(`Готово: ${payload.title || file.name}`);
     } catch (err) {
-      setFileNote(err instanceof Error ? err.message : "Ошибка файла");
+      setFileNote(readFailure(err, "Файл не разобрался."));
     } finally {
       setBusyFile(false);
     }
@@ -180,6 +193,7 @@ export function RequestComposer({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
+        signal: AbortSignal.timeout(20_000),
       });
       const payload = (await response.json()) as { text?: string; title?: string; error?: string };
       if (!response.ok) throw new Error(payload.error || "Не удалось скачать страницу");
@@ -193,7 +207,7 @@ export function RequestComposer({
       setShowRefs(true);
       setFileNote(`Готово: ${payload.title || url}`);
     } catch (err) {
-      setFileNote(err instanceof Error ? err.message : "Ошибка URL");
+      setFileNote(readFailure(err, "Ссылка не открылась."));
     } finally {
       setBusyFile(false);
     }
@@ -423,7 +437,7 @@ export function RequestComposer({
             {mode === "template" ? "Собрать по шаблону" : "Отправить"}
           </button>
         )}
-        {stage !== "ask" ? (
+        {stage === "framework" || (stage === "kit" && !kitComplete) ? (
           <button
             type="button"
             className={stage === "kit" ? "primary" : undefined}
@@ -435,7 +449,7 @@ export function RequestComposer({
             }
             onClick={() => onSend(frameworkApproved ? KIT_PROMPT : FRAMEWORK_PROMPT)}
           >
-            {frameworkApproved ? "Собрать комплект" : "Дособрать каркас"}
+            {stage === "kit" ? "Собрать комплект" : "Дособрать каркас"}
           </button>
         ) : null}
       </div>

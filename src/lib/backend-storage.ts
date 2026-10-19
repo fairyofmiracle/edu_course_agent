@@ -95,6 +95,7 @@ export async function downloadCourseFromBackend(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(course),
+    signal: AbortSignal.timeout(120_000),
   });
   if (!response.ok) {
     throw new Error(`Не удалось выгрузить ${kind}: HTTP ${response.status}`);

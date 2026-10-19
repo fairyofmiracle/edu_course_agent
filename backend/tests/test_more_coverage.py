@@ -16,6 +16,35 @@ from backend.tests.test_open_cases import CASE4, CASE4_ANSWERS
 import backend.app.agent_api as agent_api_module
 
 
+def test_messy_model_competencies_stay_on_the_course() -> None:
+    course = fixture_course()
+    output = execute_tool(
+        "set_competency_map",
+        {
+            "nodes": [
+                {
+                    "id": "навык 1",
+                    "name": "Собирает первую игру на Python",
+                    "bloomLevel": "Понимание",
+                    "knowledge": "Переменная хранит значение; " + ("длинная формулировка " * 40),
+                    "skills": ["Пишет условие"],
+                    "abilities": "Запускает программу",
+                    "laborFunctionCode": "A/01.6",
+                }
+            ]
+        },
+        course,
+        ["общеразвивающая программа"],
+    )
+    changed = apply_patch(course, output)
+    node = changed.competencies.nodes[0]
+    assert "игру" in node.name.lower()
+    assert node.bloom_level == "understand"
+    assert not node.labor_function_code
+    assert all(len(item) <= 240 for item in node.knowledge)
+    assert changed.modules
+
+
 def test_model_text_without_tools_falls_back_to_local_structure() -> None:
     course = empty_course()
     course.brief.title = "Основы Figma для этикеток"

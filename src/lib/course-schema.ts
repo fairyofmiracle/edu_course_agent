@@ -88,13 +88,14 @@ export const slideSchema = z.object({
   mermaid: absent(z.string().max(1500).optional()),
   visualPrompt: absent(z.string().max(280).optional()),
   speakerNotes: absent(z.string().max(600).optional()),
+  table: absent(z.array(z.array(z.string().min(1).max(80)).min(1).max(8)).min(2).max(8).optional()),
 });
 
 export const lectureSchema = z.object({
   moduleId: z.string().min(1).max(40),
   durationMin: z.number().min(15).max(240),
   outline: z.array(z.string().min(1).max(240)).min(3).max(10),
-  slides: z.array(slideSchema).min(4).max(10),
+  slides: z.array(slideSchema).min(3).max(12),
 });
 
 export const seminarTaskSchema = z.object({

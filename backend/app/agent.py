@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 from .cloud import CloudRuClient
@@ -13,7 +14,6 @@ from .catalog import (
     is_incomplete_brief,
     is_internship,
     lecture_modules,
-    profile_name,
     promise_notes,
 )
 from .kit_content import (
@@ -52,7 +52,7 @@ from .reference_outline import (
 from .tools import course_tools, execute_tool
 
 MAX_STEPS = 12
-KIT_MODEL_STEPS = 2
+KIT_BUDGET_SECONDS = 200
 KIT_CALL_TIMEOUT = 70
 REF_LIMIT = 3500
 USER_LIMIT = 1800
@@ -61,7 +61,7 @@ SYSTEM_PROMPT = """Ты методист. Документ меняй тольк
 Часы и тип программы — только из слов методиста. «Месяц» — срок, не объём.
 Аттестация входит в общий объём. Часы академические, шаг 0,5.
 Нормативы студия подставит сама — номера приказов не выдумывай.
-Лекции и тесты — только после утверждения каркаса. Сделай ровно текущий шаг."""
+Лекции и тесты — только после утверждения каркаса. Текст лекции, задания и теста пишешь ты, по этой теме и этой аудитории. Сделай ровно текущий шаг."""
 
 
 def clip_text(value: str | None, limit: int) -> str:
@@ -195,6 +195,24 @@ def _tool_choice(step: dict[str, Any]) -> str | dict[str, Any]:
     return "none"
 
 
+def kit_assistant_text(client: Any, calls: list[dict[str, Any]], planned: list[str]) -> str:
+    has_key = bool(getattr(client, "api_key", None))
+    model_wrote = any(
+        call.get("tool") in KIT_TOOLS and call.get("input") != "local_fallback"
+        for call in calls
+    )
+    local = "fill_missing_kit" in planned or any(
+        call.get("input") == "local_fallback" for call in calls
+    )
+    if not has_key:
+        return "Ключа шлюза нет. Комплект дописан по каркасу: тест, слайды и семинар."
+    if local and not model_wrote:
+        return "Шлюз не ответил. Комплект дописан по каркасу, чтобы программа не осталась пустой."
+    if local and model_wrote:
+        return "Модель написала часть комплекта. Остальное дописано по каркасу."
+    return "Собрала комплект: тест, слайды и семинар."
+
+
 async def run_turn(
     course: CourseDocument,
     *,
@@ -214,7 +232,7 @@ async def run_turn(
         course = fill_missing_kit(course, references, user_texts)
         return {
             "course": course,
-            "assistant": "Собрала комплект по каркасу: тест, слайды и семинар.",
+            "assistant": kit_assistant_text(client, [], ["fill_missing_kit"]),
             "mode": "kit",
             "steps": ["fill_missing_kit"],
             "patches": kit_delta_patches(before, course),
@@ -229,7 +247,7 @@ async def run_turn(
     calls: list[dict[str, Any]] = []
     assistant_text = ""
     outgoing = messages_for_model(user_texts)
-    kit_calls = 0
+    kit_started = time.monotonic()
 
     for _ in range(MAX_STEPS):
         if hasattr(client, "budget_left") and not client.budget_left():
@@ -263,9 +281,7 @@ async def run_turn(
                 if notes:
                     assistant_text = assistant_text + "\n\n" + "\n".join(notes)
             break
-        if step.get("tool") == "set_competency_map" and (
-            not getattr(client, "api_key", None) or profile_name(course) != "generic"
-        ):
+        if step.get("tool") == "set_competency_map" and not getattr(client, "api_key", None):
             output = execute_tool(
                 "set_competency_map",
                 {"nodes": default_competencies(course)},
@@ -280,11 +296,15 @@ async def run_turn(
                     course = next_course
                     patches.append(output)
             continue
-        if mode == "kit" and kit_calls >= KIT_MODEL_STEPS:
-            break
         use_fast = step.get("kind") == "reply"
+        timeout = 180
+        attempts = None
         if mode == "kit":
-            kit_calls += 1
+            remaining = KIT_BUDGET_SECONDS - (time.monotonic() - kit_started)
+            if remaining < 25:
+                break
+            timeout = min(KIT_CALL_TIMEOUT, remaining)
+            attempts = 1
         try:
             message = await client.complete(
                 system=build_system_prompt(course, step, references),
@@ -297,8 +317,8 @@ async def run_turn(
                     if use_fast
                     else getattr(client, "model_writer", None)
                 ),
-                timeout=KIT_CALL_TIMEOUT if mode == "kit" else 180,
-                attempts=1 if mode == "kit" else None,
+                timeout=timeout,
+                attempts=attempts,
             )
         except Exception:
             if step.get("tool") in KIT_TOOLS:
@@ -458,8 +478,10 @@ async def run_turn(
         course = fill_missing_kit(course, references, user_texts)
         patches.extend(kit_delta_patches(before_fill, course))
         planned.append("fill_missing_kit")
-    if is_framework_approved(course) and not assistant_text:
-        assistant_text = "Собрала комплект по каркасу: тест, слайды и семинар."
+    if mode == "kit" and is_framework_approved(course):
+        assistant_text = kit_assistant_text(client, calls, planned)
+    elif is_framework_approved(course) and not assistant_text:
+        assistant_text = "Каркас утверждён."
 
     return {
         "course": course,

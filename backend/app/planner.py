@@ -43,7 +43,8 @@ def kit_needed(course: CourseDocument) -> bool:
     target = kit_lecture_target(course)
     if target and (len(course.lectures) < target or has_stub_lectures(course)):
         return True
-    if not course.seminars:
+    seminar_ids = {item.module_id for item in course.seminars}
+    if any(module.id not in seminar_ids for module in course.modules):
         return True
     return outcome_gaps(course)
 
@@ -181,8 +182,12 @@ def plan_step(
                         "Без фразы «сначала называем понятие своими словами»."
                     ),
                 }
-        if not course.seminars and course.modules:
-            module = course.modules[-1]
+        missing_seminar = next(
+            (module for module in course.modules if module.id not in {item.module_id for item in course.seminars}),
+            None,
+        )
+        if missing_seminar is not None:
+            module = missing_seminar
             key = f"set_seminar:{module.id}"
             if tried(key) < 2:
                 return {

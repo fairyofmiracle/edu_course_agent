@@ -69,16 +69,40 @@ export function isPublicIp(address: string): boolean {
   if (family === 6) {
     const normalized = address.toLowerCase();
 
-  // IPv4-mapped IPv6 проверяем по правилам IPv4.
-  if (normalized.startsWith("::ffff:")) {
-    const mapped = normalized.slice(7);
-    return isIP(mapped) === 4 && isPublicIp(mapped);
-  }
+    // IPv4-mapped IPv6: ::ffff:192.168.1.1
+    // также поддерживаем шестнадцатеричную запись
+    if (normalized.startsWith("::ffff:")) {
+      const mapped = normalized.slice(7);
 
-  return (
-    (normalized.startsWith("2") || normalized.startsWith("3")) &&
-    !blocked.check(address, "ipv6")
+      if (isIP(mapped) === 4) {
+        return isPublicIp(mapped);
+      }
 
+      const parts = mapped.split(":");
+
+      if (
+        parts.length === 2 &&
+        parts.every((part) => /^[0-9a-f]{1,4}$/.test(part))
+      ) {
+        const high = parseInt(parts[0], 16);
+        const low = parseInt(parts[1], 16);
+
+        const ipv4 = [
+          high >>> 8,
+          high & 255,
+          low >>> 8,
+          low & 255,
+        ].join(".");
+
+        return isPublicIp(ipv4);
+      }
+
+      return false;
+    }
+
+    return (
+      (normalized.startsWith("2") || normalized.startsWith("3")) &&
+      !blocked.check(address, "ipv6")
     );
   }
 
@@ -107,7 +131,8 @@ export function validateReferenceUrl(value: string): URL {
     throw new ReferenceFetchError("Нестандартный порт запрещён");
   }
 
-  if (isIP(url.hostname) && !isPublicIp(url.hostname)) {
+  const hostname = url.hostname.replace(/^\[|\]$/g, "");
+  if (isIP(hostname) && !isPublicIp(hostname)) {
     throw new ReferenceFetchError("Внутренний или служебный адрес запрещён");
   }
 

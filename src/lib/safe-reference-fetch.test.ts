@@ -63,4 +63,35 @@ describe("Безопасность внешних источников", () => {
       validateReferenceUrl("https://user:pass@example.com"),
     ).toThrow();
   });
+
+  it("разрешает публичные IPv6-адреса", () => {
+  expect(isPublicIp("2606:4700:4700::1111")).toBe(true);
+  });
+
+  it("запрещает локальные IPv6-адреса", () => {
+    expect(isPublicIp("::1")).toBe(false);
+    expect(isPublicIp("fc00::1")).toBe(false);
+    expect(isPublicIp("fe80::1")).toBe(false);
+  });
+
+  it("проверяет шестнадцатеричную запись IPv4-mapped IPv6", () => {
+    expect(isPublicIp("::ffff:808:808")).toBe(true);
+    expect(isPublicIp("::ffff:c0a8:101")).toBe(false);
+    expect(isPublicIp("::ffff:7f00:1")).toBe(false);
+  });
+
+  it("запрещает внутренние IPv6-адреса в URL", () => {
+    expect(() => validateReferenceUrl("http://[::1]/")).toThrow();
+    expect(() =>
+      validateReferenceUrl("http://[::ffff:192.168.1.1]/")
+    ).toThrow();
+  });
+
+  it("разрешает публичный IPv6 в URL", () => {
+    expect(() =>
+      validateReferenceUrl("https://[2606:4700:4700::1111]/")
+    ).not.toThrow();
+  });
+
+
 });

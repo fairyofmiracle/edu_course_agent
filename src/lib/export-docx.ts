@@ -464,7 +464,7 @@ export async function exportSeminarDocx(course: CourseDocument, moduleId: string
     children.push(paragraph("Критерии"));
     task.criteria.forEach((item) => children.push(bullet(item)));
   }
-  const document = new Document({
+  const docxFile = new Document({
     creator: "Студия методиста",
     title,
     styles: {
@@ -476,7 +476,7 @@ export async function exportSeminarDocx(course: CourseDocument, moduleId: string
     },
     sections: [{ properties: {}, children }],
   });
-  const blob = await Packer.toBlob(document);
+  const blob = await Packer.toBlob(docxFile);
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -503,7 +503,7 @@ export async function exportAssessmentDocx(course: CourseDocument, moduleId: str
     if (question.explanation) children.push(paragraph(question.explanation));
     if (question.learningOutcome) children.push(paragraph(`Результат: ${question.learningOutcome}`));
   });
-  const document = new Document({
+  const docxFile = new Document({
     creator: "Студия методиста",
     title,
     styles: {
@@ -515,7 +515,7 @@ export async function exportAssessmentDocx(course: CourseDocument, moduleId: str
     },
     sections: [{ properties: {}, children }],
   });
-  const blob = await Packer.toBlob(document);
+  const blob = await Packer.toBlob(docxFile);
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

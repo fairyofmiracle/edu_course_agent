@@ -403,21 +403,9 @@ async def run_turn(
                         patches.append(output)
                         calls.append({"tool": "set_competency_map", "input": "local_fallback"})
             if step.get("tool") in KIT_TOOLS:
-                output = execute_tool(
-                    str(step["tool"]),
-                    {},
-                    course,
-                    user_texts,
-                    form_brief,
-                    module_id=step.get("moduleId"),
-                )
-                calls.append({"tool": step["tool"], "input": "local_fallback"})
-                if output.get("type") != "tool_error":
-                    next_course = apply_patch(course, output)
-                    if next_course != course:
-                        course = next_course
-                        patches.append(output)
-                break
+                if planned.count(key) >= 2:
+                    break
+                continue
             if step["kind"] in {"reply", "auto"}:
                 break
             continue

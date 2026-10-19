@@ -105,7 +105,26 @@ app.include_router(export_router)
     operation_id="health",
 )
 def health() -> HealthResponse:
-    return HealthResponse(status="ok", service="edu-course-python")
+    from urllib.parse import urlsplit
+
+    from .cloud import CloudRuClient
+
+    configured = False
+    host = ""
+    try:
+        client = CloudRuClient()
+        configured = bool(client.api_key)
+        host = urlsplit(client.base_url).hostname or ""
+    except Exception:
+        configured = False
+        host = ""
+    return HealthResponse(
+        status="ok",
+        service="edu-course-python",
+        llm_configured=configured,
+        llm_host=host,
+        exports=["json", "docx", "pptx"],
+    )
 
 
 @app.post(

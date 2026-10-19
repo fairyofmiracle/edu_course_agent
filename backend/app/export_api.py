@@ -26,6 +26,7 @@ def file_response(kind: str, course: CourseDocument) -> Response:
                 f"filename*=UTF-8''{quote(filename)}"
             ),
             "Cache-Control": "no-store",
+            "X-Studio-Export": "ready",
         },
     )
 

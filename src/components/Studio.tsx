@@ -130,6 +130,20 @@ function StudioSession({
   const frameworkReady = checks.every((item) => item.ok);
   const frameworkApproved = isFrameworkApproved(course);
   const kitComplete = isKitComplete(course);
+  const sourceLine = (() => {
+    const text = [...messages]
+      .reverse()
+      .filter((item) => item.role === "assistant")
+      .map((item) => messageText(item))
+      .find((value) =>
+        /Ключа шлюза нет|Шлюз не ответил|Модель написала часть|Собрала комплект/.test(value),
+      );
+    if (!text) return "";
+    if (text.includes("Ключа шлюза нет")) return "Ключа шлюза нет. Комплект по каркасу.";
+    if (text.includes("Шлюз не ответил")) return "Шлюз не ответил. Недостающее дописано по каркасу.";
+    if (text.includes("Модель написала часть")) return "Часть комплекта написала модель.";
+    return "Комплект написала модель.";
+  })();
   const stage = frameworkApproved ? "kit" : course.modules.length ? "framework" : "ask";
   const showDocument = Boolean(
     course.brief.title.trim() || course.modules.length || messages.length > 0,
@@ -334,8 +348,8 @@ function StudioSession({
       actions={
         <>
           <a href="/courses">Мои курсы</a>
-          <button type="button" onClick={loadSample}>
-            Пример 24 ч
+          <button type="button" title="Готовая программа без модели. В проход проверяющего не входит." onClick={loadSample}>
+            Офлайн-пример
           </button>
           <button type="button" onClick={reset}>
             Новый курс
@@ -362,8 +376,10 @@ function StudioSession({
                 ? exportDoneLabel(exportJob.kind)
                 : exportJob?.phase === "error"
                   ? "Выгрузка не собралась"
-                  : saveState === "synced"
-                    ? "Сохранено"
+                  : sourceLine
+                    ? sourceLine
+                    : saveState === "synced"
+                      ? "Сохранено"
                     : saveState === "saving"
                       ? "Сохраняю…"
                       : "Сохранено на этом компьютере"}

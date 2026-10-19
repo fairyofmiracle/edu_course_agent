@@ -225,7 +225,10 @@ def test_lecture_modules_adds_pandas_when_limit_allows() -> None:
 
 def test_http_service_routes() -> None:
     with TestClient(app) as client:
-        assert client.get("/health").json()["status"] == "ok"
+        health = client.get("/health").json()
+        assert health["status"] == "ok"
+        assert "llmConfigured" in health
+        assert health["exports"] == ["json", "docx", "pptx"]
         assert client.get("/api/regulatory/policy").json()["rules"]
         stack = client.post("/api/stack/freshness", json={"texts": ["Python 3.12"]})
         assert stack.status_code == 200

@@ -253,6 +253,52 @@ def test_approved_kit_with_key_asks_model() -> None:
     assert result["course"].seminars
 
 
+def test_empty_kit_reply_asks_the_model_again() -> None:
+    raw = approve_framework(fixture_course()).as_api()
+    raw["assessments"] = []
+    raw["lectures"] = []
+    raw["seminars"] = []
+    course = CourseDocument.model_validate(raw)
+    questions = [
+        {
+            "stem": f"Вопрос модели {index}",
+            "options": ["Да", "Нет", "Не знаю", "Другое"],
+            "answer": "Да",
+        }
+        for index in range(10)
+    ]
+    fake = FakeClient(
+        [
+            {"role": "assistant", "content": None, "tool_calls": []},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call-2",
+                        "type": "function",
+                        "function": {
+                            "name": "set_assessment",
+                            "arguments": json.dumps({"questions": questions}, ensure_ascii=False),
+                        },
+                    }
+                ],
+            },
+        ]
+    )
+    fake.api_key = "test-key"
+    result = asyncio.run(
+        run_turn(
+            course,
+            user_texts=["Собери комплект"],
+            model_messages=[{"role": "user", "content": "Собери комплект"}],
+            client=fake,
+        )
+    )
+    assert any("Вопрос модели 0" in str(patch) for patch in result["patches"])
+    assert "Модель написала часть" in result["assistant"]
+
+
 def test_gateway_silence_still_returns_kit_patches() -> None:
     raw = fixture_course().as_api()
     raw["brief"]["durationHours"] = 16

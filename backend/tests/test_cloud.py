@@ -229,6 +229,61 @@ def test_complete_requires_key_and_budget(monkeypatch) -> None:
         raise AssertionError("без бюджета complete должен падать")
 
 
+def test_complete_records_retry_then_succeeds(monkeypatch) -> None:
+    calls = {"n": 0}
+
+    class Response:
+        def __init__(self, status_code: int, body: dict | None = None):
+            self.status_code = status_code
+            self.is_error = status_code >= 400
+            self.text = ""
+            self._body = body or {}
+
+        def json(self):
+            return self._body
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+        async def post(self, *_args, **_kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return Response(503)
+            return Response(
+                200,
+                {
+                    "choices": [{"message": {"role": "assistant", "content": "готово"}}],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                },
+            )
+
+    async def no_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setenv("OPENAI_API_KEY", "k")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://foundation-models.api.cloud.ru/v1")
+    monkeypatch.setattr("backend.app.cloud.httpx.AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr("backend.app.cloud.asyncio.sleep", no_sleep)
+    client = CloudRuClient()
+    message = asyncio.run(
+        client.complete(
+            system="s",
+            messages=[{"role": "user", "content": "hi"}],
+            tools=[],
+        )
+    )
+    assert calls["n"] == 2
+    assert client.gateway_retries == [2]
+    assert message["content"] == "готово"
+
+
 def test_complete_parses_json_tools_and_usage(monkeypatch) -> None:
     class Response:
         is_error = False

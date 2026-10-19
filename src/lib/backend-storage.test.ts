@@ -22,6 +22,7 @@ describe("backend storage", () => {
     expect(await api.copyCourseOnBackend(SAMPLE_COURSE.id)).toBeNull();
     expect(await api.loadCourseFromBackend(SAMPLE_COURSE.id)).toBeNull();
     expect(await api.deleteCourseFromBackend(SAMPLE_COURSE.id)).toBe(false);
+    expect(await api.downloadCourseFromBackend(SAMPLE_COURSE, "docx")).toBe(false);
   });
 
   it("кладёт курс, список, копию и загрузку", async () => {
@@ -65,6 +66,22 @@ describe("backend storage", () => {
     const loaded = await api.loadCourseFromBackend(SAMPLE_COURSE.id);
     expect(loaded?.course.id).toBe(SAMPLE_COURSE.id);
     expect(await api.deleteCourseFromBackend(SAMPLE_COURSE.id)).toBe(true);
+    const click = vi.fn();
+    vi.stubGlobal("URL", {
+      createObjectURL: () => "blob:export",
+      revokeObjectURL: vi.fn(),
+    });
+    vi.stubGlobal("document", {
+      createElement: () => ({ click, href: "", download: "" }),
+    });
+    const fileResponse = new Response(new Blob(["PK"]), {
+      status: 200,
+      headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+    });
+    fetchImpl.mockResolvedValueOnce(fileResponse);
+    expect(await api.downloadCourseFromBackend(SAMPLE_COURSE, "docx")).toBe(true);
+    expect(String(fetchImpl.mock.calls.at(-1)?.[0])).toBe("http://studio.local/api/export/docx");
+    expect(click).toHaveBeenCalled();
     expect(String(fetchImpl.mock.calls[0]?.[0])).toBe(
       `http://studio.local/api/courses/${encodeURIComponent(SAMPLE_COURSE.id)}`,
     );
@@ -81,6 +98,7 @@ describe("backend storage", () => {
     await expect(api.copyCourseOnBackend("missing")).rejects.toThrow(/скопировать/);
     await expect(api.loadCourseFromBackend("missing")).rejects.toThrow(/загрузить/);
     await expect(api.deleteCourseFromBackend("missing")).rejects.toThrow(/удалить/);
+    await expect(api.downloadCourseFromBackend(SAMPLE_COURSE, "json")).rejects.toThrow(/выгрузить/);
 
     vi.stubGlobal(
       "fetch",

@@ -51,6 +51,7 @@ describe("storage", () => {
     expect(loadStoredCourse().brief.title).toBe("");
     saveCourse(SAMPLE_COURSE, [{ id: "m1", role: "user", parts: [] }]);
     expect(loadStoredCourse().id).toBe(SAMPLE_COURSE.id);
+    expect(loadStoredMessages()[0]?.id).toBe("m1");
     expect(storage.keys()).toContain(LIBRARY_KEY);
 
     saveMessages([{ id: "m1", role: "user", parts: [{ type: "text", text: "привет" }] }]);

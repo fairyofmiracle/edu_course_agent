@@ -267,23 +267,35 @@ def apply_patch(course: CourseDocument, patch: dict[str, Any]) -> CourseDocument
         return course
 
 
+def _json_number(value: Any) -> int | float:
+    number = float(value or 0)
+    if number.is_integer():
+        return int(number)
+    return number
+
+
 def framework_fingerprint(course: CourseDocument) -> str:
     value = course.as_api()
     brief = value["brief"]
     return json.dumps(
         {
-            "hours": brief["durationHours"],
+            "hours": _json_number(brief["durationHours"]),
             "programKind": brief["programKind"],
-            "attestationHours": brief["attestationHours"],
+            "attestationHours": _json_number(brief["attestationHours"]),
             "modules": [
                 {
-                    key: module[key]
-                    for key in ("id", "hours", *KIND_KEYS, "competencyIds")
+                    "id": module["id"],
+                    "hours": _json_number(module["hours"]),
+                    "lectureHours": _json_number(module["lectureHours"]),
+                    "practiceHours": _json_number(module["practiceHours"]),
+                    "labHours": _json_number(module["labHours"]),
+                    "selfStudyHours": _json_number(module["selfStudyHours"]),
+                    "competencyIds": sorted(module.get("competencyIds") or []),
                 }
                 for module in value["modules"]
             ],
             "nodes": [
-                {"id": node["id"], "moduleIds": sorted(node["moduleIds"])}
+                {"id": node["id"], "moduleIds": sorted(node.get("moduleIds") or [])}
                 for node in value["competencies"]["nodes"]
             ],
         },

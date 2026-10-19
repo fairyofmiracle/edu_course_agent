@@ -101,16 +101,16 @@ export function renderFlowchart(
 
     slide.addShape(shapeType, {
       ...pos,
-      fill: { color: "EEF2F8" },
-      line: { color: "94A3B8", width: 1 },
+      fill: { color: "F7F3F0" },
+      line: { color: "6E2432", width: 1 },
     });
 
     slide.addText(node.label, {
       ...pos,
-      fontFace: "Aptos",
+      fontFace: "Calibri",
       fontSize: 14,
       bold: true,
-      color: "18233B",
+      color: "1C1614",
       align: "center",
       valign: "middle",
       margin: 0.08,

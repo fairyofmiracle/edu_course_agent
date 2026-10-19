@@ -1,6 +1,8 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { fileWaitLabel } from "@/lib/job-status";
+import { useElapsed } from "@/lib/use-elapsed";
 import {
   FORMAT_LABELS,
   LEVEL_LABELS,
@@ -91,6 +93,7 @@ export function fieldsToBrief(fields: TemplateFields): Partial<CourseBrief> {
 type RequestComposerProps = {
   extraReferences: string;
   frameworkApproved: boolean;
+  kitComplete: boolean;
   stage: "ask" | "framework" | "kit";
   pending: boolean;
   onReferencesChange: (value: string) => void;
@@ -102,6 +105,7 @@ type RequestComposerProps = {
 export function RequestComposer({
   extraReferences,
   frameworkApproved,
+  kitComplete,
   stage,
   pending,
   onReferencesChange,
@@ -113,20 +117,54 @@ export function RequestComposer({
   const [input, setInput] = useState("");
   const [fields, setFields] = useState<TemplateFields>(emptyTemplate);
   const [busyFile, setBusyFile] = useState(false);
+  const [fileNote, setFileNote] = useState("");
   const [showRefs, setShowRefs] = useState(false);
   const [formError, setFormError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const fileElapsed = useElapsed(busyFile);
 
   const setField = <K extends keyof TemplateFields>(key: K, value: TemplateFields[K]) => {
     setFields((current) => ({ ...current, [key]: value }));
   };
 
+  useEffect(() => {
+    if (!fileNote.startsWith("Готово")) return;
+    const timer = window.setTimeout(() => setFileNote(""), 3000);
+    return () => window.clearTimeout(timer);
+  }, [fileNote]);
+
+  const readFailure = (error: unknown, fallback: string) => {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      return "Чтение заняло слишком много времени. Возьмите файл меньше или повторите.";
+    }
+    return error instanceof Error && error.message ? error.message : fallback;
+  };
+
   const attachFile = async (file: File) => {
+    const allowed = [".txt", ".md", ".pdf", ".docx"];
+    const lower = file.name.toLowerCase();
+    if (!allowed.some((ext) => lower.endsWith(ext))) {
+      setFileNote("Нужен файл .txt, .md, .pdf или .docx.");
+      return;
+    }
+    if (file.size === 0) {
+      setFileNote("Файл пустой.");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setFileNote("Файл больше 8 МБ.");
+      return;
+    }
     setBusyFile(true);
+    setFileNote("");
     try {
       const form = new FormData();
       form.set("file", file);
-      const response = await fetch("/api/extract", { method: "POST", body: form });
+      const response = await fetch("/api/extract", {
+        method: "POST",
+        body: form,
+        signal: AbortSignal.timeout(25_000),
+      });
       const payload = (await response.json()) as { text?: string; title?: string; error?: string };
       if (!response.ok) throw new Error(payload.error || "Не удалось прочитать файл");
       const chunk = `[${payload.title}]\n${payload.text ?? ""}`;
@@ -137,8 +175,9 @@ export function RequestComposer({
         note: "Файл загружен методистом",
       });
       setShowRefs(true);
+      setFileNote(`Готово: ${payload.title || file.name}`);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Ошибка файла");
+      setFileNote(readFailure(err, "Файл не разобрался."));
     } finally {
       setBusyFile(false);
     }
@@ -148,11 +187,13 @@ export function RequestComposer({
     const url = window.prompt("URL референса");
     if (!url) return;
     setBusyFile(true);
+    setFileNote("");
     try {
       const response = await fetch("/api/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
+        signal: AbortSignal.timeout(20_000),
       });
       const payload = (await response.json()) as { text?: string; title?: string; error?: string };
       if (!response.ok) throw new Error(payload.error || "Не удалось скачать страницу");
@@ -164,8 +205,9 @@ export function RequestComposer({
         note: "Ссылка добавлена методистом",
       });
       setShowRefs(true);
+      setFileNote(`Готово: ${payload.title || url}`);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Ошибка URL");
+      setFileNote(readFailure(err, "Ссылка не открылась."));
     } finally {
       setBusyFile(false);
     }
@@ -364,6 +406,14 @@ export function RequestComposer({
           }}
         />
       </div>
+      {busyFile || fileNote ? (
+        <p
+          className={`job-status ${fileNote && !busyFile && !fileNote.startsWith("Готово") ? "chat-error" : ""}`}
+          aria-live="polite"
+        >
+          {busyFile ? fileWaitLabel(fileElapsed) : fileNote}
+        </p>
+      ) : null}
       {showRefs ? (
         <textarea
           className="refs-box"
@@ -387,7 +437,7 @@ export function RequestComposer({
             {mode === "template" ? "Собрать по шаблону" : "Отправить"}
           </button>
         )}
-        {stage !== "ask" ? (
+        {stage === "framework" || (stage === "kit" && !kitComplete) ? (
           <button
             type="button"
             className={stage === "kit" ? "primary" : undefined}
@@ -399,7 +449,7 @@ export function RequestComposer({
             }
             onClick={() => onSend(frameworkApproved ? KIT_PROMPT : FRAMEWORK_PROMPT)}
           >
-            {frameworkApproved ? "Собрать комплект" : "Дособрать каркас"}
+            {stage === "kit" ? "Собрать комплект" : "Дособрать каркас"}
           </button>
         ) : null}
       </div>

@@ -207,6 +207,7 @@ def test_approved_kit_fills_without_model() -> None:
     )
     assert result["mode"] == "kit"
     assert result["steps"] == ["fill_missing_kit"]
+    assert "Ключа шлюза нет" in result["assistant"]
     assert sum(len(item.questions) for item in result["course"].assessments) == 10
     assert result["course"].lectures
     assert result["course"].seminars
@@ -250,6 +251,173 @@ def test_approved_kit_with_key_asks_model() -> None:
     assert sum(len(item.questions) for item in result["course"].assessments) == 10
     assert result["course"].lectures
     assert result["course"].seminars
+
+
+def test_empty_kit_reply_asks_the_model_again() -> None:
+    raw = approve_framework(fixture_course()).as_api()
+    raw["assessments"] = []
+    raw["lectures"] = []
+    raw["seminars"] = []
+    course = CourseDocument.model_validate(raw)
+    questions = [
+        {
+            "stem": f"Вопрос модели {index}",
+            "options": ["Да", "Нет", "Не знаю", "Другое"],
+            "answer": "Да",
+        }
+        for index in range(10)
+    ]
+    fake = FakeClient(
+        [
+            {"role": "assistant", "content": None, "tool_calls": []},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call-2",
+                        "type": "function",
+                        "function": {
+                            "name": "set_assessment",
+                            "arguments": json.dumps({"questions": questions}, ensure_ascii=False),
+                        },
+                    }
+                ],
+            },
+        ]
+    )
+    fake.api_key = "test-key"
+    result = asyncio.run(
+        run_turn(
+            course,
+            user_texts=["Собери комплект"],
+            model_messages=[{"role": "user", "content": "Собери комплект"}],
+            client=fake,
+        )
+    )
+    assert any("Вопрос модели 0" in str(patch) for patch in result["patches"])
+    assert "Модель написала часть" in result["assistant"]
+
+
+def test_gateway_silence_still_returns_kit_patches() -> None:
+    raw = fixture_course().as_api()
+    raw["brief"]["durationHours"] = 16
+    raw["brief"]["attestationHours"] = 2
+    raw["modules"] = [
+        {
+            "id": module_id,
+            "title": title,
+            "hours": hours,
+            "lectureHours": lecture,
+            "practiceHours": practice,
+            "labHours": 0,
+            "selfStudyHours": 0,
+            "topics": [title],
+            "plan": [
+                {
+                    "title": title,
+                    "lectureHours": lecture,
+                    "practiceHours": practice,
+                    "labHours": 0,
+                    "selfStudyHours": 0,
+                }
+            ],
+            "learningOutcomes": [outcome],
+            "competencyIds": ["C1"],
+        }
+        for module_id, title, hours, lecture, practice, outcome in (
+            ("M1", "Старт", 4, 2, 2, "Пишет первую программу"),
+            ("M2", "Ветвления", 4, 2, 2, "Использует ветвления"),
+            ("M3", "Мини-проект", 6, 2, 4, "Собирает мини-проект"),
+        )
+    ]
+    course = approve_framework(CourseDocument.model_validate(raw))
+    seen: dict[str, int | float] = {"calls": 0}
+
+    class Silent:
+        api_key = "test-key"
+        usage = None
+
+        async def complete(self, **kwargs):
+            seen["calls"] += 1
+            seen["timeout"] = kwargs["timeout"]
+            seen["attempts"] = kwargs["attempts"]
+            raise RuntimeError("шлюз молчит")
+
+    result = asyncio.run(
+        run_turn(
+            course,
+            user_texts=["Каркас утверждён. Для каждого модуля вызови set_assessment, set_seminar и set_lecture."],
+            model_messages=[{"role": "user", "content": "Каркас утверждён."}],
+            client=Silent(),
+        )
+    )
+    assert seen["calls"] == 1
+    assert seen["timeout"] == 70
+    assert seen["attempts"] == 1
+    assert "Шлюз не ответил" in result["assistant"]
+    for module_id in ("M1", "M2", "M3"):
+        assert any(item.module_id == module_id for item in result["course"].lectures)
+        assert any(item.module_id == module_id for item in result["course"].seminars)
+        assert any(item.module_id == module_id for item in result["course"].assessments)
+        assert any(
+            patch["type"] == "set_lecture" and patch["lecture"]["moduleId"] == module_id
+            for patch in result["patches"]
+        )
+
+
+def test_known_profile_with_key_asks_model_for_competencies() -> None:
+    course = empty_course()
+    course.brief.title = "Первые шаги в Python"
+    course.brief.audience = "школьники 8 и 9 классов без опыта программирования"
+    course.brief.duration_hours = 16
+    course.brief.program_kind = "general"
+    course.brief.attestation_form = "защита проекта"
+    fake = FakeClient(
+        [
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call-1",
+                        "type": "function",
+                        "function": {
+                            "name": "set_competency_map",
+                            "arguments": json.dumps(
+                                {
+                                    "nodes": [
+                                        {
+                                            "id": "c1",
+                                            "name": "Собирает первую игру на Python",
+                                            "knowledge": ["Переменная хранит значение"],
+                                            "skills": ["Пишет условие"],
+                                            "abilities": ["Запускает программу"],
+                                        }
+                                    ]
+                                }
+                            ),
+                        },
+                    }
+                ],
+            }
+        ]
+    )
+    fake.api_key = "test-key"
+    result = asyncio.run(
+        run_turn(
+            course,
+            user_texts=["Собери каркас по заполненному шаблону"],
+            model_messages=[{"role": "user", "content": "Собери каркас по заполненному шаблону"}],
+            client=fake,
+        )
+    )
+    names = " ".join(node.name for node in result["course"].competencies.nodes)
+    assert "игру" in names.lower()
+    assert any(
+        call["tool"] == "set_competency_map" and call.get("input") != "local_fallback"
+        for call in result["calls"]
+    )
 
 
 def test_generic_competency_asks_model_and_drops_invented_code() -> None:

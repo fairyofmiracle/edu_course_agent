@@ -11,7 +11,7 @@ import {
   type CourseBrief,
   type CourseDocument,
 } from "@/lib/course-schema";
-import { describeError } from "@/lib/server-log";
+import { chatFailureText } from "@/lib/server-log";
 import { messageText } from "@/lib/session-log";
 
 export const maxDuration = 300;
@@ -47,6 +47,7 @@ async function pythonChatResponse(options: {
     detail?: string;
     assistant?: string;
     patches?: Array<{ type: string; [key: string]: unknown }>;
+    gatewayRetries?: number[];
   };
   if (!response.ok) {
     throw new Error(payload.detail || `Python backend: HTTP ${response.status}`);
@@ -71,7 +72,9 @@ async function pythonChatResponse(options: {
           dynamic: true,
         });
       }
-      const text = payload.assistant?.trim();
+      const retry = payload.gatewayRetries?.at(-1);
+      const notice = retry ? `Шлюз не ответил. Повтор ${retry} из 3.` : "";
+      const text = [notice, payload.assistant?.trim()].filter(Boolean).join("\n\n");
       if (text) {
         const id = `python-text-${Date.now()}`;
         writer.write({ type: "text-start", id });
@@ -130,7 +133,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("[chat] ошибка маршрута:", error);
     return Response.json(
-      { error: error instanceof Error ? error.message : describeError(error) },
+      { error: chatFailureText(error) },
       { status: 500 },
     );
   }

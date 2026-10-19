@@ -129,6 +129,7 @@ class Slide(ApiModel):
     mermaid: str | None = None
     visual_prompt: str | None = Field(default=None, alias="visualPrompt")
     speaker_notes: str | None = Field(default=None, alias="speakerNotes")
+    table: list[list[str]] | None = None
 
 
 class Lecture(ApiModel):

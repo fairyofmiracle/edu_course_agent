@@ -853,15 +853,56 @@ def slides_for_topic(topic: str, course: CourseDocument | None = None) -> dict[s
     }
 
 
+def _label(text: str, limit: int = 42) -> str:
+    cleaned = text.replace('"', "'").replace("[", "(").replace("]", ")").strip()
+    return (cleaned or "Тема")[:limit]
+
+
+def chart_slide(module: CourseModule) -> dict[str, Any]:
+    topics = list(module.topics[:6]) or [module.title]
+    lines = ["flowchart LR"]
+    for index, topic in enumerate(topics):
+        lines.append(f'  t{index}["{_label(topic)}"]')
+        if index:
+            lines.append(f"  t{index - 1} --> t{index}")
+    if len(topics) == 1:
+        lines.append('  t1["Практика"]')
+        lines.append("  t0 --> t1")
+    return {
+        "title": "Ход занятия",
+        "bullets": [
+            "Занятие идёт по этим темам по порядку.",
+            "Каждая следующая тема опирается на предыдущую.",
+        ],
+        "mermaid": "\n".join(lines),
+    }
+
+
 def lecture_for_module(
     module: CourseModule, course: CourseDocument | None = None
 ) -> dict[str, Any]:
-    outline = list(module.topics[:6]) if module.topics else [module.title]
+    topics = list(module.topics[:6]) if module.topics else [module.title]
+    outcome = module.learning_outcomes[0] if module.learning_outcomes else module.title
+    follow = (
+        module.learning_outcomes[1]
+        if len(module.learning_outcomes) > 1
+        else "Сначала один пример, потом слушатель повторяет приём на своей задаче."
+    )
+    opener = {
+        "title": module.title[:80],
+        "bullets": [
+            outcome[:240],
+            follow[:240],
+            "Дальше разбираем темы занятия по порядку.",
+        ],
+    }
+    slides = [opener, *[slides_for_topic(item, course) for item in topics], chart_slide(module)]
+    outline = [module.title, *topics, "Ход занятия"]
     return {
         "moduleId": module.id,
         "durationMin": max(30, min(90, (module.lecture_hours or 1) * 45)),
-        "outline": outline,
-        "slides": [slides_for_topic(item, course) for item in outline],
+        "outline": outline[:10],
+        "slides": slides[:10],
     }
 
 

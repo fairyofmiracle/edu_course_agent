@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .agent_api import router as agent_router
+from .export_api import router as export_router
 from .audit import audit_course
 from .contracts import (
     AuditCourse,
@@ -70,6 +71,10 @@ app = FastAPI(
             "name": "courses",
             "description": "Сохранение версии курса, сообщений и приложенных источников.",
         },
+        {
+            "name": "export",
+            "description": "Серверная выдача JSON, DOCX и PPTX. Браузер файл не собирает.",
+        },
     ],
 )
 app.add_middleware(
@@ -89,6 +94,7 @@ app.add_middleware(
 if courses_router is not None:
     app.include_router(courses_router)
 app.include_router(agent_router)
+app.include_router(export_router)
 
 
 @app.get(
@@ -99,7 +105,26 @@ app.include_router(agent_router)
     operation_id="health",
 )
 def health() -> HealthResponse:
-    return HealthResponse(status="ok", service="edu-course-python")
+    from urllib.parse import urlsplit
+
+    from .cloud import CloudRuClient
+
+    configured = False
+    host = ""
+    try:
+        client = CloudRuClient()
+        configured = bool(client.api_key)
+        host = urlsplit(client.base_url).hostname or ""
+    except Exception:
+        configured = False
+        host = ""
+    return HealthResponse(
+        status="ok",
+        service="edu-course-python",
+        llm_configured=configured,
+        llm_host=host,
+        exports=["json", "docx", "pptx"],
+    )
 
 
 @app.post(

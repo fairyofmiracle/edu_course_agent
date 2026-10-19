@@ -8,6 +8,7 @@ from backend.app.kit_content import (
     is_intro_python,
     is_teacher_ai,
     issued_document,
+    lecture_for_module,
     slides_for_topic,
 )
 from backend.app.models import empty_course
@@ -42,6 +43,20 @@ def test_intro_python_gets_school_competencies_and_real_questions() -> None:
     teacher.brief.audience = "учителя школ"
     risk_slide = slides_for_topic("Риски и персональные данные учеников", teacher)
     assert "Персональные данные детей" in " ".join(risk_slide["bullets"])
+
+
+def test_lecture_explains_topics_without_hour_table() -> None:
+    course = fixture_course()
+    module = course.modules[0]
+    module.topics = ["Переменные", "Условия", "Циклы", "Функции"]
+    lecture = lecture_for_module(module, course)
+    titles = [slide["title"] for slide in lecture["slides"]]
+    assert len(lecture["slides"]) > 4
+    assert "Ход занятия" in titles
+    assert "Часы модуля" not in titles
+    assert all("ч." not in " ".join(slide["bullets"]) for slide in lecture["slides"])
+    chart = next(slide for slide in lecture["slides"] if slide["title"] == "Ход занятия")
+    assert "flowchart" in chart["mermaid"]
 
 
 def test_teacher_ai_kit_follows_case2_document() -> None:

@@ -153,6 +153,23 @@ def test_patch_attaches_official_basis_for_the_program_kind() -> None:
     assert "https://example.org/reference" in sources
 
 
+def test_kit_prompt_opens_kit_when_framework_checks_pass() -> None:
+    course = fixture_course()
+    approved = approve_framework(course)
+    assert "16.0" not in approved.framework_fingerprint
+    assert decide_mode(approved, "Проверь ещё раз") == "kit"
+    stale = course.model_copy(
+        update={"framework_approved": True, "framework_fingerprint": "старый"}
+    )
+    assert (
+        decide_mode(
+            stale,
+            "Каркас утверждён. Для каждого модуля вызови set_assessment, set_seminar и set_lecture.",
+        )
+        == "kit"
+    )
+
+
 def test_planner_starts_with_brief_tool() -> None:
     course = fixture_course()
     assert decide_mode(course, "Новый запрос") == "intake"

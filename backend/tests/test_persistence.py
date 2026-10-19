@@ -143,3 +143,38 @@ def test_save_rejects_stale_expected_version() -> None:
     assert fresh.status_code == 200
     assert fresh.json()["version"] == 2
     client.delete(f"/api/courses/{course['id']}")
+
+
+def test_save_with_messages_moves_past_an_existing_version() -> None:
+    from sqlalchemy.orm import Session
+
+    from backend.app.database import CourseRecord, engine
+
+    course = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    course["id"] = "version-gap-course"
+    client = TestClient(app)
+    first = client.put(
+        f"/api/courses/{course['id']}",
+        json={
+            "course": course,
+            "messages": [{"role": "user", "parts": []}],
+            "reason": "first",
+        },
+    )
+    assert first.status_code == 200
+    with Session(engine) as session:
+        record = session.get(CourseRecord, course["id"])
+        assert record is not None
+        record.current_version = 0
+        session.commit()
+    second = client.put(
+        f"/api/courses/{course['id']}",
+        json={
+            "course": course,
+            "messages": [{"role": "user", "parts": []}],
+            "reason": "again",
+        },
+    )
+    assert second.status_code == 200
+    assert second.json()["version"] == first.json()["version"] + 1
+    client.delete(f"/api/courses/{course['id']}")

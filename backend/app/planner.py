@@ -10,6 +10,7 @@ from .models import CourseDocument
 
 TurnMode = Literal["intake", "framework", "kit", "free"]
 FRAMEWORK_REQUEST = re.compile(r"^Собери (только каркас|каркас по заполненному шаблону)")
+KIT_REQUEST = re.compile(r"^Каркас утверждён\.")
 KIT_TOOLS = ("set_assessment", "set_seminar", "set_lecture")
 KIT_QUESTION_TARGET = 10
 
@@ -42,7 +43,8 @@ def kit_needed(course: CourseDocument) -> bool:
     target = kit_lecture_target(course)
     if target and (len(course.lectures) < target or has_stub_lectures(course)):
         return True
-    if not course.seminars:
+    seminar_ids = {item.module_id for item in course.seminars}
+    if any(module.id not in seminar_ids for module in course.modules):
         return True
     return outcome_gaps(course)
 
@@ -62,8 +64,14 @@ def content_missing(course: CourseDocument) -> list[dict[str, Any]]:
     ]
 
 
+def kit_request_ready(course: CourseDocument, last_user_text: str) -> bool:
+    return bool(KIT_REQUEST.search(last_user_text.strip())) and all(
+        item["ok"] for item in framework_items(course)
+    )
+
+
 def decide_mode(course: CourseDocument, last_user_text: str) -> TurnMode:
-    if is_framework_approved(course):
+    if is_framework_approved(course) or kit_request_ready(course, last_user_text):
         return "kit" if kit_needed(course) else "free"
     if FRAMEWORK_REQUEST.search(last_user_text.strip()):
         return "framework"
@@ -174,8 +182,12 @@ def plan_step(
                         "Без фразы «сначала называем понятие своими словами»."
                     ),
                 }
-        if not course.seminars and course.modules:
-            module = course.modules[-1]
+        missing_seminar = next(
+            (module for module in course.modules if module.id not in {item.module_id for item in course.seminars}),
+            None,
+        )
+        if missing_seminar is not None:
+            module = missing_seminar
             key = f"set_seminar:{module.id}"
             if tried(key) < 2:
                 return {

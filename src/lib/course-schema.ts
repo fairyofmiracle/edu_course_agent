@@ -14,10 +14,14 @@ export const courseFormatSchema = z.enum(["lecture", "blended", "workshop"]);
 export const programKindSchema = z.enum(["unset", "general", "qualification"]);
 export const questionTypeSchema = z.enum(["mcq", "open"]);
 
+function absent<T extends z.ZodType>(schema: T) {
+  return z.preprocess((value) => (value === null ? undefined : value), schema);
+}
+
 export const referenceSchema = z.object({
   title: z.string().min(1).max(200),
-  source: z.string().max(500).optional(),
-  note: z.string().max(1500).optional(),
+  source: absent(z.string().max(500).optional()),
+  note: absent(z.string().max(1500).optional()),
 });
 
 export const briefSchema = z.object({
@@ -39,11 +43,11 @@ export const competencyNodeSchema = z.object({
   name: z.string().min(1).max(180),
   bloomLevel: bloomLevelSchema,
   moduleIds: z.array(z.string().min(1).max(40)).max(24),
-  description: z.string().max(400).optional(),
+  description: absent(z.string().max(400).optional()),
   knowledge: z.array(z.string().min(1).max(240)).max(8).default([]),
   skills: z.array(z.string().min(1).max(240)).max(8).default([]),
   abilities: z.array(z.string().min(1).max(240)).max(8).default([]),
-  laborFunctionCode: z.string().max(40).optional(),
+  laborFunctionCode: absent(z.string().max(40).optional()),
 });
 
 export const competencyEdgeSchema = z.object({
@@ -81,16 +85,17 @@ export const moduleSchema = z.object({
 export const slideSchema = z.object({
   title: z.string().min(1).max(140),
   bullets: z.array(z.string().min(1).max(280)).min(2).max(6),
-  mermaid: z.string().max(1500).optional(),
-  visualPrompt: z.string().max(280).optional(),
-  speakerNotes: z.string().max(600).optional(),
+  mermaid: absent(z.string().max(1500).optional()),
+  visualPrompt: absent(z.string().max(280).optional()),
+  speakerNotes: absent(z.string().max(600).optional()),
+  table: absent(z.array(z.array(z.string().min(1).max(80)).min(1).max(8)).min(2).max(8).optional()),
 });
 
 export const lectureSchema = z.object({
   moduleId: z.string().min(1).max(40),
   durationMin: z.number().min(15).max(240),
   outline: z.array(z.string().min(1).max(240)).min(3).max(10),
-  slides: z.array(slideSchema).min(4).max(10),
+  slides: z.array(slideSchema).min(3).max(12),
 });
 
 export const seminarTaskSchema = z.object({
@@ -100,7 +105,7 @@ export const seminarTaskSchema = z.object({
   timeMin: z.number().min(10).max(180),
   criteria: z.array(z.string().min(1).max(240)).min(2).max(6),
   competencyId: z.string().min(1).max(40),
-  learningOutcome: z.string().max(300).optional(),
+  learningOutcome: absent(z.string().max(300).optional()),
 });
 
 export const seminarSchema = z.object({
@@ -111,7 +116,7 @@ export const seminarSchema = z.object({
 export const questionSchema = z.object({
   type: questionTypeSchema,
   stem: z.string().min(1).max(500),
-  options: z.array(z.string().min(1).max(240)).max(6).optional(),
+  options: absent(z.array(z.string().min(1).max(240)).max(6).optional()),
   answer: z.string().min(1).max(600),
   explanation: z.string().min(1).max(600),
   competencyId: z.string().min(1).max(40),

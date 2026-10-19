@@ -1,8 +1,10 @@
 "use client";
 
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RequestComposer } from "@/components/RequestComposer";
+import { chatWaitLabel } from "@/lib/job-status";
+import { useElapsed } from "@/lib/use-elapsed";
 import type { CourseBrief } from "@/lib/course-schema";
 
 const TOOL_LABELS: Record<string, string> = {
@@ -21,6 +23,7 @@ type ChatPanelProps = {
   error?: Error;
   extraReferences: string;
   frameworkApproved: boolean;
+  kitComplete: boolean;
   stage: "ask" | "framework" | "kit";
   missingChecks: string[];
   onReferencesChange: (value: string) => void;
@@ -35,6 +38,7 @@ export function ChatPanel({
   error,
   extraReferences,
   frameworkApproved,
+  kitComplete,
   stage,
   missingChecks,
   onReferencesChange,
@@ -43,11 +47,25 @@ export function ChatPanel({
   onStop,
 }: ChatPanelProps) {
   const pending = status === "submitted" || status === "streaming";
+  const elapsedMs = useElapsed(pending);
+  const waitLabel = chatWaitLabel(elapsedMs);
+  const [doneFlash, setDoneFlash] = useState(false);
+  const wasPending = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (wasPending.current && !pending) {
+      setDoneFlash(true);
+      const timer = window.setTimeout(() => setDoneFlash(false), 2500);
+      wasPending.current = pending;
+      return () => window.clearTimeout(timer);
+    }
+    wasPending.current = pending;
+  }, [pending]);
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [messages, pending]);
+  }, [messages, pending, waitLabel]);
 
   return (
     <aside className="pane pane-write">
@@ -106,10 +124,21 @@ export function ChatPanel({
                 ? missingChecks.length
                   ? `Проверьте справа: ${missingChecks.slice(0, 2).join("; ")}.`
                   : "Каркас готов: проверьте часы справа и нажмите «Утвердить каркас»."
-                : "Каркас утверждён. Нажмите «Собрать комплект» внизу."}
+                : kitComplete
+                  ? "Комплект собран. Дальше смотрите программу справа и выгружайте файлы."
+                  : "Каркас утверждён. Нажмите «Собрать комплект» внизу."}
           </span>
         </div>
-        {pending ? <p className="pending">Готовит ответ и обновляет документ справа…</p> : null}
+        {pending ? (
+          <p className="pending job-status" aria-live="polite" aria-busy="true">
+            {waitLabel}
+          </p>
+        ) : null}
+        {doneFlash && !pending ? (
+          <p className="pending job-status" aria-live="polite">
+            Готово. Документ справа обновлён.
+          </p>
+        ) : null}
         {error ? <p className="chat-error">{error.message}</p> : null}
         <div ref={bottomRef} />
       </div>
@@ -117,6 +146,7 @@ export function ChatPanel({
       <RequestComposer
         extraReferences={extraReferences}
         frameworkApproved={frameworkApproved}
+        kitComplete={kitComplete}
         stage={stage}
         pending={pending}
         onReferencesChange={onReferencesChange}

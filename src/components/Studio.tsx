@@ -7,15 +7,19 @@ import { ChatPanel } from "@/components/ChatPanel";
 import { CourseWorkspace, type WorkspaceTab } from "@/components/CourseWorkspace";
 import { SiteFrame } from "@/components/SiteFrame";
 import {
+  downloadCourseFromBackend,
   hasBackendStorage,
   loadCourseFromBackend,
   saveCourseToBackend,
 } from "@/lib/backend-storage";
+import { exportDoneLabel, exportWaitLabel } from "@/lib/job-status";
+import { useElapsed } from "@/lib/use-elapsed";
 import { applyPatch, foldCourseFromMessages } from "@/lib/course-patches";
 import {
   frameworkFingerprint,
   frameworkItems,
   isFrameworkApproved,
+  isKitComplete,
 } from "@/lib/framework-check";
 import {
   createEmptyCourse,
@@ -63,12 +67,15 @@ export function Studio() {
   if (!isClient) {
     return <div className="boot">Открываю студию…</div>;
   }
-  const showSample = new URLSearchParams(window.location.search).get("sample") === "1";
+  const params = new URLSearchParams(window.location.search);
+  const showSample = params.get("sample") === "1";
+  const openedCourse = Boolean(params.get("course"));
   return (
     <StudioSession
       initialCourse={showSample ? SAMPLE_COURSE : loadStoredCourse()}
       initialMessages={showSample ? [] : loadStoredMessages()}
-      initialSessionId={showSample ? newSessionId() : loadSessionId()}
+      initialSessionId={showSample || openedCourse ? newSessionId() : loadSessionId()}
+      initialChatOpen={!openedCourse}
     />
   );
 }
@@ -77,10 +84,12 @@ function StudioSession({
   initialCourse,
   initialMessages,
   initialSessionId,
+  initialChatOpen,
 }: {
   initialCourse: CourseDocument;
   initialMessages: UIMessage[];
   initialSessionId: string;
+  initialChatOpen: boolean;
 }) {
   const [storedCourse, setStoredCourse] = useState(initialCourse);
   const [extraReferences, setExtraReferences] = useState("");
@@ -90,6 +99,15 @@ function StudioSession({
   const [saveState, setSaveState] = useState<"local" | "saving" | "synced" | "offline">(
     hasBackendStorage() ? "saving" : "local",
   );
+  const [exportJob, setExportJob] = useState<{
+    kind: "json" | "docx" | "pptx";
+    phase: "work" | "done" | "error";
+    place?: "сервере" | "браузере";
+  } | null>(
+    null,
+  );
+  const [chatOpen, setChatOpen] = useState(initialChatOpen);
+  const exportElapsed = useElapsed(exportJob?.phase === "work");
   const courseRef = useRef(storedCourse);
   const refsRef = useRef("");
   const sessionRef = useRef(initialSessionId);
@@ -111,8 +129,51 @@ function StudioSession({
   const checks = frameworkItems(course);
   const frameworkReady = checks.every((item) => item.ok);
   const frameworkApproved = isFrameworkApproved(course);
+  const kitComplete = isKitComplete(course);
+  const sourceLine = (() => {
+    const text = [...messages]
+      .reverse()
+      .filter((item) => item.role === "assistant")
+      .map((item) => messageText(item))
+      .find((value) =>
+        /Ключа шлюза нет|Шлюз не ответил|Модель написала часть|Собрала комплект/.test(value),
+      );
+    if (!text) return "";
+    if (text.includes("Ключа шлюза нет")) return "Ключа шлюза нет. Комплект по каркасу.";
+    if (text.includes("Шлюз не ответил")) return "Шлюз не ответил. Недостающее дописано по каркасу.";
+    if (text.includes("Модель написала часть")) return "Часть комплекта написала модель.";
+    return "Комплект написала модель.";
+  })();
   const stage = frameworkApproved ? "kit" : course.modules.length ? "framework" : "ask";
+  const showDocument = Boolean(
+    course.brief.title.trim() || course.modules.length || messages.length > 0,
+  );
   const missingChecks = checks.filter((item) => !item.ok).map((item) => item.label);
+
+  const exportFromServer = async (kind: "json" | "docx" | "pptx", fallback: () => void | Promise<void>) => {
+    setExportJob({ kind, phase: "work", place: "сервере" });
+    const finish = (phase: "done" | "error", place?: "сервере" | "браузере") => {
+      setExportJob({ kind, phase, place });
+      window.setTimeout(() => setExportJob((current) => (current && current.phase !== "work" ? null : current)), 3200);
+    };
+    try {
+      if (await downloadCourseFromBackend(course, kind)) {
+        finish("done", "сервере");
+        return;
+      }
+      setExportJob({ kind, phase: "work", place: "браузере" });
+      await fallback();
+      finish("done", "браузере");
+    } catch {
+      try {
+        setExportJob({ kind, phase: "work", place: "браузере" });
+        await fallback();
+        finish("done", "браузере");
+      } catch {
+        finish("error");
+      }
+    }
+  };
 
   useEffect(() => {
     courseRef.current = course;
@@ -221,6 +282,7 @@ function StudioSession({
     setMessages([]);
     setExtraReferences("");
     setTab("overview");
+    setChatOpen(true);
     persistLog(actionEntry(nextSession, "Новый курс"));
   };
 
@@ -286,8 +348,8 @@ function StudioSession({
       actions={
         <>
           <a href="/courses">Мои курсы</a>
-          <button type="button" onClick={loadSample}>
-            Пример 24 ч
+          <button type="button" title="Готовая программа без модели. В проход проверяющего не входит." onClick={loadSample}>
+            Офлайн-пример
           </button>
           <button type="button" onClick={reset}>
             Новый курс
@@ -302,32 +364,59 @@ function StudioSession({
               ? "1. Запрос. Слева напишите, для кого программа и сколько в ней часов."
               : stage === "framework"
                 ? "2. Каркас. Справа сверьте часы и компетенции, затем утвердите каркас."
-                : "3. Комплект. Каркас утверждён: можно собирать лекции, задания и тесты."}
+                : kitComplete
+                  ? "3. Комплект собран. Смотрите программу и выгружайте файлы."
+                  : "3. Комплект. Каркас утверждён: можно собирать лекции, задания и тесты."}
           </p>
           <h1>{course.brief.title || "Новая образовательная программа"}</h1>
           <p className="save-state" aria-live="polite">
-            {saveState === "synced"
-              ? "Сохранено"
-              : saveState === "saving"
-                ? "Сохраняю…"
-                : "Сохранено на этом компьютере"}
+            {exportJob?.phase === "work"
+              ? exportWaitLabel(exportJob.kind, exportElapsed, exportJob.place)
+              : exportJob?.phase === "done"
+                ? exportDoneLabel(exportJob.kind)
+                : exportJob?.phase === "error"
+                  ? "Выгрузка не собралась"
+                  : sourceLine
+                    ? sourceLine
+                    : saveState === "synced"
+                      ? "Сохранено"
+                    : saveState === "saving"
+                      ? "Сохраняю…"
+                      : "Сохранено на этом компьютере"}
           </p>
         </div>
+        <div className="topbar-side">
+        {showDocument ? (
+          <button
+            type="button"
+            className="chat-dock"
+            aria-expanded={chatOpen}
+            onClick={() => setChatOpen((open) => !open)}
+          >
+            {chatOpen ? "Скрыть чат" : "Чат"}
+          </button>
+        ) : null}
         <ol className="stages" aria-label="Шаги">
           <li className={stage === "ask" ? "current" : "done"}>Запрос</li>
           <li className={stage === "framework" ? "current" : stage === "kit" ? "done" : ""}>
             Каркас
           </li>
-          <li className={stage === "kit" ? "current" : ""}>Комплект</li>
+          <li className={stage === "kit" ? (kitComplete ? "done" : "current") : ""}>Комплект</li>
         </ol>
+        </div>
       </div>
-      <div className="studio-body">
+      <div
+        className={`studio-body${showDocument ? "" : " chat-only"}${
+          showDocument && !chatOpen ? " chat-away" : ""
+        }`}
+      >
         <ChatPanel
           messages={messages}
           status={status}
           error={error}
           extraReferences={extraReferences}
           frameworkApproved={frameworkApproved}
+          kitComplete={kitComplete}
           stage={stage}
           missingChecks={missingChecks}
           onReferencesChange={setExtraReferences}
@@ -335,13 +424,16 @@ function StudioSession({
           onSend={send}
           onStop={() => stop()}
         />
+        {showDocument ? (
         <div className="pane pane-doc">
           <header className="pane-head">
             <p className="pane-label">2. Результат</p>
             <h2>Документ программы</h2>
             <p className="kicker">
               {frameworkApproved
-                ? "Каркас утверждён. Соберите содержание или выгрузите программу."
+                ? kitComplete
+                  ? "Комплект собран. Смотрите программу справа и выгружайте файлы."
+                  : "Каркас утверждён. Соберите содержание или выгрузите программу."
                 : frameworkReady
                   ? "Часы и связи сходятся. Утвердите каркас, чтобы открыть лекции, задания и тесты."
                   : stage === "ask"
@@ -369,9 +461,9 @@ function StudioSession({
                 </button>
               )}
               <details className="export-menu">
-                <summary>Выгрузить</summary>
+                <summary>{exportJob?.phase === "work" ? "Собираю файл…" : "Выгрузить"}</summary>
                 <div>
-                  <button type="button" title="Данные программы" disabled={isCourseEmpty(course)} onClick={() => exportCourseJson(course)}>
+                  <button type="button" title="Данные программы" disabled={isCourseEmpty(course) || exportJob?.phase === "work"} onClick={() => void exportFromServer("json", () => exportCourseJson(course))}>
                     Данные
                   </button>
                   <button type="button" title="Программа обычным текстом" disabled={isCourseEmpty(course)} onClick={() => exportCourseMarkdown(course)}>
@@ -380,13 +472,18 @@ function StudioSession({
                   <button type="button" title="Отчёт проверки" disabled={isCourseEmpty(course)} onClick={() => exportCourseAudit(course)}>
                     Отчёт
                   </button>
-                  <button type="button" title="Программа Word" disabled={isCourseEmpty(course)} onClick={() => void exportCourseDocx(course)}>
+                  <button type="button" title="Программа Word" disabled={isCourseEmpty(course) || exportJob?.phase === "work"} onClick={() => void exportFromServer("docx", () => exportCourseDocx(course))}>
                     Программа
                   </button>
                   <button type="button" title="Слайды в браузере" disabled={course.lectures.length === 0} onClick={() => exportLectureHtml(course)}>
                     Слайды
                   </button>
-                  <button type="button" title="Слайды PowerPoint" disabled={course.lectures.length === 0} onClick={() => void exportCoursePptx(course)}>
+                  <button
+                    type="button"
+                    title="Слайды PowerPoint"
+                    disabled={course.lectures.length === 0 || exportJob?.phase === "work"}
+                    onClick={() => void exportFromServer("pptx", () => exportCoursePptx(course))}
+                  >
                     Презентация
                   </button>
                   <div className="export-tests">
@@ -422,6 +519,7 @@ function StudioSession({
           </header>
           <CourseWorkspace course={course} tab={tab} onTabChange={setTab} />
         </div>
+        ) : null}
       </div>
     </SiteFrame>
   );

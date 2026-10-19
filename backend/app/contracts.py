@@ -12,6 +12,9 @@ class ContractModel(BaseModel):
 class HealthResponse(BaseModel):
     status: Literal["ok"] = Field(description="Сервис принимает запросы.")
     service: Literal["edu-course-python"]
+    llm_configured: bool = Field(default=False, alias="llmConfigured")
+    llm_host: str = Field(default="", alias="llmHost")
+    exports: list[str] = Field(default_factory=lambda: ["json", "docx", "pptx"])
 
 
 class AuditQuestion(ContractModel):

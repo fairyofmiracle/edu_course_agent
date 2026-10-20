@@ -227,13 +227,6 @@ ${slides}
       go(-1);
     }
   });
-  if (document.querySelector(".mermaid")) {
-    try {
-      const mermaid = (await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs")).default;
-      mermaid.initialize({ startOnLoad: false, theme: "neutral", securityLevel: "loose" });
-      await mermaid.run({ querySelector: ".mermaid" });
-    } catch {}
-  }
 </script>
 </body>
 </html>`;

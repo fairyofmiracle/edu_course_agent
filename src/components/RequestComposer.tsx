@@ -220,10 +220,20 @@ export function RequestComposer({
     setInput("");
   };
 
+  const templateHours = Number(fields.durationHours);
+  const templateReady =
+    fields.title.trim().length > 0 &&
+    fields.audience.trim().length > 0 &&
+    fields.goals.trim().length > 0 &&
+    Number.isFinite(templateHours) &&
+    templateHours >= 16;
+
   const sendTemplate = () => {
     if (pending) return;
-    if (!fields.audience.trim() || !fields.durationHours.trim() || !fields.goals.trim()) {
-      setFormError("Заполните аудиторию, точный объём в часах и цель программы.");
+    if (!templateReady) {
+      setFormError(
+        "Заполните название, аудиторию, цель и объём от 16 часов. Без этого запрос не уходит.",
+      );
       return;
     }
     setFormError("");
@@ -289,8 +299,8 @@ export function RequestComposer({
             Объём, часы
             <input
               type="number"
+              required
               min={16}
-              max={500}
               value={fields.durationHours}
               onChange={(event) => setField("durationHours", event.target.value)}
               placeholder="72"
@@ -299,6 +309,7 @@ export function RequestComposer({
           <label className="wide">
             Название
             <input
+              required
               value={fields.title}
               onChange={(event) => setField("title", event.target.value)}
               placeholder="Основы кибербезопасности"
@@ -307,6 +318,7 @@ export function RequestComposer({
           <label className="wide">
             Аудитория
             <input
+              required
               value={fields.audience}
               onChange={(event) => setField("audience", event.target.value)}
               placeholder="Студенты 2 курса колледжа"
@@ -360,6 +372,7 @@ export function RequestComposer({
           <label className="wide">
             Цель
             <textarea
+              required
               rows={2}
               value={fields.goals}
               onChange={(event) => setField("goals", event.target.value)}
@@ -432,7 +445,7 @@ export function RequestComposer({
           <button
             type="submit"
             className="primary"
-            disabled={mode === "free" ? !input.trim() : false}
+            disabled={mode === "free" ? !input.trim() : !templateReady}
           >
             {mode === "template" ? "Собрать по шаблону" : "Отправить"}
           </button>

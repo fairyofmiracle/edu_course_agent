@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { auditCourse, methodistNotes, outcomeInstrumentGaps, type OpenCaseId } from "@/lib/course-audit";
+import { moduleRationales, passportStamp, resultPassport } from "@/lib/module-rationale";
 import { SAMPLE_COURSE } from "@/lib/sample-course";
 
 const copy = () => structuredClone(SAMPLE_COURSE);
@@ -7,7 +8,7 @@ const result = (caseId: OpenCaseId, id: string, course = copy()) =>
   auditCourse(course, caseId).items.find((item) => item.id === id);
 
 describe("auditCourse", () => {
-  it("коды трудовых функций без источника не проходят, с источником остаются на сверку", () => {
+  it("код без текста источника не проходит, код из примечания проходит", () => {
     const bare = copy();
     bare.brief.references = [];
     bare.competencies.nodes[0].laborFunctionCode = "A/01.6";
@@ -16,9 +17,71 @@ describe("auditCourse", () => {
 
     const sourced = copy();
     sourced.competencies.nodes[0].laborFunctionCode = "A/01.6";
-    const review = auditCourse(sourced).items.find((item) => item.id === "sources.codes");
-    expect(review?.status).toBe("warning");
-    expect(review?.details).toContain("A/01.6");
+    const loose = auditCourse(sourced).items.find((item) => item.id === "sources.codes");
+    expect(loose?.status).toBe("fail");
+
+    sourced.brief.references[0].note = `${sourced.brief.references[0].note ?? ""} Трудовая функция A/01.6`;
+    const grounded = auditCourse(sourced).items.find((item) => item.id === "sources.codes");
+    expect(grounded?.status).toBe("pass");
+    expect(grounded?.details).toContain("A/01.6");
+  });
+
+  it("ловит выдуманный номер и не кладёт формулировку слайда в паспорт", () => {
+    const course = copy();
+    course.lectures[0].slides[0].bullets[0] = "Опираемся на приказ № 999";
+    const hit = auditCourse(course).items.find((item) => item.id === "sources.requisites");
+    expect(hit?.status).toBe("fail");
+    expect(hit?.details).toContain("№ 999");
+
+    course.brief.audience = "Группа на 16 часов";
+    course.lectures[0].slides[0].bullets[0] = "Опираемся на приказ № 16 и приказ № 27";
+    const borrowed = auditCourse(course).items.find((item) => item.id === "sources.requisites");
+    expect(borrowed?.status).toBe("fail");
+    expect(borrowed?.details).toContain("№ 16");
+    expect(borrowed?.details).toContain("№ 27");
+    course.competencies.nodes[0].laborFunctionCode = "A/01.6";
+    course.brief.references[0].note = "код A/01.60";
+    const prefix = auditCourse(course).items.find((item) => item.id === "sources.codes");
+    expect(prefix?.status).toBe("fail");
+
+    const clean = copy();
+    const passport = auditCourse(clean).items.find((item) => item.id === "framework.passport");
+    expect(passport?.status).toBe("pass");
+    expect(passport?.details).toContain(clean.modules[0].id);
+    expect(passport?.details).not.toContain(clean.lectures[0].slides[0].title);
+    const first = resultPassport(clean);
+    clean.lectures[0].slides[0].title = "Совсем другая формулировка слайда";
+    expect(resultPassport(clean)).toBe(first);
+    expect(first).toMatch(/штамп=[0-9a-f]{8}$/);
+  });
+
+  it("штамп паспорта совпадает с расчётом backend", () => {
+    expect(passportStamp("студия")).toBe("0e3aa220");
+  });
+
+  it("помечает ссылку как неподтверждённую и ловит дословный фрагмент", () => {
+    const linked = copy();
+    const pending = auditCourse(linked).items.find((item) => item.id === "sources.unconfirmed");
+    expect(pending?.status).toBe("warning");
+    expect(pending?.details).toContain("Приказ Минпросвещения");
+
+    const copied = copy();
+    const fragment =
+      "слушатель собирает учебный план и сверяет часы модулей с объёмом программы перед печатью";
+    copied.brief.references[0].note = fragment;
+    copied.lectures[0].slides[0].bullets[0] = fragment;
+    const hit = auditCourse(copied).items.find((item) => item.id === "sources.verbatim");
+    expect(hit?.status).toBe("fail");
+  });
+
+  it("обоснование модуля не зависит от текста лекции", () => {
+    const course = copy();
+    const lines = moduleRationales(course);
+    expect(lines[0].text).toContain(course.modules[0].title);
+    expect(lines[0].text).toContain("задал методист");
+    const item = auditCourse(course).items.find((entry) => entry.id === `framework.why.${course.modules[0].id}`);
+    expect(item?.status).toBe("pass");
+    expect(item?.details).toContain("ч");
   });
 
   it("пример 24 ч закрывает каждый результат тестом и заданием", () => {

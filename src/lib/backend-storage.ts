@@ -7,8 +7,19 @@ function baseUrl() {
   return configuredBase?.replace(/\/$/, "") || null;
 }
 
+export class CourseConflictError extends Error {
+  constructor() {
+    super("Курс уже сохранила другая вкладка. Обновите программу и повторите.");
+    this.name = "CourseConflictError";
+  }
+}
+
 export function hasBackendStorage() {
   return Boolean(baseUrl());
+}
+
+function endpoint(path: string) {
+  return `/api/backend${path}`;
 }
 
 export async function saveCourseToBackend(
@@ -17,9 +28,8 @@ export async function saveCourseToBackend(
   reason = "autosave",
   expectedVersion?: number,
 ) {
-  const base = baseUrl();
-  if (!base) return false;
-  const response = await fetch(`${base}/api/courses/${encodeURIComponent(course.id)}`, {
+  if (!baseUrl()) return false;
+  const response = await fetch(endpoint(`/api/courses/${encodeURIComponent(course.id)}`), {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -29,13 +39,17 @@ export async function saveCourseToBackend(
       ...(expectedVersion === undefined ? {} : { expectedVersion }),
     }),
   });
-  if (response.status === 409) {
-    throw new Error("Курс уже сохранила другая вкладка. Обновите программу и повторите.");
-  }
+  if (response.status === 409) throw new CourseConflictError();
   if (!response.ok) {
     throw new Error(`Не удалось сохранить курс в Python backend: HTTP ${response.status}`);
   }
-  return true;
+  try {
+    const body = (await response.json()) as { version?: number };
+    if (typeof body.version === "number") return body.version;
+  } catch {
+    // ответ без JSON всё равно значит, что запись прошла
+  }
+  return (expectedVersion ?? 0) + 1;
 }
 
 export type SavedCourseSummary = {
@@ -50,9 +64,8 @@ export type SavedCourseSummary = {
 };
 
 export async function listCoursesFromBackend() {
-  const base = baseUrl();
-  if (!base) return null;
-  const response = await fetch(`${base}/api/courses`, { cache: "no-store" });
+  if (!baseUrl()) return null;
+  const response = await fetch(endpoint("/api/courses"), { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Не удалось получить список курсов: HTTP ${response.status}`);
   }
@@ -60,9 +73,8 @@ export async function listCoursesFromBackend() {
 }
 
 export async function copyCourseOnBackend(courseId: string) {
-  const base = baseUrl();
-  if (!base) return null;
-  const response = await fetch(`${base}/api/courses/${encodeURIComponent(courseId)}/copy`, {
+  if (!baseUrl()) return null;
+  const response = await fetch(endpoint(`/api/courses/${encodeURIComponent(courseId)}/copy`), {
     method: "POST",
   });
   if (response.status === 404) return null;
@@ -73,9 +85,8 @@ export async function copyCourseOnBackend(courseId: string) {
 }
 
 export async function deleteCourseFromBackend(courseId: string) {
-  const base = baseUrl();
-  if (!base) return false;
-  const response = await fetch(`${base}/api/courses/${encodeURIComponent(courseId)}`, {
+  if (!baseUrl()) return false;
+  const response = await fetch(endpoint(`/api/courses/${encodeURIComponent(courseId)}`), {
     method: "DELETE",
   });
   if (response.status === 404) return false;
@@ -89,9 +100,8 @@ export async function downloadCourseFromBackend(
   course: CourseDocument,
   kind: "json" | "docx" | "pptx",
 ) {
-  const base = baseUrl();
-  if (!base) return false;
-  const response = await fetch(`${base}/api/export/${kind}`, {
+  if (!baseUrl()) return false;
+  const response = await fetch(endpoint(`/api/export/${kind}`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(course),
@@ -115,9 +125,8 @@ export async function downloadCourseFromBackend(
 }
 
 export async function loadCourseFromBackend(courseId: string) {
-  const base = baseUrl();
-  if (!base) return null;
-  const response = await fetch(`${base}/api/courses/${encodeURIComponent(courseId)}`, {
+  if (!baseUrl()) return null;
+  const response = await fetch(endpoint(`/api/courses/${encodeURIComponent(courseId)}`), {
     cache: "no-store",
   });
   if (response.status === 404) return null;

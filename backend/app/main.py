@@ -6,6 +6,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .access import access_denied, request_allowed
 from .agent_api import router as agent_router
 from .export_api import router as export_router
 from .audit import audit_course
@@ -77,19 +78,35 @@ app = FastAPI(
         },
     ],
 )
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
+def cors_origins() -> list[str]:
+    origins = [
         "http://localhost:3000",
         "http://localhost:3010",
         "http://localhost:8000",
         "http://127.0.0.1:3000",
+        "http://127.0.0.1:3010",
         "http://127.0.0.1:8000",
-    ],
-    allow_origin_regex=r"https?://.*",
+    ]
+    for item in os.getenv("STUDIO_CORS_ORIGINS", "").split(","):
+        origin = item.strip().rstrip("/")
+        if origin.startswith("http://") or origin.startswith("https://"):
+            origins.append(origin)
+    return origins
+
+
+@app.middleware("http")
+async def studio_network_gate(request, call_next):
+    if not request_allowed(request):
+        return access_denied()
+    return await call_next(request)
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins(),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 if courses_router is not None:
     app.include_router(courses_router)
@@ -161,25 +178,30 @@ def check_regulatory_sources(
     results = []
     for claim in request.claims:
         probe = (
-            probe_url(str(claim.source))
+            probe_url(str(claim.source), expect=claim.number or "")
             if claim.source is not None
             else {
                 "state": "not_checked",
                 "message": "Ссылки нет. Сайт не открывали, документ не подтверждён.",
+                "requisites": "unchecked",
             }
         )
         site_ok = probe["state"] == "reachable"
-        requisites = bool(claim.number and claim.date)
-        source_attached = site_ok and requisites
+        filled = bool(claim.number and claim.date)
+        requisites = probe.get("requisites")
+        number_on_page = requisites == "found"
+        source_attached = site_ok and filled and number_on_page
+        if site_ok and filled and requisites == "missing":
+            message = "Сайт ответил, но номер документа на странице не найден. Источник не подтверждён."
+        elif source_attached:
+            message = "Сайт ответил, номер документа на странице есть. Действующим приказ признаёт методист."
+        else:
+            message = probe["message"]
         results.append(
             {
                 **claim.model_dump(mode="json"),
                 "status": "source_attached" if source_attached else "unconfirmed",
-                "message": (
-                    "Сайт ответил, реквизиты заполнены. Действующим приказ признаёт методист."
-                    if source_attached
-                    else probe["message"]
-                ),
+                "message": message,
                 "site": probe["state"],
                 "siteMessage": probe["message"],
             }
@@ -199,7 +221,9 @@ def check_regulatory_sources(
     operation_id="probeSources",
 )
 def probe_sources(request: SourceProbeRequest) -> SourceProbeResponse:
-    return SourceProbeResponse.model_validate({"results": probe_urls(request.urls[:20])})
+    return SourceProbeResponse.model_validate(
+        {"results": probe_urls(request.urls[:20], expect=request.expect)}
+    )
 
 
 @app.post(

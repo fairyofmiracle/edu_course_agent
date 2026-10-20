@@ -28,6 +28,9 @@ describe("уведомление об изменении страницы при
     expect(text).toContain("2026-10-01");
     expect(text).toContain("не значит, что вышел новый приказ");
     expect(noticeText({ kind: "offline", seenAt: "2026-10-01" }, when)).toContain("сказать нельзя");
+    expect(noticeText({ kind: "unchecked" }, when)).toBe("");
+    expect(noticeText({ kind: "first" }, when)).toContain("Первая проверка");
+    expect(noticeText({ kind: "same", seenAt: "2026-10-01" }, when)).toContain("та же");
   });
 
   it("после сверки запоминает новую отметку и молчит, пока страница та же", () => {
@@ -49,6 +52,13 @@ describe("уведомление об изменении страницы при
   it("битую запись в браузере не считает прошлой проверкой", () => {
     const storage = memory();
     storage.setItem("edu-course-source-watch", "{");
+    expect(readStamps(storage)).toEqual({});
+    storage.setItem("edu-course-source-watch", "null");
+    expect(readStamps(storage)).toEqual({});
+    storage.setItem(
+      "edu-course-source-watch",
+      JSON.stringify({ broken: { url: "https://example.com" }, ok: { url: "", fingerprint: "a", seenAt: "d" } }),
+    );
     expect(readStamps(storage)).toEqual({});
   });
 });

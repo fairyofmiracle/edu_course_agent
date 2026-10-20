@@ -10,6 +10,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from .verbatim import stored_source_status
 from .database import (
     ChatMessageRecord,
     CourseRecord,
@@ -151,10 +152,18 @@ def save_course(
                 title=reference.title,
                 source=reference.source,
                 note=reference.note,
-                status="source_attached" if reference.source else "unconfirmed",
+                status=stored_source_status(reference.source),
             )
             for reference in request.course.brief.references
         )
+        stale = session.scalars(
+            select(CourseVersion)
+            .where(CourseVersion.course_id == course_id)
+            .order_by(CourseVersion.version.desc())
+            .offset(20)
+        ).all()
+        for item in stale:
+            session.delete(item)
         session.commit()
     except IntegrityError as error:
         session.rollback()

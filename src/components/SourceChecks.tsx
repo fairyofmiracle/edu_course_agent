@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from "react";
 import type { CourseDocument } from "@/lib/course-schema";
-import { checkSources, type SourceCheck, type SourceProbeResult } from "@/lib/source-check";
+import {
+  checkSources,
+  parseSourceProbeKey,
+  sourceProbeRequest,
+  type SourceCheck,
+  type SourceProbeResult,
+} from "@/lib/source-check";
 import {
   noticeFor,
   noticeText,
@@ -19,11 +25,11 @@ const STATE_LABEL = {
   not_checked: "Ссылку не открывали",
 } as const;
 
-function httpUrls(course: CourseDocument) {
-  return course.brief.references
-    .map((reference) => reference.source?.trim() || "")
-    .filter((source) => /^https?:\/\//i.test(source));
-}
+const REQUISITE_LABEL = {
+  found: "Номер документа есть на странице. Применимость подтверждает методист.",
+  missing: "Номер документа на странице не найден. Источник не подтверждён.",
+  unchecked: "В названии источника нет номера для сверки.",
+} as const;
 
 function formatSeen(iso: string) {
   const date = new Date(iso);
@@ -32,23 +38,22 @@ function formatSeen(iso: string) {
 }
 
 export function SourceChecks({ course }: { course: CourseDocument }) {
-  const urls = httpUrls(course);
-  const key = urls.join("\n");
+  const cacheKey = sourceProbeRequest(course).cacheKey;
   const [check, setCheck] = useState<SourceCheck>({ state: "empty" });
   const [stamps, setStamps] = useState<Record<string, SourceStamp>>(() =>
     typeof window === "undefined" ? {} : readStamps(window.localStorage),
   );
 
   useEffect(() => {
-    const nextUrls = key ? key.split("\n") : [];
+    const { urls, expect } = parseSourceProbeKey(cacheKey);
     let active = true;
-    void checkSources(nextUrls).then((next) => {
+    void checkSources(urls, { expect }).then((next) => {
       if (active) setCheck(next);
     });
     return () => {
       active = false;
     };
-  }, [key]);
+  }, [cacheKey]);
 
   useEffect(() => {
     if (check.state !== "ready") return;
@@ -95,13 +100,22 @@ export function SourceChecks({ course }: { course: CourseDocument }) {
           {check.results.map((result) => {
             const notice = noticeFor(stamps[result.url], result.fingerprint?.trim() || "");
             const text = noticeText(notice, formatSeen);
+            const requisites = result.requisites ?? "unchecked";
+            const confirmed = result.state === "reachable" && requisites === "found";
             return (
               <li
                 key={result.url}
-                className={notice.kind === "changed" || result.state === "reachable" ? "warning" : "fail"}
+                className={
+                  notice.kind === "changed" || !confirmed
+                    ? result.state === "reachable" && requisites !== "missing"
+                      ? "warning"
+                      : "fail"
+                    : "pass"
+                }
               >
                 <strong>{STATE_LABEL[result.state]}:</strong> {result.url}
                 <span>{result.message}</span>
+                <span>{REQUISITE_LABEL[requisites]}</span>
                 {text ? <span>{text}</span> : null}
                 {notice.kind === "changed" ? (
                   <button type="button" onClick={() => acknowledge(result)}>

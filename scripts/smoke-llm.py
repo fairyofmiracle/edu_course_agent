@@ -10,6 +10,10 @@ import httpx
 
 ROOT = Path(__file__).resolve().parents[1]
 
+sys.path.insert(0, str(ROOT))
+
+from backend.app.cloud import resolve_llm_gateway
+
 
 def load_env() -> dict[str, str]:
     values: dict[str, str] = {}
@@ -32,18 +36,21 @@ def setting(env: dict[str, str], name: str, default: str = "") -> str:
 
 def main() -> int:
     env = load_env()
-    api_key = setting(env, "OPENAI_API_KEY") or setting(env, "CLOUDRU_API_KEY")
-    base_url = (
-        setting(env, "OPENAI_BASE_URL")
-        or setting(env, "CLOUDRU_BASE_URL", "https://hub.gigaschool.ru/api/v1/llm/v1")
-    ).rstrip("/")
+    try:
+        api_key, base_url = resolve_llm_gateway()
+    except ValueError as error:
+        print(f"Ошибка настройки LLM: {error}")
+        return 2
     model = (
         setting(env, "CLOUDRU_MODEL_WRITER")
         or setting(env, "CLOUDRU_MODEL")
         or "GigaChat/GigaChat-3-Pro"
     )
     if not api_key:
-        print("Нет OPENAI_API_KEY / CLOUDRU_API_KEY. Добавьте ключ в .env, не в чат.")
+        print(
+            "Не задан CLOUDRU_API_KEY или GIGASCHOOL_API_KEY. "
+            "Добавьте ключ в .env, не в чат."
+        )
         return 2
 
     print(f"base={base_url}")

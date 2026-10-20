@@ -18,7 +18,7 @@ const briefInputSchema = z.object({
   title: z.string().max(180).optional().describe("Название программы"),
   audience: z.string().max(400).optional().describe("Кто слушатели и их входной уровень"),
   level: z.enum(["beginner", "intermediate", "advanced"]).optional(),
-  durationHours: z.coerce.number().min(0).max(500).optional().describe("Объём в академических часах"),
+  durationHours: z.coerce.number().min(0).optional().describe("Объём в академических часах, без верхнего предела"),
   format: z.enum(["lecture", "blended", "workshop"]).optional(),
   programKind: z
     .enum(["general", "qualification"])
@@ -61,10 +61,10 @@ const looseCompetencyMap = z.object({
 
 const looseTopic = z.object({
   title: z.string().min(1).max(200),
-  lectureHours: z.coerce.number().min(0).max(500).default(0),
-  practiceHours: z.coerce.number().min(0).max(500).default(0),
-  labHours: z.coerce.number().min(0).max(500).default(0),
-  selfStudyHours: z.coerce.number().min(0).max(500).default(0),
+  lectureHours: z.coerce.number().min(0).default(0),
+  practiceHours: z.coerce.number().min(0).default(0),
+  labHours: z.coerce.number().min(0).default(0),
+  selfStudyHours: z.coerce.number().min(0).default(0),
 });
 
 const looseLines = (max: number) =>
@@ -77,11 +77,11 @@ const looseLines = (max: number) =>
 const looseModule = z.object({
   id: z.string().min(1).max(40),
   title: z.string().min(1).max(180),
-  hours: z.coerce.number().min(0).max(500).default(0),
-  lectureHours: z.coerce.number().min(0).max(500).default(0),
-  practiceHours: z.coerce.number().min(0).max(500).default(0),
-  labHours: z.coerce.number().min(0).max(500).default(0),
-  selfStudyHours: z.coerce.number().min(0).max(500).default(0),
+  hours: z.coerce.number().min(0).default(0),
+  lectureHours: z.coerce.number().min(0).default(0),
+  practiceHours: z.coerce.number().min(0).default(0),
+  labHours: z.coerce.number().min(0).default(0),
+  selfStudyHours: z.coerce.number().min(0).default(0),
   topics: looseLines(20),
   plan: z.array(looseTopic).max(20).default([]),
   learningOutcomes: looseLines(12),

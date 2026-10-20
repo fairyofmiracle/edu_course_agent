@@ -88,13 +88,83 @@ def test_reachable_page_keeps_stamp_and_drops_text() -> None:
     assert "СЕКРЕТНЫЙ ТЕКСТ ПРИКАЗА" not in first["fingerprint"]
 
 
+def test_reachable_page_without_document_number_stays_unconfirmed() -> None:
+    page = Page(200, "Страница без нужного реквизита".encode(), {"etag": "v1"})
+    missed = probe_url("https://example.com/order", PageOpener(page), expect="629")
+    assert missed["state"] == "reachable"
+    assert missed["requisites"] == "missing"
+    assert "не подтверждён" in missed["message"]
+    assert "Страница без нужного реквизита" not in missed["message"]
+
+    found = probe_url(
+        "https://example.com/order",
+        PageOpener(Page(200, "Приказ № 629 опубликован".encode(), {"etag": "v1"})),
+        expect="629",
+    )
+    assert found["requisites"] == "found"
+    assert "629" not in found["fingerprint"]
+
+
+def test_probe_urls_passes_expected_number() -> None:
+    from backend.app.source_probe import probe_urls
+
+    page = Page(200, "Приказ № 266".encode(), {"etag": "v1"})
+    hits = probe_urls(
+        ["https://example.com/order"],
+        PageOpener(page),
+        expect={"https://example.com/order": "266"},
+    )
+    assert hits[0]["requisites"] == "found"
+
+
+def test_number_is_found_beyond_the_last_eighty_characters() -> None:
+    body = ("А" * 400 + " Приказ № 629 " + "Б" * 400).encode()
+    found = probe_url(
+        "https://example.com/order",
+        PageOpener(Page(200, body, {"etag": "v1"})),
+        expect="629",
+    )
+    assert found["requisites"] == "found"
+    assert "629" not in found["message"]
+
+
+class SplitPage(Page):
+    def __init__(self, chunks: list[bytes]) -> None:
+        super().__init__(200, b"".join(chunks), {"etag": "v1"})
+        self.chunks = chunks
+
+    def iter_bytes(self):
+        yield from self.chunks
+
+
+def test_number_split_between_large_chunks_is_found() -> None:
+    page = SplitPage([("А" * 200 + "62").encode(), ("9" + "Б" * 200).encode()])
+    found = probe_url("https://example.com/order", PageOpener(page), expect="629")
+    assert found["requisites"] == "found"
+
+
+def test_cors_allowlist_has_no_open_regex() -> None:
+    from backend.app.main import app
+
+    cors = [
+        layer
+        for layer in app.user_middleware
+        if getattr(layer.cls, "__name__", "") == "CORSMiddleware"
+    ]
+    assert cors
+    assert not cors[0].kwargs.get("allow_origin_regex")
+    assert "http://localhost:3000" in cors[0].kwargs["allow_origins"]
+
+
 def test_regulatory_check_keeps_order_unconfirmed_when_site_is_down(monkeypatch) -> None:
     monkeypatch.setattr(
         "backend.app.main.probe_url",
-        lambda url: {
+        lambda url, expect="": {
             "url": url,
             "state": "unavailable",
             "message": "Сайт не ответил за 4 секунды.",
+            "requisites": "unchecked",
+            "expect": expect,
         },
     )
     with TestClient(app) as client:
@@ -117,6 +187,98 @@ def test_regulatory_check_keeps_order_unconfirmed_when_site_is_down(monkeypatch)
     body = response.json()["results"][0]
     assert body["status"] == "unconfirmed"
     assert body["site"] == "unavailable"
+
+
+def test_regulatory_check_marks_number_found_and_missing(monkeypatch) -> None:
+    def probe(url, expect=""):
+        requisites = "found" if expect == "629" else "missing"
+        return {
+            "url": url,
+            "state": "reachable",
+            "message": "Сайт ответил.",
+            "requisites": requisites,
+        }
+
+    monkeypatch.setattr("backend.app.main.probe_url", probe)
+    with TestClient(app) as client:
+        found = client.post(
+            "/api/regulatory/check",
+            json={
+                "claims": [
+                    {
+                        "title": "Приказ",
+                        "authority": "Минпросвещения России",
+                        "number": "629",
+                        "date": "2022-07-27",
+                        "source": "https://example.com/order",
+                    }
+                ]
+            },
+        )
+        missed = client.post(
+            "/api/regulatory/check",
+            json={
+                "claims": [
+                    {
+                        "title": "Приказ",
+                        "authority": "Минпросвещения России",
+                        "number": "999",
+                        "date": "2022-07-27",
+                        "source": "https://example.com/order",
+                    }
+                ]
+            },
+        )
+    assert found.json()["results"][0]["status"] == "source_attached"
+    assert "номер документа на странице есть" in found.json()["results"][0]["message"]
+    assert missed.json()["results"][0]["status"] == "unconfirmed"
+    assert "не найден" in missed.json()["results"][0]["message"]
+
+    def unchecked(url, expect=""):
+        return {
+            "url": url,
+            "state": "reachable",
+            "message": "Сайт ответил 200. Текст не сохранён.",
+            "requisites": "unchecked",
+        }
+
+    monkeypatch.setattr("backend.app.main.probe_url", unchecked)
+    with TestClient(app) as client:
+        skipped = client.post(
+            "/api/regulatory/check",
+            json={
+                "claims": [
+                    {
+                        "title": "Приказ",
+                        "authority": "Минпросвещения России",
+                        "number": "629",
+                        "date": "2022-07-27",
+                        "source": "https://example.com/order",
+                    }
+                ]
+            },
+        )
+    assert skipped.json()["results"][0]["status"] == "unconfirmed"
+
+
+def test_health_survives_a_broken_gateway(monkeypatch) -> None:
+    class Broken:
+        def __init__(self) -> None:
+            raise RuntimeError("шлюз недоступен")
+
+    monkeypatch.setattr("backend.app.cloud.CloudRuClient", Broken)
+    monkeypatch.setenv("STUDIO_CORS_ORIGINS", "https://studio.example, нет, http://ok.example/")
+    from backend.app.main import cors_origins
+
+    origins = cors_origins()
+    assert "https://studio.example" in origins
+    assert "http://ok.example" in origins
+    assert all(item != "нет" for item in origins)
+    with TestClient(app) as client:
+        body = client.get("/health").json()
+    assert body["status"] == "ok"
+    assert body["llmConfigured"] is False
+    assert body["llmHost"] == ""
 
 
 def test_audit_warns_about_retired_tool_without_failing_hours() -> None:
@@ -160,3 +322,104 @@ def test_audit_warns_about_retired_tool_without_failing_hours() -> None:
     freshness = [item for item in report["items"] if item["id"].startswith("freshness.")]
     assert freshness[0]["status"] == "warning"
     assert "Internet Explorer" in freshness[0]["label"]
+
+
+def test_redirect_into_the_local_network_is_not_opened() -> None:
+    inward = probe_url(
+        "https://example.com/start",
+        PageOpener(Page(302, b"", {"location": "http://127.0.0.1/secret"})),
+    )
+    assert inward["state"] == "not_checked"
+    missing = probe_url("https://example.com/start", PageOpener(Page(302, b"", {})))
+    assert missing["state"] == "unavailable"
+    assert "без адреса" in missing["message"]
+
+
+def test_redirect_hostname_that_resolves_private_is_not_opened(monkeypatch) -> None:
+    import socket
+
+    def lookup(host: str, _port: int | None, *_args: object, **_kwargs: object):
+        address = "10.9.9.9" if host == "inside.example" else "8.8.8.8"
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (address, 0))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", lookup)
+
+    class Local(httpx.Client):
+        def stream(self, _method: str, _url: str, **_kwargs: object) -> Page:
+            return Page(302, b"", {"location": "https://inside.example/secret"})
+
+    with Local() as client:
+        closed = probe_url("https://example.com/start", client)
+    assert closed["state"] == "not_checked"
+    assert "внутренн" in closed["message"]
+
+
+def test_dns_to_a_private_address_is_not_opened(monkeypatch) -> None:
+    import socket
+
+    def private(_host: str, _port: int | None, *_args: object, **_kwargs: object):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.1.2.3", 0))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", private)
+    closed = probe_url("https://example.com/order")
+    assert closed["state"] == "not_checked"
+    assert "внутренн" in closed["message"]
+
+
+def test_probe_edges_stop_before_the_network(monkeypatch) -> None:
+    import socket
+
+    from backend.app.source_probe import host_is_public
+
+    assert not public_http_url("http://[::ffff:127.0.0.1]/secret")
+    assert public_http_url("http://[::ffff:8.8.8.8]/order")
+    assert host_is_public("https:///order") is False
+
+    def missing(_host: str, _port: int | None, *_args: object, **_kwargs: object):
+        raise socket.gaierror("нет такого имени")
+
+    monkeypatch.setattr(socket, "getaddrinfo", missing)
+    assert host_is_public("https://missing.example/order") is False
+
+    def broken(_host: str, _port: int | None, *_args: object, **_kwargs: object):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("не-адрес", 0))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", broken)
+    assert host_is_public("https://broken.example/order") is False
+
+    class Hop(PageOpener):
+        def __init__(self) -> None:
+            super().__init__(Page(302, b"", {"location": "https://example.com/next"}))
+            self.seen = 0
+
+        def stream(self, _method: str, _url: str) -> Page:
+            self.seen += 1
+            if self.seen > 4:
+                return Page(200, b"ok", {"etag": "v"})
+            return Page(302, b"", {"location": f"https://example.com/hop-{self.seen}"})
+
+    too_many = probe_url("https://example.com/start", Hop())
+    assert too_many["state"] == "unavailable"
+    assert "перенаправлен" in too_many["message"]
+    timed = probe_url(
+        "https://example.com/order",
+        Opener(error=httpx.TimeoutException("slow")),
+    )
+    assert timed["state"] == "unavailable"
+    assert "4 секунды" in timed["message"]
+
+
+def test_remote_client_cannot_open_the_api() -> None:
+    remote = TestClient(app, client=("8.8.8.8", 12345))
+    denied = remote.get("/api/courses")
+    assert denied.status_code == 401
+    assert remote.get("/health").status_code == 200
+    assert remote.get("/").status_code != 401
+
+
+def test_token_closes_the_loopback_api(monkeypatch) -> None:
+    monkeypatch.setenv("STUDIO_API_TOKEN", "secret")
+    client = TestClient(app)
+    assert client.get("/api/courses").status_code == 401
+    opened = client.get("/api/courses", headers={"Authorization": "Bearer secret"})
+    assert opened.status_code == 200

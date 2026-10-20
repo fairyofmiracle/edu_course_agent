@@ -30,7 +30,12 @@ async function pythonChatResponse(options: {
 }) {
   const response = await fetch(`${options.baseUrl}/api/chat/turn`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(process.env.STUDIO_API_TOKEN?.trim()
+        ? { Authorization: `Bearer ${process.env.STUDIO_API_TOKEN.trim()}` }
+        : {}),
+    },
     body: JSON.stringify({
       course: options.course,
       userTexts: options.userTexts,
@@ -73,7 +78,7 @@ async function pythonChatResponse(options: {
         });
       }
       const retry = payload.gatewayRetries?.at(-1);
-      const notice = retry ? `Шлюз не ответил. Повтор ${retry} из 3.` : "";
+      const notice = retry ? `Шлюз ответил с попытки ${retry}.` : "";
       const text = [notice, payload.assistant?.trim()].filter(Boolean).join("\n\n");
       if (text) {
         const id = `python-text-${Date.now()}`;

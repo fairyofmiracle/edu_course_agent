@@ -8,8 +8,8 @@ export function validateCourseHours(course: CourseDocument): string[] {
   const errors: string[] = [];
   const { durationHours, attestationHours } = course.brief;
 
-  if (!isHalfHour(durationHours) || durationHours < 16 || durationHours > 500) {
-    errors.push("Общая продолжительность должна быть от 16 до 500 часов с шагом 0,5.");
+  if (!isHalfHour(durationHours) || durationHours < 16) {
+    errors.push("Общая продолжительность должна быть от 16 часов с шагом 0,5.");
   }
 
   if (!isHalfHour(attestationHours) || attestationHours < 0) {

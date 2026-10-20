@@ -9,6 +9,10 @@ from pathlib import Path
 import httpx
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from backend.app.cloud import resolve_llm_gateway
+
 CANDIDATES = (
     "GigaChat/GigaChat-3-Pro",
     "ai-sage/GigaChat3.5-432B-A28B-Reasoning",
@@ -38,11 +42,11 @@ def setting(env: dict[str, str], name: str, default: str = "") -> str:
 
 def main() -> int:
     env = load_env()
-    api_key = setting(env, "OPENAI_API_KEY") or setting(env, "CLOUDRU_API_KEY")
-    base_url = (
-        setting(env, "OPENAI_BASE_URL")
-        or setting(env, "CLOUDRU_BASE_URL", "https://hub.gigaschool.ru/api/v1/llm/v1")
-    ).rstrip("/")
+    try:
+        api_key, base_url = resolve_llm_gateway()
+    except ValueError as error:
+        print(f"Ошибка настройки LLM: {error}")
+        return 2
     configured = [
         setting(env, "CLOUDRU_MODEL"),
         setting(env, "CLOUDRU_MODEL_WRITER"),

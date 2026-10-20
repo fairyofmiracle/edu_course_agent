@@ -7,7 +7,7 @@ export type BriefGuardContext = {
   formBrief?: Partial<CourseBrief>;
 };
 
-const HOURS = /(\d{1,3})\s*-?\s*(?:академическ\S*\s+|ак\.?\s*)?(?:час|ч(?![а-яё]))/gi;
+const HOURS = /(\d+)\s*-?\s*(?:академическ\S*\s+|ак\.?\s*)?(?:час|ч(?![а-яё]))/gi;
 
 export function mentionedHours(text: string): number[] {
   return [...text.matchAll(HOURS)].map((match) => Number(match[1])).filter((value) => value > 0);
@@ -50,7 +50,7 @@ export function dropEmptyFields(patch: Partial<CourseBrief>): Partial<CourseBrie
   return Object.fromEntries(entries) as Partial<CourseBrief>;
 }
 
-const VOLUME = /(?:объ[её]м\S*|на)\s*[:—-]?\s*(\d{1,3})\s*(?:академическ\S*\s+|ак\.?\s*)?(?:час|ч(?![а-яё]))/i;
+const VOLUME = /(?:объ[её]м\S*|на)\s*[:—-]?\s*(\d+)\s*(?:академическ\S*\s+|ак\.?\s*)?(?:час|ч(?![а-яё]))/i;
 
 export function volumeFromText(texts: string[]): number | null {
   for (let index = texts.length - 1; index >= 0; index -= 1) {

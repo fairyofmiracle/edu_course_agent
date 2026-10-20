@@ -10,24 +10,23 @@ import httpx
 
 ROOT = Path(__file__).resolve().parents[1]
 
+sys.path.insert(0, str(ROOT))
 
-def load_env() -> dict[str, str]:
-    values: dict[str, str] = {}
-    for raw in (ROOT / ".env").read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        values[key.strip()] = value.strip().strip("\"'")
-    return values
+from backend.app.cloud import resolve_llm_gateway
 
 
 def main() -> int:
-    env = load_env()
     model = sys.argv[1] if len(sys.argv) > 1 else "GigaChat/GigaChat-3-Pro"
     prompt = sys.argv[2] if len(sys.argv) > 2 else "Ответь одним словом: ок"
-    api_key = env.get("OPENAI_API_KEY") or env.get("CLOUDRU_API_KEY")
-    base = (env.get("OPENAI_BASE_URL") or env.get("CLOUDRU_BASE_URL") or "").rstrip("/")
+    try:
+        api_key, base = resolve_llm_gateway()
+    except ValueError as error:
+        print(f"Ошибка настройки LLM: {error}")
+        return 2
+
+    if not api_key:
+        print("Не задан CLOUDRU_API_KEY или GIGASCHOOL_API_KEY.")
+        return 2
     response = httpx.post(
         f"{base}/chat/completions",
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},

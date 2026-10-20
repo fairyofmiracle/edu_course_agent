@@ -7,5 +7,5 @@ export default async function Home({
 }) {
   const params = await searchParams;
   const openKey = params.open || params.course || params.sample || "studio";
-  return <Studio key={openKey} />;
+  return <Studio key={openKey} courseId={params.course} sample={params.sample === "1"} />;
 }

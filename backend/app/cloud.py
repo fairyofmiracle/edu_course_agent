@@ -35,6 +35,11 @@ RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 RETRY_ATTEMPTS = 3
 
 
+def attempts_label(count: int) -> str:
+    word = "попытки" if count % 10 == 1 and count % 100 != 11 else "попыток"
+    return f"Шлюз не ответил после {count} {word}."
+
+
 def validate_llm_endpoint(value: str) -> str:
     try:
         url = urlsplit(value.strip())
@@ -80,6 +85,54 @@ def _env_file() -> dict[str, str]:
 
 def setting(name: str, default: str = "") -> str:
     return os.getenv(name) or _env_file().get(name, default)
+
+
+def configured(name: str) -> str:
+    """Пустая переменная процесса не подменяется значением из файла .env."""
+    if name in os.environ:
+        return os.environ[name].strip()
+    return _env_file().get(name, "").strip()
+
+
+def resolve_llm_gateway() -> tuple[str, str]:
+    """Выбирает разрешённый LLM-шлюз и соответствующий ему ключ.
+
+    Приоритет у Cloud.ru. Если он не настроен, используется GigaSchool.
+    Посторонние адреса отклоняются до HTTP-запроса.
+    """
+    cloudru_key = configured("CLOUDRU_API_KEY")
+    gigaschool_key = configured("GIGASCHOOL_API_KEY")
+
+    if cloudru_key:
+        cloudru_url = (
+            configured("CLOUDRU_BASE_URL")
+            or "https://foundation-models.api.cloud.ru/v1"
+        )
+        validated_url = validate_llm_endpoint(cloudru_url)
+
+        if validated_url != "https://foundation-models.api.cloud.ru/v1":
+            raise ValueError(
+                "Для CLOUDRU_API_KEY разрешён только шлюз Cloud.ru."
+            )
+
+        return cloudru_key, validated_url
+
+    if gigaschool_key:
+        gigaschool_url = (
+            configured("GIGASCHOOL_BASE_URL")
+            or "https://hub.gigaschool.ru/api/v1/llm/v1"
+        )
+        validated_url = validate_llm_endpoint(gigaschool_url)
+
+        if validated_url != "https://hub.gigaschool.ru/api/v1/llm/v1":
+            raise ValueError(
+                "Для GIGASCHOOL_API_KEY разрешён только шлюз GigaSchool."
+            )
+
+        return gigaschool_key, validated_url
+
+    return "", validate_llm_endpoint(
+        "https://foundation-models.api.cloud.ru/v1")
 
 
 def resolve_chat_model(name: str, fallback: str = CHAT_PRO) -> str:
@@ -262,7 +315,7 @@ def build_chat_payload(
             {"role": "system", "content": system_text},
             *flatten_history(messages),
         ],
-        "temperature": 0.2,
+        "temperature": 0,
         "max_tokens": max(16, min(int(max_tokens), 1600)),
     }
     if not json_tools:
@@ -277,13 +330,8 @@ def payload_has_control_tokens(payload: dict[str, Any]) -> bool:
 
 class CloudRuClient:
     def __init__(self) -> None:
-        self.api_key = setting("OPENAI_API_KEY") or setting("CLOUDRU_API_KEY")
-        self.base_url = validate_llm_endpoint(
-            setting("OPENAI_BASE_URL")
-            or setting(
-                "CLOUDRU_BASE_URL", "https://foundation-models.api.cloud.ru/v1"
-            )
-        ).rstrip("/")
+        self.api_key, base_url = resolve_llm_gateway()
+        self.base_url = base_url.rstrip("/")
         self.model_writer = resolve_chat_model(
             setting("CLOUDRU_MODEL_WRITER") or setting("CLOUDRU_MODEL") or CHAT_PRO
         )
@@ -326,7 +374,8 @@ class CloudRuClient:
     ) -> dict[str, Any]:
         if not self.api_key:
             raise RuntimeError(
-                "OPENAI_API_KEY или CLOUDRU_API_KEY не задан. "
+                "Не задан CLOUDRU_API_KEY или GIGASCHOOL_API_KEY. "
+                "Разрешены только шлюзы Cloud.ru и GigaSchool. "
                 "Офлайн-пример и проверки доступны без модели."
             )
         if not self.budget_left():
@@ -362,14 +411,14 @@ class CloudRuClient:
                     self.gateway_retries.append(attempt + 2)
                     await asyncio.sleep(0.4 * (2 ** attempt))
                     continue
-                raise RuntimeError(f"Шлюз не ответил после {RETRY_ATTEMPTS} попыток.") from error
+                raise RuntimeError(attempts_label(total_attempts)) from error
             status = getattr(response, "status_code", 500 if response.is_error else 200)
             if status in RETRY_STATUSES and attempt + 1 < total_attempts:
                 self.gateway_retries.append(attempt + 2)
                 await asyncio.sleep(0.4 * (2 ** attempt))
                 continue
             if status in RETRY_STATUSES:
-                raise RuntimeError(f"Шлюз не ответил после {RETRY_ATTEMPTS} попыток.")
+                raise RuntimeError(attempts_label(total_attempts))
             if response.is_error:
                 raise RuntimeError(
                     f"Cloud.ru вернул ошибку {status}: {getattr(response, 'text', '')[:300]}"
@@ -385,4 +434,4 @@ class CloudRuClient:
             if self.json_tools and not message.get("tool_calls"):
                 return parse_assistant_message(message.get("content"))
             return sanitize(message)
-        raise RuntimeError(f"Шлюз не ответил после {RETRY_ATTEMPTS} попыток.")
+        raise RuntimeError(attempts_label(total_attempts))

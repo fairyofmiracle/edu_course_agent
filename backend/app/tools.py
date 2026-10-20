@@ -320,8 +320,10 @@ def coerce_assessment_arguments(
         for item in questions
         if isinstance(item, dict)
     )
-    if not isinstance(questions, list) or len(questions) < 10 or stubby:
+    origin = "model"
+    if not isinstance(questions, list) or not questions or stubby:
         questions = fallback_questions(course, mid)
+        origin = "catalog"
     cleaned: list[dict[str, Any]] = []
     outcomes = list(module.learning_outcomes) if module and module.learning_outcomes else [""]
     competency = (module.competency_ids[0] if module and module.competency_ids else "c1")
@@ -346,9 +348,12 @@ def coerce_assessment_arguments(
                 "learningOutcome": outcome,
             }
         )
-    if len(cleaned) < 10:
-        cleaned.extend(fallback_questions(course, mid)[: 10 - len(cleaned)])
-    return {"moduleId": mid, "questions": cleaned[:10]}
+    kept = len(cleaned)
+    if kept < 10:
+        cleaned.extend(fallback_questions(course, mid)[: 10 - kept])
+        if origin == "model":
+            origin = "mixed" if kept else "catalog"
+    return {"moduleId": mid, "questions": cleaned[:10], "_origin": origin}
 
 
 def coerce_lecture_arguments(
@@ -366,6 +371,7 @@ def coerce_lecture_arguments(
     outline = [str(item).strip() for item in outline if str(item).strip()][:7]
     slides = arguments.get("slides")
     cleaned_slides: list[dict[str, Any]] = []
+    model_slides = 0
     if isinstance(slides, list):
         for slide in slides:
             if not isinstance(slide, dict) or not slide.get("title"):
@@ -374,6 +380,7 @@ def coerce_lecture_arguments(
             if not isinstance(bullets, list) or not bullets or STUB_BULLET.search(" ".join(map(str, bullets))):
                 cleaned_slides.append(slides_for_topic(str(slide["title"]), course))
                 continue
+            model_slides += 1
             payload: dict[str, Any] = {
                 "title": str(slide["title"]),
                 "bullets": [str(item) for item in bullets[:6]],
@@ -392,6 +399,12 @@ def coerce_lecture_arguments(
                     if isinstance(row, list) and row
                 ]
             cleaned_slides.append(payload)
+    if model_slides == 0:
+        origin = "catalog"
+    elif model_slides < len(cleaned_slides):
+        origin = "mixed"
+    else:
+        origin = "model"
     if not cleaned_slides:
         built = lecture_for_module(module, course) if module else None
         cleaned_slides = built["slides"] if built else [slides_for_topic(item, course) for item in outline]
@@ -415,6 +428,7 @@ def coerce_lecture_arguments(
         "durationMin": duration,
         "outline": outline,
         "slides": cleaned_slides,
+        "_origin": origin,
     }
 
 
@@ -430,6 +444,7 @@ def coerce_seminar_arguments(
         generated = project_seminar(course) or {}
         if module_id and not generated.get("moduleId"):
             generated["moduleId"] = module_id
+        generated["_origin"] = "catalog"
         return generated
     tasks = arguments.get("tasks")
     if isinstance(tasks, list) and tasks:
@@ -440,10 +455,16 @@ def coerce_seminar_arguments(
                 for item in value["seminars"]
                 if item.get("moduleId") != module.id
             ] + [{"moduleId": module.id, "tasks": tasks}]
-            return seminar_for_module(CourseDocument.model_validate(value), module)
+            seminar = seminar_for_module(CourseDocument.model_validate(value), module)
+            seminar["_origin"] = "model"
+            return seminar
         except Exception:
-            return seminar_for_module(course, module)
-    return seminar_for_module(course, module)
+            seminar = seminar_for_module(course, module)
+            seminar["_origin"] = "catalog"
+            return seminar
+    seminar = seminar_for_module(course, module)
+    seminar["_origin"] = "catalog"
+    return seminar
 
 
 def _short_id(value: Any, fallback: str) -> str:
@@ -516,19 +537,25 @@ def execute_tool(
             modules.append(module)
         return {"type": "set_structure", "modules": modules}
     if name == "set_assessment":
+        assessment = coerce_assessment_arguments(arguments, course, module_id)
         return {
             "type": "set_assessment",
-            "assessment": coerce_assessment_arguments(arguments, course, module_id),
+            "assessment": assessment,
+            "origin": assessment.pop("_origin", "model"),
         }
     if name == "set_lecture":
+        lecture = coerce_lecture_arguments(arguments, course, module_id)
         return {
             "type": "set_lecture",
-            "lecture": coerce_lecture_arguments(arguments, course, module_id),
+            "lecture": lecture,
+            "origin": lecture.pop("_origin", "model"),
         }
     if name == "set_seminar":
+        seminar = coerce_seminar_arguments(arguments, course, module_id)
         return {
             "type": "set_seminar",
-            "seminar": coerce_seminar_arguments(arguments, course, module_id),
+            "seminar": seminar,
+            "origin": seminar.pop("_origin", "catalog"),
         }
     if name.startswith("set_"):
         return {"type": name, name.removeprefix("set_"): arguments}

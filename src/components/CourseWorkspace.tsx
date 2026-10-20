@@ -7,6 +7,8 @@ import { StackFreshnessPanel } from "@/components/StackFreshness";
 import { LectureDeck } from "@/components/LectureDeck";
 import { MermaidBlock } from "@/components/MermaidBlock";
 import { auditCourse, methodistNotes, type AuditSection, type AuditStatus } from "@/lib/course-audit";
+import { resultPassport } from "@/lib/module-rationale";
+import { isHttpSource, sourceConfidence } from "@/lib/verbatim";
 import { exportAssessmentDocx, exportSeminarDocx } from "@/lib/export-docx";
 import { validateCourseHours } from "@/lib/course-validation";
 import { moduleFlowChart } from "@/lib/presentation/course-to-presentation";
@@ -36,7 +38,7 @@ const TABS: { id: WorkspaceTab; label: string; hint: string }[] = [
   { id: "overview", label: "Обзор", hint: "Шаблон, аудитория и проверка часов. Каркас утверждают здесь." },
   { id: "structure", label: "План", hint: "Модули и разбивка часов по неделям. Календарные даты сюда не ставятся." },
   { id: "competencies", label: "Компетенции", hint: "Колесо баланса: знания, умения, навыки и покрытие лекцией, заданием и тестом." },
-  { id: "lectures", label: "Лекции", hint: "Файлы презентаций: открыть предпросмотр или скачать." },
+  { id: "lectures", label: "Лекции", hint: "Черновик модели. Штамп паспорта от формулировок слайдов не зависит." },
   { id: "seminars", label: "Семинары", hint: "Файлы заданий: открыть просмотр или скачать." },
   { id: "tests", label: "Тесты", hint: "Файлы проверки: открыть просмотр или скачать." },
   { id: "checks", label: "Проверка", hint: "Часы, связи, комплект, источники и оценивание каждого результата." },
@@ -129,6 +131,13 @@ const AUDIT_SECTIONS: Array<{ id: AuditSection; label: string }> = [
   { id: "case", label: "Условия запроса" },
 ];
 
+function ConfidenceNote({ course }: { course: CourseDocument }) {
+  const confidence = sourceConfidence(course);
+  return (
+    <p className={confidence.level === "низкая" ? "voice-error" : "muted"}>{confidence.summary}</p>
+  );
+}
+
 function AuditPanel({ course }: { course: CourseDocument }) {
   const report = auditCourse(course);
   return (
@@ -142,6 +151,7 @@ function AuditPanel({ course }: { course: CourseDocument }) {
           {report.summary.pass} / {report.items.length}
         </p>
       </header>
+      <ConfidenceNote course={course} />
       <p className="muted">
         Пройдено: {report.summary.pass}. Не выполнено: {report.summary.fail}. Проверить вручную:{" "}
         {report.summary.warning}.
@@ -343,6 +353,14 @@ function Overview({ course, score }: { course: CourseDocument; score: number }) 
         </div>
         <p className="score">{Math.round(score * 100)}% заполнено</p>
       </header>
+      <ConfidenceNote course={course} />
+      <article>
+        <h3>Паспорт результата</h3>
+        <p className="muted">
+          Штамп считает код по виду программы и часам. Лекция — черновик модели: её текст штамп не меняет.
+        </p>
+        <p className="mono">{resultPassport(course)}</p>
+      </article>
       {notes.length ? (
         <article>
           <h3>Для методиста</h3>
@@ -436,6 +454,10 @@ function Overview({ course, score }: { course: CourseDocument; score: number }) 
                 <strong>{item.title}</strong>
                 {item.source ? ` · ${item.source}` : ""}
                 {item.note ? ` — ${item.note}` : ""}
+                {" · "}
+                {item.source?.trim() && !isHttpSource(item.source)
+                  ? "файл методиста"
+                  : "не подтверждён"}
               </li>
             ))
           ) : (

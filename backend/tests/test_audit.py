@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from backend.app.main import app, audit_course
+from backend.app.rationale import passport_stamp
 
 
 def test_audit_checks_hours_and_two_instruments() -> None:
@@ -254,3 +255,61 @@ def test_qualification_keeps_order_499_as_warning() -> None:
     assert "указан в источниках" in by_id["basis.order-499"]["details"]
     assert by_id["basis.labor-codes"]["status"] == "warning"
     assert "basis.fz-273" not in by_id
+
+
+def test_invented_order_fails_and_passport_ignores_wording() -> None:
+    course = {
+        "brief": {
+            "title": "Курс",
+            "audience": "Слушатели",
+            "programKind": "general",
+            "durationHours": 16,
+            "format": "offline",
+            "references": [{"title": "Приказ Минпросвещения России от 27.07.2022 № 629"}],
+        },
+        "competencies": {"nodes": [{"id": "c1", "name": "Делает работу", "laborFunctionCode": "A/01.6"}]},
+        "modules": [
+            {
+                "id": "m1",
+                "title": "Модуль",
+                "hours": 16,
+                "lectureHours": 8,
+                "practiceHours": 8,
+                "labHours": 0,
+                "selfStudyHours": 0,
+                "learningOutcomes": ["Результат"],
+            }
+        ],
+        "lectures": [{"slides": [{"title": "Слайд", "bullets": ["Опираемся на приказ № 999"]}]}],
+    }
+    report = audit_course(course)
+    by_id = {item["id"]: item for item in report["items"]}
+    assert by_id["sources.requisites"]["status"] == "fail"
+    assert "№ 999" in by_id["sources.requisites"]["details"]
+    assert by_id["sources.codes"]["status"] == "fail"
+    assert "m1:16:8:8:0:0:1:0" in by_id["framework.passport"]["details"]
+    assert "штамп=" in by_id["framework.passport"]["details"]
+    assert "Слайд" not in by_id["framework.passport"]["details"]
+    same = by_id["framework.passport"]["details"]
+    course["lectures"][0]["slides"][0]["bullets"] = ["Совсем другой текст слайда"]
+    again = {item["id"]: item for item in audit_course(course)["items"]}
+    assert again["framework.passport"]["details"] == same
+
+    course["brief"]["references"][0]["note"] = "Трудовая функция A/01.6"
+    course["lectures"] = [{"slides": [{"title": "Слайд", "bullets": ["Опираемся на приказ № 629"]}]}]
+    grounded = {item["id"]: item for item in audit_course(course)["items"]}
+    assert grounded["sources.requisites"]["status"] == "pass"
+    assert grounded["sources.codes"]["status"] == "pass"
+    assert passport_stamp("студия") == "0e3aa220"
+
+    course["brief"]["audience"] = "Группа на 16 часов"
+    course["lectures"] = [
+        {"slides": [{"title": "Слайд", "bullets": ["Опираемся на приказ № 16 и приказ № 27"]}]}
+    ]
+    borrowed = {item["id"]: item for item in audit_course(course)["items"]}
+    assert borrowed["sources.requisites"]["status"] == "fail"
+    assert "№ 16" in borrowed["sources.requisites"]["details"]
+    assert "№ 27" in borrowed["sources.requisites"]["details"]
+    course["brief"]["references"][0]["note"] = "код A/01.60"
+    prefix = {item["id"]: item for item in audit_course(course)["items"]}
+    assert prefix["sources.codes"]["status"] == "fail"

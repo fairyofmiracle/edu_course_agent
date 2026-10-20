@@ -22,7 +22,7 @@ function describeBody(body: string) {
   }
 }
 
-const cloudRuFetch: typeof fetch = async (input, init) => {
+export const cloudRuFetch: typeof fetch = async (input, init) => {
   if (!init || typeof init.body !== "string") return fetch(input, { ...init, redirect: "error" });
   const body = normalizeCloudRuBody(init.body);
   const response = await fetch(input, { ...init, redirect: "error" });
@@ -33,24 +33,68 @@ const cloudRuFetch: typeof fetch = async (input, init) => {
   return response;
 };
 
+function envValue(name: string) {
+  return process.env[name]?.trim() || "";
+}
+
+/** Выбирает разрешённый LLM-шлюз и соответствующий ему ключ. */
+export function resolveLlmGateway() {
+  const cloudruKey = envValue("CLOUDRU_API_KEY");
+  const gigaschoolKey = envValue("GIGASCHOOL_API_KEY");
+
+  if (cloudruKey) {
+    const cloudruUrl =
+      envValue("CLOUDRU_BASE_URL") ||
+      "https://foundation-models.api.cloud.ru/v1";
+
+    const validatedUrl = validateLlmEndpoint(cloudruUrl);
+
+    if (validatedUrl !== "https://foundation-models.api.cloud.ru/v1") {
+      throw new Error(
+        "Для CLOUDRU_API_KEY разрешён только шлюз Cloud.ru.",
+      );
+    }
+
+    return {
+      apiKey: cloudruKey,
+      baseURL: validatedUrl,
+    };
+  }
+
+  if (gigaschoolKey) {
+    const gigaschoolUrl =
+      envValue("GIGASCHOOL_BASE_URL") ||
+      "https://hub.gigaschool.ru/api/v1/llm/v1";
+
+    const validatedUrl = validateLlmEndpoint(gigaschoolUrl);
+
+    if (validatedUrl !== "https://hub.gigaschool.ru/api/v1/llm/v1") {
+      throw new Error(
+        "Для GIGASCHOOL_API_KEY разрешён только шлюз GigaSchool.",
+      );
+    }
+
+    return {
+      apiKey: gigaschoolKey,
+      baseURL: validatedUrl,
+    };
+  }
+
+  throw new Error(
+    "Не задан CLOUDRU_API_KEY или GIGASCHOOL_API_KEY. " +
+    "Разрешены только шлюзы Cloud.ru и GigaSchool.",
+  );
+}
+
 /** Клиент для тестов и локальной отладки. Боевой чат и /api/run идут в FastAPI. */
 export function getLanguageModel(role: "chat" | "writer" = "writer") {
-  const apiKey =
-    process.env.OPENAI_API_KEY?.trim() || process.env.CLOUDRU_API_KEY?.trim();
-  if (!apiKey) {
-    throw new Error(
-      "Не задан OPENAI_API_KEY или CLOUDRU_API_KEY. На VM ключ уже есть; локально добавьте его в .env — см. .env.example.",
-    );
-  }
+  const { apiKey, baseURL } = resolveLlmGateway();
 
   const cloud = createOpenAI({
     name: "cloudru",
     apiKey,
-    baseURL: validateLlmEndpoint(
-      process.env.OPENAI_BASE_URL?.trim() ||
-      process.env.CLOUDRU_BASE_URL?.trim() ||
-      DEFAULT_BASE_URL
-    )
+    baseURL,
+    fetch: cloudRuFetch,
   });
 
   const chatModel = process.env.CLOUDRU_MODEL?.trim() || DEFAULT_CHAT_MODEL;

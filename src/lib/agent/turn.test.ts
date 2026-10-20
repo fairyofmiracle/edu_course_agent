@@ -29,9 +29,11 @@ describe("ход агента без вызова модели", () => {
     expect(turn.stopWhen).toHaveLength(2);
     expect(turn.stopWhen[1]({} as Parameters<(typeof turn.stopWhen)[number]>[0])).toBe(false);
 
-    vi.stubEnv("OPENAI_API_KEY", "");
+    vi.stubEnv("GIGASCHOOL_API_KEY", "");
     vi.stubEnv("CLOUDRU_API_KEY", "");
-    expect(() => getLanguageModel()).toThrow(/OPENAI_API_KEY|CLOUDRU_API_KEY/);
+
+    expect(() => getLanguageModel()).toThrow(
+      /CLOUDRU_API_KEY или GIGASCHOOL_API_KEY/,);
   });
 
   it("инструменты пишут каркас и не пускают содержание до утверждения", async () => {

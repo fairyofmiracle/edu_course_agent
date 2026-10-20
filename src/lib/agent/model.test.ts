@@ -25,6 +25,8 @@ describe("getLanguageModel", () => {
   });
 
   it("без ключа не ходит в модель", async () => {
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.CLOUDRU_API_KEY;
     const { getLanguageModel } = await import("./model");
     expect(() => getLanguageModel()).toThrow(/OPENAI_API_KEY/);
   });
@@ -37,6 +39,21 @@ describe("getLanguageModel", () => {
     expect(getLanguageModel("chat")).toEqual({ model: "GigaChat/GigaChat-3-Pro" });
     expect(getLanguageModel("writer")).toEqual({ model: "GigaChat/GigaChat-3-Pro" });
     expect(createOpenAI).toHaveBeenCalled();
+  });
+
+  it("ключ Cloud.ru перекрывает чужой адрес OpenAI", async () => {
+    process.env.CLOUDRU_API_KEY = "cloud-key";
+    process.env.CLOUDRU_BASE_URL = "https://foundation-models.api.cloud.ru/v1";
+    process.env.OPENAI_API_KEY = "sk-foreign";
+    process.env.OPENAI_BASE_URL = "https://api.openai.com/v1";
+    const { getLanguageModel } = await import("./model");
+    getLanguageModel("chat");
+    expect(createOpenAI).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKey: "cloud-key",
+        baseURL: "https://foundation-models.api.cloud.ru/v1",
+      }),
+    );
   });
 
   it("берёт шлюз хакатона и отклоняет зарубежный API", async () => {

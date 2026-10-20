@@ -62,7 +62,11 @@ def _basis_lines(course: CourseDocument) -> list[str]:
         if key in seen:
             continue
         seen.add(key)
-        lines.append(" · ".join(part for part in (reference.title, reference.source) if part))
+        parts = [part for part in (reference.title, reference.source) if part]
+        source = (reference.source or "").strip().lower()
+        if source.startswith("http://") or source.startswith("https://"):
+            parts.append("не подтверждён")
+        lines.append(" · ".join(parts))
     return lines or ["Нормативное основание не указано."]
 
 

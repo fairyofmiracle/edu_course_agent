@@ -10,6 +10,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from .verbatim import stored_source_status
 from .database import (
     ChatMessageRecord,
     CourseRecord,
@@ -151,7 +152,7 @@ def save_course(
                 title=reference.title,
                 source=reference.source,
                 note=reference.note,
-                status="source_attached" if reference.source else "unconfirmed",
+                status=stored_source_status(reference.source),
             )
             for reference in request.course.brief.references
         )

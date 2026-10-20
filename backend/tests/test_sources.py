@@ -88,13 +88,45 @@ def test_reachable_page_keeps_stamp_and_drops_text() -> None:
     assert "СЕКРЕТНЫЙ ТЕКСТ ПРИКАЗА" not in first["fingerprint"]
 
 
+def test_reachable_page_without_document_number_stays_unconfirmed() -> None:
+    page = Page(200, "Страница без нужного реквизита".encode(), {"etag": "v1"})
+    missed = probe_url("https://example.com/order", PageOpener(page), expect="629")
+    assert missed["state"] == "reachable"
+    assert missed["requisites"] == "missing"
+    assert "не подтверждён" in missed["message"]
+    assert "Страница без нужного реквизита" not in missed["message"]
+
+    found = probe_url(
+        "https://example.com/order",
+        PageOpener(Page(200, "Приказ № 629 опубликован".encode(), {"etag": "v1"})),
+        expect="629",
+    )
+    assert found["requisites"] == "found"
+    assert "629" not in found["fingerprint"]
+
+
+def test_cors_allowlist_has_no_open_regex() -> None:
+    from backend.app.main import app
+
+    cors = [
+        layer
+        for layer in app.user_middleware
+        if getattr(layer.cls, "__name__", "") == "CORSMiddleware"
+    ]
+    assert cors
+    assert not cors[0].kwargs.get("allow_origin_regex")
+    assert "http://localhost:3000" in cors[0].kwargs["allow_origins"]
+
+
 def test_regulatory_check_keeps_order_unconfirmed_when_site_is_down(monkeypatch) -> None:
     monkeypatch.setattr(
         "backend.app.main.probe_url",
-        lambda url: {
+        lambda url, expect="": {
             "url": url,
             "state": "unavailable",
             "message": "Сайт не ответил за 4 секунды.",
+            "requisites": "unchecked",
+            "expect": expect,
         },
     )
     with TestClient(app) as client:

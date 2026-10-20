@@ -82,6 +82,38 @@ def setting(name: str, default: str = "") -> str:
     return os.getenv(name) or _env_file().get(name, default)
 
 
+def configured(name: str) -> str:
+    """Пустая переменная процесса не подменяется значением из файла .env."""
+    if name in os.environ:
+        return os.environ[name].strip()
+    return _env_file().get(name, "").strip()
+
+
+def resolve_llm_gateway() -> tuple[str, str]:
+    """Ключ уходит только на разрешённый шлюз.
+
+    Если задан CLOUDRU_API_KEY, он и есть шлюз: OPENAI_API_KEY при этом не отправляется.
+    OPENAI_* — только запасной ключ VM GigaSchool. Чужой адрес, включая api.openai.com,
+    отклоняется до HTTP-запроса.
+    """
+    openai_key = configured("OPENAI_API_KEY")
+    openai_url = configured("OPENAI_BASE_URL")
+    cloudru_key = configured("CLOUDRU_API_KEY")
+    cloudru_url = (
+        configured("CLOUDRU_BASE_URL") or "https://foundation-models.api.cloud.ru/v1"
+    )
+
+    if cloudru_key:
+        return cloudru_key, validate_llm_endpoint(cloudru_url)
+    if openai_url:
+        return openai_key, validate_llm_endpoint(openai_url)
+    if openai_key:
+        return openai_key, validate_llm_endpoint(
+            "https://foundation-models.api.cloud.ru/v1"
+        )
+    return "", validate_llm_endpoint("https://foundation-models.api.cloud.ru/v1")
+
+
 def resolve_chat_model(name: str, fallback: str = CHAT_PRO) -> str:
     cleaned = (name or "").strip() or fallback
     lowered = cleaned.lower()
@@ -277,13 +309,8 @@ def payload_has_control_tokens(payload: dict[str, Any]) -> bool:
 
 class CloudRuClient:
     def __init__(self) -> None:
-        self.api_key = setting("OPENAI_API_KEY") or setting("CLOUDRU_API_KEY")
-        self.base_url = validate_llm_endpoint(
-            setting("OPENAI_BASE_URL")
-            or setting(
-                "CLOUDRU_BASE_URL", "https://foundation-models.api.cloud.ru/v1"
-            )
-        ).rstrip("/")
+        self.api_key, base_url = resolve_llm_gateway()
+        self.base_url = base_url.rstrip("/")
         self.model_writer = resolve_chat_model(
             setting("CLOUDRU_MODEL_WRITER") or setting("CLOUDRU_MODEL") or CHAT_PRO
         )
@@ -326,7 +353,8 @@ class CloudRuClient:
     ) -> dict[str, Any]:
         if not self.api_key:
             raise RuntimeError(
-                "OPENAI_API_KEY или CLOUDRU_API_KEY не задан. "
+                "CLOUDRU_API_KEY не задан. OPENAI_API_KEY не открывает api.openai.com "
+                "и используется только вместе с разрешённым шлюзом. "
                 "Офлайн-пример и проверки доступны без модели."
             )
         if not self.budget_left():

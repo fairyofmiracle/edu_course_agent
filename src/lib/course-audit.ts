@@ -2,6 +2,7 @@ import type { CourseDocument } from "@/lib/course-schema";
 import { frameworkItems } from "@/lib/framework-check";
 import { ORDER_266, citesRepealedOrder499, missingLegalBasis } from "@/lib/legal-basis";
 import { findOutdated } from "@/lib/outdated";
+import { referenceNotes, verbatimSpans } from "@/lib/verbatim";
 
 export type AuditStatus = "pass" | "warning" | "fail";
 export type AuditSection = "framework" | "content" | "sources" | "freshness" | "case";
@@ -53,6 +54,49 @@ function item(
 
 function warning(id: string, label: string, section: AuditSection, details?: string): AuditItem {
   return { id, label, status: "warning", section, details };
+}
+
+function unconfirmedItem(course: CourseDocument): AuditItem | null {
+  const pending = course.brief.references
+    .filter((reference) => !reference.source?.trim() || /^https?:\/\//i.test(reference.source.trim()))
+    .map((reference) => reference.title);
+  if (course.brief.references.length === 0) return null;
+  if (pending.length === 0) {
+    return item("sources.unconfirmed", "У каждого источника есть файл методиста", true, "sources");
+  }
+  return warning(
+    "sources.unconfirmed",
+    `Не подтверждено источников: ${pending.length}`,
+    "sources",
+    `Ссылка не подтверждает документ, пока проверка страницы не найдёт номер. ${pending.join("; ")}`,
+  );
+}
+
+function verbatimItem(course: CourseDocument): AuditItem | null {
+  if (course.brief.references.length === 0) return null;
+  const notes = referenceNotes(course).trim();
+  if (notes.split(/\s+/).length < 12) {
+    return warning(
+      "sources.verbatim",
+      "Дословное копирование не с чем сравнить: в референсе нет связного текста",
+      "sources",
+    );
+  }
+  const hits = verbatimSpans(course);
+  return hits.length
+    ? item(
+        "sources.verbatim",
+        "В комплекте есть дословный фрагмент референса",
+        false,
+        "sources",
+        hits[0],
+      )
+    : item(
+        "sources.verbatim",
+        "Дословных фрагментов референса в комплекте нет",
+        true,
+        "sources",
+      );
 }
 
 function moduleOutcomes(course: CourseDocument, moduleId: string) {
@@ -263,6 +307,10 @@ function genericItems(course: CourseDocument): AuditItem[] {
           "Нормативные документы нельзя добавлять без файла или проверяемой ссылки.",
         ),
   );
+  const pendingSources = unconfirmedItem(course);
+  if (pendingSources) items.push(pendingSources);
+  const copiedText = verbatimItem(course);
+  if (copiedText) items.push(copiedText);
 
   const laborCodes = course.competencies.nodes
     .map((node) => node.laborFunctionCode?.trim())
@@ -346,11 +394,16 @@ function caseItems(course: CourseDocument, caseId: OpenCaseId): AuditItem[] {
       item("case.3.python", "Есть вводный блок по Python", has("python"), "case"),
       item("case.3.topics", "Есть pandas, визуализация, SQL и статистика", has("pandas", "визуализац", "sql", "статист"), "case"),
       item("case.3.slides", "Есть слайды для модуля pandas", pandasLecture, "case"),
-      warning(
-        "case.3.copy",
-        "Отсутствие дословного копирования проверяется после генерации",
-        "case",
-      ),
+      {
+        ...(verbatimItem(course) ??
+          warning(
+            "sources.verbatim",
+            "Дословное копирование не с чем сравнить: в референсе нет связного текста",
+            "sources",
+          )),
+        id: "case.3.copy",
+        section: "case",
+      },
     ];
   }
 

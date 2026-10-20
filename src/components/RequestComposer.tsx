@@ -220,10 +220,18 @@ export function RequestComposer({
     setInput("");
   };
 
+  const templateHours = Number(fields.durationHours);
+  const templateReady =
+    fields.audience.trim().length > 0 &&
+    fields.goals.trim().length > 0 &&
+    Number.isFinite(templateHours) &&
+    templateHours >= 16 &&
+    templateHours <= 500;
+
   const sendTemplate = () => {
     if (pending) return;
-    if (!fields.audience.trim() || !fields.durationHours.trim() || !fields.goals.trim()) {
-      setFormError("Заполните аудиторию, точный объём в часах и цель программы.");
+    if (!templateReady) {
+      setFormError("Заполните аудиторию, цель и объём от 16 до 500 часов. Без этого запрос не уходит.");
       return;
     }
     setFormError("");
@@ -289,6 +297,7 @@ export function RequestComposer({
             Объём, часы
             <input
               type="number"
+              required
               min={16}
               max={500}
               value={fields.durationHours}
@@ -307,6 +316,7 @@ export function RequestComposer({
           <label className="wide">
             Аудитория
             <input
+              required
               value={fields.audience}
               onChange={(event) => setField("audience", event.target.value)}
               placeholder="Студенты 2 курса колледжа"
@@ -360,6 +370,7 @@ export function RequestComposer({
           <label className="wide">
             Цель
             <textarea
+              required
               rows={2}
               value={fields.goals}
               onChange={(event) => setField("goals", event.target.value)}
@@ -432,7 +443,7 @@ export function RequestComposer({
           <button
             type="submit"
             className="primary"
-            disabled={mode === "free" ? !input.trim() : false}
+            disabled={mode === "free" ? !input.trim() : !templateReady}
           >
             {mode === "template" ? "Собрать по шаблону" : "Отправить"}
           </button>

@@ -46,12 +46,23 @@ def _result(
     state: ProbeState,
     message: str,
     fingerprint: str = "",
+    requisites: str = "unchecked",
 ) -> dict[str, str]:
-    return {"url": url, "state": state, "message": message, "fingerprint": fingerprint}
+    return {
+        "url": url,
+        "state": state,
+        "message": message,
+        "fingerprint": fingerprint,
+        "requisites": requisites,
+    }
 
 
-def page_stamp(response: object) -> str:
-    """Отметка страницы без сохранения текста: заголовки и хеш первых 64 КБ."""
+def _needle(expect: str) -> str:
+    return "".join(ch for ch in expect.casefold() if ch.isalnum())
+
+
+def page_stamp(response: object, expect: str = "") -> tuple[str, str]:
+    """Отметка страницы без сохранения текста. Номер документа ищется и тут же забывается."""
     headers = getattr(response, "headers", None)
     etag = ""
     modified = ""
@@ -60,6 +71,9 @@ def page_stamp(response: object) -> str:
         modified = str(headers.get("last-modified") or "")
     digest = hashlib.sha256()
     read = 0
+    needle = _needle(expect)
+    requisites = "missing" if needle else "unchecked"
+    carry = ""
     reader = getattr(response, "iter_bytes", None)
     if callable(reader):
         for chunk in reader():
@@ -70,13 +84,17 @@ def page_stamp(response: object) -> str:
             piece = bytes(chunk[: _STAMP_LIMIT - read])
             digest.update(piece)
             read += len(piece)
+            if needle and requisites != "found":
+                carry = (carry + piece.decode("utf-8", errors="ignore").casefold())[-80:]
+                if needle in carry:
+                    requisites = "found"
     body = digest.hexdigest() if read else ""
     if not etag and not modified and not body:
-        return ""
-    return f"{etag}|{modified}|{body}"
+        return "", "unchecked" if not needle else requisites
+    return f"{etag}|{modified}|{body}", requisites
 
 
-def probe_url(url: str, opener: UrlOpener | None = None) -> dict[str, str]:
+def probe_url(url: str, opener: UrlOpener | None = None, expect: str = "") -> dict[str, str]:
     """Открывает ссылку. Текст приказа не сохраняется, остаётся только отметка страницы."""
     target = url.strip()
     if not public_http_url(target):
@@ -96,7 +114,7 @@ def probe_url(url: str, opener: UrlOpener | None = None) -> dict[str, str]:
         try:
             with client.stream("GET", target) as response:
                 code = response.status_code
-                stamp = page_stamp(response) if 200 <= code < 400 else ""
+                stamp, requisites = page_stamp(response, expect) if 200 <= code < 400 else ("", "unchecked")
         except httpx.TimeoutException:
             return _result(
                 target,
@@ -123,11 +141,28 @@ def probe_url(url: str, opener: UrlOpener | None = None) -> dict[str, str]:
                 f"Сайт ответил {code} и не отдал страницу. Это не подтверждение приказа.",
             )
         if 200 <= code < 400:
+            if requisites == "missing":
+                return _result(
+                    target,
+                    "reachable",
+                    f"Сайт ответил {code}, но номер документа на странице не найден. Источник не подтверждён.",
+                    stamp,
+                    requisites,
+                )
+            if requisites == "found":
+                return _result(
+                    target,
+                    "reachable",
+                    f"Сайт ответил {code}. Номер документа на странице есть. Текст не сохранён, действующим документ признаёт методист.",
+                    stamp,
+                    requisites,
+                )
             return _result(
                 target,
                 "reachable",
                 f"Сайт ответил {code}. Текст не сохранён: действующим документ признаёт методист.",
                 stamp,
+                requisites,
             )
         return _result(
             target,

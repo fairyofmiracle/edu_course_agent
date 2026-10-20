@@ -7,6 +7,7 @@ from .domain import framework_items
 from .legal_basis import legal_basis_items
 from .models import CourseDocument
 from .outdated import find_outdated
+from .verbatim import reference_notes, verbatim_spans
 
 KIND_FIELDS = ("lectureHours", "practiceHours", "labHours", "selfStudyHours")
 
@@ -262,6 +263,66 @@ def audit_course(course: dict[str, Any]) -> dict[str, Any]:
             ),
         }
     )
+
+    http_titles = [
+        str(reference.get("title") or "Источник")
+        for reference in references
+        if isinstance(reference, dict)
+        and (
+            not str(reference.get("source") or "").strip()
+            or str(reference.get("source") or "").strip().lower().startswith(("http://", "https://"))
+        )
+    ]
+    if references:
+        items.append(
+            {
+                "id": "sources.unconfirmed",
+                "label": (
+                    f"Не подтверждено источников: {len(http_titles)}"
+                    if http_titles
+                    else "У каждого источника есть файл методиста"
+                ),
+                "status": "warning" if http_titles else "pass",
+                "section": "sources",
+                "details": (
+                    "Ссылка не подтверждает документ, пока проверка страницы не найдёт номер. "
+                    + "; ".join(http_titles)
+                    if http_titles
+                    else "Пустых ссылок нет."
+                ),
+            }
+        )
+
+    notes = reference_notes(course)
+    copies = verbatim_spans(course)
+    if references and len(notes.split()) < 12:
+        items.append(
+            {
+                "id": "sources.verbatim",
+                "label": "Дословное копирование не с чем сравнить: в референсе нет связного текста",
+                "status": "warning",
+                "section": "sources",
+            }
+        )
+    elif references and copies:
+        items.append(
+            {
+                "id": "sources.verbatim",
+                "label": "В комплекте есть дословный фрагмент референса",
+                "status": "fail",
+                "section": "sources",
+                "details": copies[0],
+            }
+        )
+    elif references:
+        items.append(
+            {
+                "id": "sources.verbatim",
+                "label": "Дословных фрагментов референса в комплекте нет",
+                "status": "pass",
+                "section": "sources",
+            }
+        )
 
     labor_codes = [
         str(node.get("laborFunctionCode") or "").strip()

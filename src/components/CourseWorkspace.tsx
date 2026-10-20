@@ -7,6 +7,7 @@ import { StackFreshnessPanel } from "@/components/StackFreshness";
 import { LectureDeck } from "@/components/LectureDeck";
 import { MermaidBlock } from "@/components/MermaidBlock";
 import { auditCourse, methodistNotes, type AuditSection, type AuditStatus } from "@/lib/course-audit";
+import { isHttpSource, sourceConfidence } from "@/lib/verbatim";
 import { exportAssessmentDocx, exportSeminarDocx } from "@/lib/export-docx";
 import { validateCourseHours } from "@/lib/course-validation";
 import { moduleFlowChart } from "@/lib/presentation/course-to-presentation";
@@ -129,6 +130,13 @@ const AUDIT_SECTIONS: Array<{ id: AuditSection; label: string }> = [
   { id: "case", label: "Условия запроса" },
 ];
 
+function ConfidenceNote({ course }: { course: CourseDocument }) {
+  const confidence = sourceConfidence(course);
+  return (
+    <p className={confidence.level === "низкая" ? "voice-error" : "muted"}>{confidence.summary}</p>
+  );
+}
+
 function AuditPanel({ course }: { course: CourseDocument }) {
   const report = auditCourse(course);
   return (
@@ -142,6 +150,7 @@ function AuditPanel({ course }: { course: CourseDocument }) {
           {report.summary.pass} / {report.items.length}
         </p>
       </header>
+      <ConfidenceNote course={course} />
       <p className="muted">
         Пройдено: {report.summary.pass}. Не выполнено: {report.summary.fail}. Проверить вручную:{" "}
         {report.summary.warning}.
@@ -343,6 +352,7 @@ function Overview({ course, score }: { course: CourseDocument; score: number }) 
         </div>
         <p className="score">{Math.round(score * 100)}% заполнено</p>
       </header>
+      <ConfidenceNote course={course} />
       {notes.length ? (
         <article>
           <h3>Для методиста</h3>
@@ -436,6 +446,10 @@ function Overview({ course, score }: { course: CourseDocument; score: number }) 
                 <strong>{item.title}</strong>
                 {item.source ? ` · ${item.source}` : ""}
                 {item.note ? ` — ${item.note}` : ""}
+                {" · "}
+                {item.source?.trim() && !isHttpSource(item.source)
+                  ? "файл методиста"
+                  : "не подтверждён"}
               </li>
             ))
           ) : (

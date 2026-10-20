@@ -253,11 +253,13 @@ function basisLines(course: CourseDocument) {
     const key = reference.source || reference.title;
     if (!documents.has(key)) documents.set(key, reference);
   }
-  const lines = [...documents.values()].map((document) =>
-    [document.title, "source" in document ? document.source : undefined, document.note]
+  const lines = [...documents.values()].map((document) => {
+    const source = "source" in document ? document.source : undefined;
+    const pending = /^https?:\/\//i.test(source?.trim() ?? "");
+    return [document.title, source, document.note, pending ? "не подтверждён" : ""]
       .filter(Boolean)
-      .join(" · "),
-  );
+      .join(" · ");
+  });
   return linesOrBlank(lines, "Нормативное основание не указано.");
 }
 

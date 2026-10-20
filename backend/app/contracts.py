@@ -148,6 +148,10 @@ class SourceProbeHit(BaseModel):
         default="",
         description="Отметка страницы: ETag, Last-Modified и хеш первых 64 КБ. Текст ответа сюда не входит.",
     )
+    requisites: Literal["found", "missing", "unchecked"] = Field(
+        default="unchecked",
+        description="Найден ли номер документа в первых 64 КБ. Текст страницы не сохраняется.",
+    )
 
 
 class SourceProbeResponse(BaseModel):

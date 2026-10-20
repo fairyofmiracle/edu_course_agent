@@ -317,6 +317,7 @@ def test_complete_parses_json_tools_and_usage(monkeypatch) -> None:
 
     monkeypatch.setenv("OPENAI_API_KEY", "k")
     monkeypatch.setenv("OPENAI_BASE_URL", "https://hub.gigaschool.ru/api/v1/llm/v1")
+    monkeypatch.setenv("CLOUDRU_API_KEY", "")
     monkeypatch.setattr("backend.app.cloud.httpx.AsyncClient", FakeAsyncClient)
     client = CloudRuClient()
     message = asyncio.run(

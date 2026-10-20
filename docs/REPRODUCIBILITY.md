@@ -32,7 +32,11 @@ CLOUDRU_BASE_URL=https://foundation-models.api.cloud.ru/v1
 CLOUDRU_MODEL_WRITER=GigaChat/GigaChat-3-Pro
 ```
 
-В проекте `OPENAI_*` — имя переменных совместимости с SDK, а не разрешение обращаться к `api.openai.com`. Не меняйте базовый адрес на посторонний шлюз. Для одного запуска используйте **один** набор ключей.
+В проекте `OPENAI_*` — имя переменных VM, а не разрешение обращаться к `api.openai.com`. Для одного запуска заполните **один** набор ключей, второй оставьте пустым.
+
+Если заполнены оба ключа, процесс использует `CLOUDRU_API_KEY` и адрес Cloud.ru. `OPENAI_API_KEY` в этом случае не отправляется. Если `CLOUDRU_API_KEY` пуст, а `OPENAI_BASE_URL` указывает не на `hub.gigaschool.ru` и не на `foundation-models.api.cloud.ru`, клиент модели падает с ошибкой до HTTP-запроса.
+
+Миграции: в Docker Alembic выполняется командой контейнера `api` до старта uvicorn. Локально без Docker сначала `npm run backend:migrate`, и только потом `npm run backend`.
 
 На уже настроенной VM **не перезаписывайте существующий `.env`**. Для локальной копии без готовых секретов:
 

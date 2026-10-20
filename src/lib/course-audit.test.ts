@@ -21,6 +21,21 @@ describe("auditCourse", () => {
     expect(review?.details).toContain("A/01.6");
   });
 
+  it("помечает ссылку как неподтверждённую и ловит дословный фрагмент", () => {
+    const linked = copy();
+    const pending = auditCourse(linked).items.find((item) => item.id === "sources.unconfirmed");
+    expect(pending?.status).toBe("warning");
+    expect(pending?.details).toContain("Приказ Минпросвещения");
+
+    const copied = copy();
+    const fragment =
+      "слушатель собирает учебный план и сверяет часы модулей с объёмом программы перед печатью";
+    copied.brief.references[0].note = fragment;
+    copied.lectures[0].slides[0].bullets[0] = fragment;
+    const hit = auditCourse(copied).items.find((item) => item.id === "sources.verbatim");
+    expect(hit?.status).toBe("fail");
+  });
+
   it("пример 24 ч закрывает каждый результат тестом и заданием", () => {
     const course = copy();
     expect(outcomeInstrumentGaps(course)).toEqual([]);

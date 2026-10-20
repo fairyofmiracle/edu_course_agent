@@ -3,7 +3,7 @@ from backend.app.catalog import is_incomplete_brief, profile_name, promise_notes
 from backend.app.models import empty_course
 from backend.app.planner import missing_brief_lines, plan_step
 from backend.app.tools import execute_tool
-from backend.app.domain import apply_patch
+from backend.app.domain import apply_patch, framework_items
 
 
 CASE1 = (
@@ -218,6 +218,10 @@ def test_arbitrary_request_is_not_a_hackathon_sku() -> None:
     assert course.brief.duration_hours == 20
     assert course.modules
     assert "figma" in course.brief.title.lower()
+    assert course.seminars
+    assert all(module.plan for module in course.modules)
+    assert all(len(module.learning_outcomes) >= 2 for module in course.modules)
+    assert all(item["ok"] for item in framework_items(course))
     assert "чат-бот" not in " ".join(task.title for item in course.seminars for task in item.tasks).lower()
     assert any("сертификат" in line.lower() for line in course.brief.constraints)
 

@@ -23,3 +23,8 @@ def test_allowed_llm_endpoint(url):
 def test_forbidden_llm_endpoint(url):
     with pytest.raises(ValueError):
         validate_llm_endpoint(url)
+
+
+def test_broken_llm_address_is_rejected() -> None:
+    with pytest.raises(ValueError, match="Некорректный"):
+        validate_llm_endpoint("https://foundation-models.api.cloud.ru:99999/v1")

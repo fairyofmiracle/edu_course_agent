@@ -1270,6 +1270,7 @@ button.primary {
 .qtype {
   font-family: var(--font-mono);
   font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .stack-blocks {

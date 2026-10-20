@@ -3,10 +3,13 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from .claims import invented_requisites, labor_codes
 from .domain import framework_items
 from .legal_basis import legal_basis_items
 from .models import CourseDocument
 from .outdated import find_outdated
+from .rationale import module_rationales, result_passport
+from .verbatim import reference_notes, verbatim_spans
 
 KIND_FIELDS = ("lectureHours", "practiceHours", "labHours", "selfStudyHours")
 
@@ -238,6 +241,25 @@ def audit_course(course: dict[str, Any]) -> dict[str, Any]:
         )
 
     items.extend(legal_basis_items(course))
+    for row in module_rationales(course):
+        items.append(
+            {
+                "id": f"framework.why.{row['id']}",
+                "label": "Модуль обоснован часами и результатами",
+                "status": "pass",
+                "section": "framework",
+                "details": row["text"],
+            }
+        )
+    items.append(
+        {
+            "id": "framework.passport",
+            "label": "Паспорт результата считает код, формулировки модели в него не входят",
+            "status": "pass",
+            "section": "framework",
+            "details": result_passport(course),
+        }
+    )
 
     references = brief.get("references") or []
     items.append(
@@ -263,21 +285,96 @@ def audit_course(course: dict[str, Any]) -> dict[str, Any]:
         }
     )
 
-    labor_codes = [
-        str(node.get("laborFunctionCode") or "").strip()
-        for node in competencies
-        if str(node.get("laborFunctionCode") or "").strip()
+    http_titles = [
+        str(reference.get("title") or "Источник")
+        for reference in references
+        if isinstance(reference, dict)
+        and (
+            not str(reference.get("source") or "").strip()
+            or str(reference.get("source") or "").strip().lower().startswith(("http://", "https://"))
+        )
     ]
-    if labor_codes:
+    if references:
+        items.append(
+            {
+                "id": "sources.unconfirmed",
+                "label": (
+                    f"Не подтверждено источников: {len(http_titles)}"
+                    if http_titles
+                    else "У каждого источника есть файл методиста"
+                ),
+                "status": "warning" if http_titles else "pass",
+                "section": "sources",
+                "details": (
+                    "Ссылка не подтверждает документ, пока проверка страницы не найдёт номер. "
+                    + "; ".join(http_titles)
+                    if http_titles
+                    else "Пустых ссылок нет."
+                ),
+            }
+        )
+
+    notes = reference_notes(course)
+    copies = verbatim_spans(course)
+    if references and len(notes.split()) < 12:
+        items.append(
+            {
+                "id": "sources.verbatim",
+                "label": "Дословное копирование не с чем сравнить: в референсе нет связного текста",
+                "status": "warning",
+                "section": "sources",
+            }
+        )
+    elif references and copies:
+        items.append(
+            {
+                "id": "sources.verbatim",
+                "label": "В комплекте есть дословный фрагмент референса",
+                "status": "fail",
+                "section": "sources",
+                "details": copies[0],
+            }
+        )
+    elif references:
+        items.append(
+            {
+                "id": "sources.verbatim",
+                "label": "Дословных фрагментов референса в комплекте нет",
+                "status": "pass",
+                "section": "sources",
+            }
+        )
+
+    codes = labor_codes(course)
+    invented = invented_requisites(course)
+    if codes:
+        grounded = [code for code in codes if code not in invented]
         items.append(
             {
                 "id": "sources.codes",
-                "label": "Коды трудовых функций требуют ручной сверки",
-                "status": "warning" if references else "fail",
+                "label": (
+                    "Код трудовой функции есть в тексте методиста"
+                    if codes and not any(code in invented for code in codes)
+                    else "Код трудовой функции не найден в источниках методиста"
+                ),
+                "status": "pass" if grounded and len(grounded) == len(codes) else "fail",
                 "section": "sources",
-                "details": ", ".join(labor_codes),
+                "details": ", ".join(codes),
             }
         )
+    items.append(
+        {
+            "id": "sources.requisites",
+            "label": (
+                "Выдуманных номеров и кодов в комплекте нет"
+                if not invented
+                else "В комплекте есть реквизит, которого нет у методиста"
+            ),
+            "status": "pass" if not invented else "fail",
+            "section": "sources",
+            "details": ", ".join(invented) if invented else "Номер приказа и код трудовой функции сверяются с файлом и условиями запроса.",
+        }
+    )
 
     return {"summary": _summary(items), "items": items}
 

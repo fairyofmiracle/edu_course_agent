@@ -19,6 +19,7 @@ import {
   type CourseModule,
 } from "@/lib/course-schema";
 import { ORDER_266, ORDER_499, requiredLegalBasis, type LegalDocument } from "@/lib/legal-basis";
+import { moduleRationales, resultPassport } from "@/lib/module-rationale";
 
 const LETTERHEAD = [
   "Автономная некоммерческая организация",
@@ -145,6 +146,16 @@ function composeCourseDocx(course: CourseDocument) {
     mark("2. Содержание программы", HeadingLevel.HEADING_1),
     mark("2.1. Учебный план", HeadingLevel.HEADING_2),
     studyPlan(course),
+    mark("Паспорт результата", HeadingLevel.HEADING_2),
+    paragraph(
+      "Этот блок считает код. Формулировки лекций в него не входят и при новом прогоне модели могут отличаться.",
+    ),
+    paragraph(resultPassport(course)),
+    mark("Почему план такой", HeadingLevel.HEADING_2),
+    paragraph(
+      "Формулировки лекций при новом прогоне модели могут отличаться. Часы, результаты и связь со средствами проверки считает код.",
+    ),
+    ...moduleRationales(course).map((row) => bullet(row.text)),
     mark("2.2. Учебно-тематический план", HeadingLevel.HEADING_2),
     ...thematicPlan(course, mark),
     mark("2.3. Календарный учебный график", HeadingLevel.HEADING_2),
@@ -253,11 +264,13 @@ function basisLines(course: CourseDocument) {
     const key = reference.source || reference.title;
     if (!documents.has(key)) documents.set(key, reference);
   }
-  const lines = [...documents.values()].map((document) =>
-    [document.title, "source" in document ? document.source : undefined, document.note]
+  const lines = [...documents.values()].map((document) => {
+    const source = "source" in document ? document.source : undefined;
+    const pending = /^https?:\/\//i.test(source?.trim() ?? "");
+    return [document.title, source, document.note, pending ? "не подтверждён" : ""]
       .filter(Boolean)
-      .join(" · "),
-  );
+      .join(" · ");
+  });
   return linesOrBlank(lines, "Нормативное основание не указано.");
 }
 

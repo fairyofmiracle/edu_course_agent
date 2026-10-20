@@ -1,4 +1,5 @@
 import type { CourseDocument } from "@/lib/course-schema";
+import { resultPassport } from "@/lib/module-rationale";
 
 export type FrameworkItem = {
   id: string;
@@ -47,6 +48,7 @@ export function frameworkFingerprint(course: CourseDocument) {
       id: node.id,
       moduleIds: [...node.moduleIds].sort(),
     })),
+    passport: resultPassport(course),
   });
 }
 

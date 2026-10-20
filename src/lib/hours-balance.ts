@@ -1,4 +1,4 @@
-import type { CourseModule } from "@/lib/course-schema";
+import type { CourseDocument, CourseModule } from "@/lib/course-schema";
 
 const KIND_KEYS = [
   "lectureHours",
@@ -10,6 +10,39 @@ const KIND_KEYS = [
 type KindKey = (typeof KIND_KEYS)[number];
 type KindHours = Pick<CourseModule, KindKey | "hours">;
 type TopicHours = Pick<CourseModule["plan"][number], KindKey | "title">;
+
+/** Стажировка и практикум держат часы в самостоятельной работе, как сервер. */
+export function flattenInternshipHours(course: CourseDocument): CourseDocument {
+  const text = [
+    course.brief.title,
+    course.brief.audience,
+    course.brief.attestationForm,
+    ...course.brief.goals,
+    ...course.modules.flatMap((module) => [module.title, ...module.topics]),
+  ]
+    .join(" ")
+    .toLowerCase();
+  const internship =
+    course.brief.format === "workshop" ||
+    text.includes("стажиров") ||
+    text.includes("аудиторных нет") ||
+    text.includes("аудиторных занятий нет");
+  if (!internship) return course;
+  let changed = false;
+  const modules = course.modules.map((module) => {
+    const classroom = module.lectureHours + module.practiceHours + module.labHours;
+    if (classroom <= 0) return module;
+    changed = true;
+    return {
+      ...module,
+      lectureHours: 0,
+      practiceHours: 0,
+      labHours: 0,
+      selfStudyHours: module.hours,
+    };
+  });
+  return changed ? { ...course, modules } : course;
+}
 
 /** Академические часы хранятся с шагом 0,5: допустимы 0,5 и 1,5. */
 export function academicHours(value: number) {

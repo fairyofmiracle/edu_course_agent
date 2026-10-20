@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from .legal_basis import merge_legal_basis
 from .models import CourseDocument
+from .rationale import result_passport
 
 KIND_KEYS = ("lectureHours", "practiceHours", "labHours", "selfStudyHours")
 PATCH_TYPES = {
@@ -221,6 +222,38 @@ def normalize_academic_hours(value: dict[str, Any]) -> None:
                     row[key] = academic_hours(row.get(key))
 
 
+def _merge_modules(existing: list[Any], incoming: list[Any]) -> list[Any]:
+    """Новые id дописываются. Уже записанный id обновляется на месте, остальные модули остаются.
+
+    Раньше любое пересечение id заменяло весь план. На длинной программе модель
+    часто повторяет первый модуль во втором блоке — и уже написанные модули пропадали.
+    """
+    if not existing:
+        return incoming
+    if not incoming:
+        return existing
+    old_ids = {
+        str(item.get("id"))
+        for item in existing
+        if isinstance(item, dict) and item.get("id")
+    }
+    replacements: dict[str, Any] = {}
+    novel: list[Any] = []
+    for item in incoming:
+        module_id = str(item.get("id")) if isinstance(item, dict) and item.get("id") else ""
+        if module_id and module_id in old_ids:
+            replacements[module_id] = item
+        else:
+            novel.append(item)
+    if not replacements:
+        return [*existing, *incoming]
+    merged = [
+        replacements.get(str(item.get("id")), item) if isinstance(item, dict) else item
+        for item in existing
+    ]
+    return [*merged, *novel]
+
+
 def apply_patch(course: CourseDocument, patch: dict[str, Any]) -> CourseDocument:
     if patch.get("type") not in PATCH_TYPES:
         return course
@@ -232,7 +265,7 @@ def apply_patch(course: CourseDocument, patch: dict[str, Any]) -> CourseDocument
         elif patch_type == "set_competency_map":
             value["competencies"] = patch["competencies"]
         elif patch_type == "set_structure":
-            value["modules"] = patch["modules"]
+            value["modules"] = _merge_modules(value.get("modules") or [], patch.get("modules") or [])
         elif patch_type == "set_lecture":
             value["lectures"] = _upsert(value["lectures"], patch["lecture"])
         elif patch_type == "set_seminar":
@@ -298,6 +331,7 @@ def framework_fingerprint(course: CourseDocument) -> str:
                 {"id": node["id"], "moduleIds": sorted(node.get("moduleIds") or [])}
                 for node in value["competencies"]["nodes"]
             ],
+            "passport": result_passport(value),
         },
         ensure_ascii=False,
         separators=(",", ":"),

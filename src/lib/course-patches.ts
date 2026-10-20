@@ -14,7 +14,12 @@ import {
   type Lecture,
   type Seminar,
 } from "@/lib/course-schema";
-import { attachCompetencyIds, balanceModules, linkCompetencies } from "@/lib/hours-balance";
+import {
+  attachCompetencyIds,
+  balanceModules,
+  flattenInternshipHours,
+  linkCompetencies,
+} from "@/lib/hours-balance";
 import { mergeLegalBasis } from "@/lib/legal-basis";
 
 export type CoursePatch =
@@ -56,8 +61,25 @@ function touch(course: CourseDocument): CourseDocument {
   };
 }
 
+function mergeModules(
+  existing: CourseDocument["modules"],
+  incoming: CourseDocument["modules"],
+) {
+  if (existing.length === 0) return incoming;
+  if (incoming.length === 0) return existing;
+  const oldIds = new Set(existing.map((item) => item.id));
+  const replacements = new Map(
+    incoming.filter((item) => oldIds.has(item.id)).map((item) => [item.id, item]),
+  );
+  if (replacements.size === 0) return [...existing, ...incoming];
+  const novel = incoming.filter((item) => !oldIds.has(item.id));
+  return [...existing.map((item) => replacements.get(item.id) ?? item), ...novel];
+}
+
 function withBalancedModules(course: CourseDocument): CourseDocument {
-  if (course.modules.length === 0) return course;
+  const flattened = flattenInternshipHours(course);
+  if (flattened.modules.length === 0) return flattened;
+  course = flattened;
   const linked = linkCompetencies(course.competencies.nodes, course.modules);
   const competencies = { ...course.competencies, nodes: linked.nodes };
   if (course.brief.durationHours <= 0) {
@@ -93,7 +115,10 @@ export function applyPatch(
       );
     case "set_structure":
       return touch(
-        withBalancedModules({ ...course, modules: patch.modules }),
+        withBalancedModules({
+          ...course,
+          modules: mergeModules(course.modules, patch.modules),
+        }),
       );
     case "set_lecture":
       return touch({

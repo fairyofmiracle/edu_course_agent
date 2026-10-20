@@ -178,3 +178,23 @@ def test_save_with_messages_moves_past_an_existing_version() -> None:
     assert second.status_code == 200
     assert second.json()["version"] == first.json()["version"] + 1
     client.delete(f"/api/courses/{course['id']}")
+
+
+def test_old_versions_are_pruned_to_twenty() -> None:
+    course = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    course["id"] = "prune-course"
+    client = TestClient(app)
+    for index in range(21):
+        course["brief"]["title"] = f"Версия {index}"
+        saved = client.put(
+            f"/api/courses/{course['id']}",
+            json={"course": course, "reason": f"v{index}"},
+        )
+        assert saved.status_code == 200
+    reasons = [
+        item["reason"] for item in client.get(f"/api/courses/{course['id']}/versions").json()["versions"]
+    ]
+    assert len(reasons) == 20
+    assert reasons[0] == "v20"
+    assert "v0" not in reasons
+    client.delete(f"/api/courses/{course['id']}")

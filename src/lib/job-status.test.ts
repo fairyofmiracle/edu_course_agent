@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   chatWaitLabel,
   exportDoneLabel,
+  exportKindName,
   exportWaitLabel,
   fileWaitLabel,
 } from "./job-status";
@@ -20,5 +21,8 @@ describe("job status labels", () => {
     expect(exportWaitLabel("docx", 500)).toMatch(/DOCX на сервере/);
     expect(exportWaitLabel("pptx", 4000)).toMatch(/тяжёл/);
     expect(exportDoneLabel("json")).toBe("JSON готов");
+    expect(exportWaitLabel("gift", 100, "браузере")).toMatch(/GIFT в браузере/);
+    expect(exportKindName("moodle")).toBe("MOODLE");
+    expect(exportDoneLabel("moodle")).toBe("MOODLE готов");
   });
 });

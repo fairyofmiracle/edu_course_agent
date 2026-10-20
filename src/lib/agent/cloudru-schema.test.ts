@@ -20,6 +20,21 @@ async function schemaOf(tool: { inputSchema: unknown }) {
 }
 
 describe("Cloud.ru function schemas", () => {
+  it("принимает ссылку, союз и вложенные узлы и отвергает пустышку", () => {
+    expect(() => assertCloudRuFunctionSchema(true)).not.toThrow();
+    expect(() => assertCloudRuFunctionSchema({ $ref: "#/defs/brief" })).not.toThrow();
+    expect(() =>
+      assertCloudRuFunctionSchema({
+        type: "array",
+        items: [{ type: "string" }, { enum: ["a"] }],
+        anyOf: [{ type: "array", items: { type: "number" } }, { const: 1 }],
+        additionalProperties: { type: "boolean" },
+      }),
+    ).not.toThrow();
+    expect(() => assertCloudRuFunctionSchema("строка")).toThrow(/объект JSON Schema/);
+    expect(() => assertCloudRuFunctionSchema({ anyOf: [null] })).toThrow(/объект JSON Schema/);
+  });
+
   it("ломается на z.any() без type", () => {
     const broken = toJSONSchema(
       z.object({

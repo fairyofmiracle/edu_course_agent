@@ -119,28 +119,39 @@ def test_chat_turn_http_contract(monkeypatch) -> None:
 
 
 def test_cloudru_key_wins_and_foreign_openai_url_is_not_called(monkeypatch) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-foreign")
-    monkeypatch.setenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    monkeypatch.setenv("GIGASCHOOL_API_KEY", "giga-key")
+    monkeypatch.setenv("GIGASCHOOL_BASE_URL", "https://api.openai.com/v1")
     monkeypatch.setenv("CLOUDRU_API_KEY", "cloud-key")
-    monkeypatch.setenv("CLOUDRU_BASE_URL", "https://foundation-models.api.cloud.ru/v1")
+    monkeypatch.setenv(
+        "CLOUDRU_BASE_URL",
+        "https://foundation-models.api.cloud.ru/v1",
+    )
+
     client = CloudRuClient()
+
     assert client.api_key == "cloud-key"
     assert client.base_url == "https://foundation-models.api.cloud.ru/v1"
 
 
 def test_gigaschool_key_is_used_only_without_cloudru(monkeypatch) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "vm-key")
-    monkeypatch.setenv("OPENAI_BASE_URL", "https://hub.gigaschool.ru/api/v1/llm/v1")
+    monkeypatch.setenv("GIGASCHOOL_API_KEY", "vm-key")
+    monkeypatch.setenv(
+        "GIGASCHOOL_BASE_URL",
+        "https://hub.gigaschool.ru/api/v1/llm/v1",
+    )
     monkeypatch.setenv("CLOUDRU_API_KEY", "")
+
     client = CloudRuClient()
+
     assert client.api_key == "vm-key"
     assert client.base_url == "https://hub.gigaschool.ru/api/v1/llm/v1"
 
 
 def test_foreign_openai_url_is_rejected_before_request(monkeypatch) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-foreign")
-    monkeypatch.setenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    monkeypatch.setenv("GIGASCHOOL_API_KEY", "sk-foreign")
+    monkeypatch.setenv("GIGASCHOOL_BASE_URL", "https://api.openai.com/v1")
     monkeypatch.setenv("CLOUDRU_API_KEY", "")
+
     try:
         CloudRuClient()
     except ValueError as error:

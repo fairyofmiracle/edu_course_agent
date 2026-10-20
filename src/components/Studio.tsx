@@ -22,6 +22,7 @@ import {
   isFrameworkApproved,
   isKitComplete,
 } from "@/lib/framework-check";
+import { SAMPLE_COURSE } from "@/lib/sample-course";
 import {
   createEmptyCourse,
   isCourseEmpty,

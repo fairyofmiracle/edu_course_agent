@@ -21,8 +21,8 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-studio}:${POSTGRES_PASSWORD:-studio}@db:5432/${POSTGRES_DB:-studio}
       ROOT_PATH: /backend
-      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GIGASCHOOL_BASE_URL: ${GIGASCHOOL_BASE_URL:-}
+      GIGASCHOOL_API_KEY: ${GIGASCHOOL_API_KEY:-}
       CLOUDRU_BASE_URL: ${CLOUDRU_BASE_URL:-}
       CLOUDRU_API_KEY: ${CLOUDRU_API_KEY:-}
       CLOUDRU_MODEL: ${CLOUDRU_MODEL:-GigaChat/GigaChat-3-Pro}

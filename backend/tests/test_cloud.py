@@ -202,7 +202,7 @@ def test_gigaschool_only_chat_models_are_used() -> None:
 
 
 def test_complete_requires_key_and_budget(monkeypatch) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "")
+    monkeypatch.setenv("GIGASCHOOL_API_KEY", "")
     monkeypatch.setenv("CLOUDRU_API_KEY", "")
     client = CloudRuClient()
     client.api_key = ""
@@ -215,7 +215,7 @@ def test_complete_requires_key_and_budget(monkeypatch) -> None:
             )
         )
     except RuntimeError as error:
-        assert "не задан" in str(error)
+        assert "не задан" in str(error).lower()
     else:
         raise AssertionError("без ключа complete должен падать")
     client.api_key = "k"
@@ -273,8 +273,8 @@ def test_complete_records_retry_then_succeeds(monkeypatch) -> None:
     async def no_sleep(_seconds: float) -> None:
         return None
 
-    monkeypatch.setenv("OPENAI_API_KEY", "k")
-    monkeypatch.setenv("OPENAI_BASE_URL", "https://foundation-models.api.cloud.ru/v1")
+    monkeypatch.setenv("CLOUDRU_API_KEY", "k")
+    monkeypatch.setenv("CLOUDRU_BASE_URL", "https://foundation-models.api.cloud.ru/v1")
     monkeypatch.setattr("backend.app.cloud.httpx.AsyncClient", FakeAsyncClient)
     monkeypatch.setattr("backend.app.cloud.asyncio.sleep", no_sleep)
     client = CloudRuClient()
@@ -321,8 +321,8 @@ def test_complete_parses_json_tools_and_usage(monkeypatch) -> None:
         async def post(self, *_args, **_kwargs):
             return Response()
 
-    monkeypatch.setenv("OPENAI_API_KEY", "k")
-    monkeypatch.setenv("OPENAI_BASE_URL", "https://hub.gigaschool.ru/api/v1/llm/v1")
+    monkeypatch.setenv("GIGASCHOOL_API_KEY", "k")
+    monkeypatch.setenv("GIGASCHOOL_BASE_URL", "https://hub.gigaschool.ru/api/v1/llm/v1")
     monkeypatch.setenv("CLOUDRU_API_KEY", "")
     monkeypatch.setattr("backend.app.cloud.httpx.AsyncClient", FakeAsyncClient)
     client = CloudRuClient()
@@ -360,8 +360,8 @@ def test_complete_uses_reasoning_and_rejects_empty_choices(monkeypatch) -> None:
         async def post(self, *_args, **_kwargs):
             return Response()
 
-    monkeypatch.setenv("OPENAI_API_KEY", "k")
-    monkeypatch.setenv("OPENAI_BASE_URL", "https://foundation-models.api.cloud.ru/v1")
+    monkeypatch.setenv("CLOUDRU_API_KEY", "k")
+    monkeypatch.setenv("CLOUDRU_BASE_URL", "https://foundation-models.api.cloud.ru/v1")
     monkeypatch.setattr("backend.app.cloud.httpx.AsyncClient", FakeAsyncClient)
     client = CloudRuClient()
     try:
@@ -425,8 +425,8 @@ def test_complete_retries_then_succeeds(monkeypatch) -> None:
     async def no_sleep(_seconds):
         return None
 
-    monkeypatch.setenv("OPENAI_API_KEY", "k")
-    monkeypatch.setenv("OPENAI_BASE_URL", "https://hub.gigaschool.ru/api/v1/llm/v1")
+    monkeypatch.setenv("GIGASCHOOL_API_KEY", "k")
+    monkeypatch.setenv("GIGASCHOOL_BASE_URL", "https://hub.gigaschool.ru/api/v1/llm/v1")
     monkeypatch.setattr("backend.app.cloud.httpx.AsyncClient", FakeAsyncClient)
     monkeypatch.setattr("backend.app.cloud.asyncio.sleep", no_sleep)
     client = CloudRuClient()
@@ -459,7 +459,7 @@ def test_complete_raises_on_http_error(monkeypatch) -> None:
         async def post(self, *_args, **_kwargs):
             return Response()
 
-    monkeypatch.setenv("OPENAI_API_KEY", "k")
+    monkeypatch.setenv("CLOUDRU_API_KEY", "k")
     monkeypatch.setattr("backend.app.cloud.httpx.AsyncClient", FakeAsyncClient)
     client = CloudRuClient()
     try:
@@ -490,8 +490,8 @@ def test_single_attempt_names_one_try(monkeypatch) -> None:
         async def post(self, *_args, **_kwargs):
             raise httpx.TimeoutException("timed out")
 
-    monkeypatch.setenv("OPENAI_API_KEY", "k")
-    monkeypatch.setenv("OPENAI_BASE_URL", "https://foundation-models.api.cloud.ru/v1")
+    monkeypatch.setenv("CLOUDRU_API_KEY", "k")
+    monkeypatch.setenv("CLOUDRU_BASE_URL", "https://foundation-models.api.cloud.ru/v1")
     monkeypatch.setattr("backend.app.cloud.httpx.AsyncClient", FakeAsyncClient)
     client = CloudRuClient()
     try:

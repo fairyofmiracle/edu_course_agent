@@ -95,28 +95,44 @@ def configured(name: str) -> str:
 
 
 def resolve_llm_gateway() -> tuple[str, str]:
-    """Ключ уходит только на разрешённый шлюз.
+    """Выбирает разрешённый LLM-шлюз и соответствующий ему ключ.
 
-    Если задан CLOUDRU_API_KEY, он и есть шлюз: OPENAI_API_KEY при этом не отправляется.
-    OPENAI_* — только запасной ключ VM GigaSchool. Чужой адрес, включая api.openai.com,
-    отклоняется до HTTP-запроса.
+    Приоритет у Cloud.ru. Если он не настроен, используется GigaSchool.
+    Посторонние адреса отклоняются до HTTP-запроса.
     """
-    openai_key = configured("OPENAI_API_KEY")
-    openai_url = configured("OPENAI_BASE_URL")
     cloudru_key = configured("CLOUDRU_API_KEY")
-    cloudru_url = (
-        configured("CLOUDRU_BASE_URL") or "https://foundation-models.api.cloud.ru/v1"
-    )
+    gigaschool_key = configured("GIGASCHOOL_API_KEY")
 
     if cloudru_key:
-        return cloudru_key, validate_llm_endpoint(cloudru_url)
-    if openai_url:
-        return openai_key, validate_llm_endpoint(openai_url)
-    if openai_key:
-        return openai_key, validate_llm_endpoint(
-            "https://foundation-models.api.cloud.ru/v1"
+        cloudru_url = (
+            configured("CLOUDRU_BASE_URL")
+            or "https://foundation-models.api.cloud.ru/v1"
         )
-    return "", validate_llm_endpoint("https://foundation-models.api.cloud.ru/v1")
+        validated_url = validate_llm_endpoint(cloudru_url)
+
+        if validated_url != "https://foundation-models.api.cloud.ru/v1":
+            raise ValueError(
+                "Для CLOUDRU_API_KEY разрешён только шлюз Cloud.ru."
+            )
+
+        return cloudru_key, validated_url
+
+    if gigaschool_key:
+        gigaschool_url = (
+            configured("GIGASCHOOL_BASE_URL")
+            or "https://hub.gigaschool.ru/api/v1/llm/v1"
+        )
+        validated_url = validate_llm_endpoint(gigaschool_url)
+
+        if validated_url != "https://hub.gigaschool.ru/api/v1/llm/v1":
+            raise ValueError(
+                "Для GIGASCHOOL_API_KEY разрешён только шлюз GigaSchool."
+            )
+
+        return gigaschool_key, validated_url
+
+    return "", validate_llm_endpoint(
+        "https://foundation-models.api.cloud.ru/v1")
 
 
 def resolve_chat_model(name: str, fallback: str = CHAT_PRO) -> str:
@@ -358,8 +374,8 @@ class CloudRuClient:
     ) -> dict[str, Any]:
         if not self.api_key:
             raise RuntimeError(
-                "CLOUDRU_API_KEY не задан. OPENAI_API_KEY не открывает api.openai.com "
-                "и используется только вместе с разрешённым шлюзом. "
+                "Не задан CLOUDRU_API_KEY или GIGASCHOOL_API_KEY. "
+                "Разрешены только шлюзы Cloud.ru и GigaSchool. "
                 "Офлайн-пример и проверки доступны без модели."
             )
         if not self.budget_left():

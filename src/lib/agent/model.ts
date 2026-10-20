@@ -37,24 +37,52 @@ function envValue(name: string) {
   return process.env[name]?.trim() || "";
 }
 
-/** Ключ уходит только на разрешённый шлюз. CLOUDRU_API_KEY перекрывает OPENAI_API_KEY. */
+/** Выбирает разрешённый LLM-шлюз и соответствующий ему ключ. */
 export function resolveLlmGateway() {
   const cloudruKey = envValue("CLOUDRU_API_KEY");
-  const openaiKey = envValue("OPENAI_API_KEY");
-  const openaiUrl = envValue("OPENAI_BASE_URL");
-  const cloudruUrl = envValue("CLOUDRU_BASE_URL") || DEFAULT_BASE_URL;
+  const gigaschoolKey = envValue("GIGASCHOOL_API_KEY");
 
   if (cloudruKey) {
-    return { apiKey: cloudruKey, baseURL: validateLlmEndpoint(cloudruUrl) };
+    const cloudruUrl =
+      envValue("CLOUDRU_BASE_URL") ||
+      "https://foundation-models.api.cloud.ru/v1";
+
+    const validatedUrl = validateLlmEndpoint(cloudruUrl);
+
+    if (validatedUrl !== "https://foundation-models.api.cloud.ru/v1") {
+      throw new Error(
+        "Для CLOUDRU_API_KEY разрешён только шлюз Cloud.ru.",
+      );
+    }
+
+    return {
+      apiKey: cloudruKey,
+      baseURL: validatedUrl,
+    };
   }
-  if (openaiUrl) {
-    return { apiKey: openaiKey, baseURL: validateLlmEndpoint(openaiUrl) };
+
+  if (gigaschoolKey) {
+    const gigaschoolUrl =
+      envValue("GIGASCHOOL_BASE_URL") ||
+      "https://hub.gigaschool.ru/api/v1/llm/v1";
+
+    const validatedUrl = validateLlmEndpoint(gigaschoolUrl);
+
+    if (validatedUrl !== "https://hub.gigaschool.ru/api/v1/llm/v1") {
+      throw new Error(
+        "Для GIGASCHOOL_API_KEY разрешён только шлюз GigaSchool.",
+      );
+    }
+
+    return {
+      apiKey: gigaschoolKey,
+      baseURL: validatedUrl,
+    };
   }
-  if (openaiKey) {
-    return { apiKey: openaiKey, baseURL: validateLlmEndpoint(DEFAULT_BASE_URL) };
-  }
+
   throw new Error(
-    "Не задан CLOUDRU_API_KEY или OPENAI_API_KEY. Второй ключ не открывает api.openai.com: адрес вне двух шлюзов отклоняется до запроса.",
+    "Не задан CLOUDRU_API_KEY или GIGASCHOOL_API_KEY. " +
+    "Разрешены только шлюзы Cloud.ru и GigaSchool.",
   );
 }
 

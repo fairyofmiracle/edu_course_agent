@@ -22,7 +22,7 @@ function describeBody(body: string) {
   }
 }
 
-const cloudRuFetch: typeof fetch = async (input, init) => {
+export const cloudRuFetch: typeof fetch = async (input, init) => {
   if (!init || typeof init.body !== "string") return fetch(input, { ...init, redirect: "error" });
   const body = normalizeCloudRuBody(init.body);
   const response = await fetch(input, { ...init, redirect: "error" });
@@ -66,6 +66,7 @@ export function getLanguageModel(role: "chat" | "writer" = "writer") {
     name: "cloudru",
     apiKey,
     baseURL,
+    fetch: cloudRuFetch,
   });
 
   const chatModel = process.env.CLOUDRU_MODEL?.trim() || DEFAULT_CHAT_MODEL;

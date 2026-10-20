@@ -59,8 +59,8 @@ export function adaptCourseCopy(
   if (!audience || audience.length > 400) {
     return { ok: false, error: "Укажите аудиторию, до 400 символов." };
   }
-  if (!halfHour(adaptation.durationHours) || adaptation.durationHours < 16 || adaptation.durationHours > 500) {
-    return { ok: false, error: "Объём — число от 16 до 500 с шагом 0,5." };
+  if (!halfHour(adaptation.durationHours) || adaptation.durationHours < 16) {
+    return { ok: false, error: "Объём — число от 16 часов с шагом 0,5." };
   }
   if (!halfHour(adaptation.attestationHours) || adaptation.attestationHours < 0) {
     return { ok: false, error: "Часы аттестации — число от 0 с шагом 0,5." };
@@ -122,18 +122,28 @@ export function forgetCourse(
   }
 }
 
+export type LibraryWrite = "saved" | "course-only" | "failed";
+
+function writeStorage(storage: Pick<Storage, "setItem">, key: string, value: string) {
+  try {
+    storage.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function rememberCourse(
   course: CourseDocument,
   messages: UIMessage[],
   storage: Pick<Storage, "getItem" | "setItem">,
-) {
+): LibraryWrite {
   const library = readLibrary(storage);
   library[course.id] = { course, messages };
-  try {
-    storage.setItem(LIBRARY_KEY, JSON.stringify(library));
-  } catch {
-    return;
-  }
+  if (writeStorage(storage, LIBRARY_KEY, JSON.stringify(library))) return "saved";
+  library[course.id] = { course, messages: [] };
+  if (writeStorage(storage, LIBRARY_KEY, JSON.stringify(library))) return "course-only";
+  return "failed";
 }
 
 export function listLibrary(storage: Pick<Storage, "getItem">): CourseSummary[] {

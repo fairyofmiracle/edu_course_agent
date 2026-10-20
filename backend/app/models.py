@@ -30,9 +30,8 @@ class Brief(ApiModel):
     duration_hours: float = Field(
         default=0,
         ge=0,
-        le=500,
         alias="durationHours",
-        description="Объём программы в академических часах. Допустимый шаг — 0,5.",
+        description="Объём программы в академических часах. Потолка нет, шаг — 0,5.",
     )
     format: Literal["lecture", "blended", "workshop"] = "blended"
     program_kind: Literal["unset", "general", "qualification"] = Field(

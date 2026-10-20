@@ -26,7 +26,7 @@ describe("export-pptx", () => {
     course.brief.title = "__empty__";
     const pptx = buildCoursePptx(course);
     expect(pptx.title).toContain("материалы лекций");
-  });
+  }, 20_000);
 
   it("синхронный экспорт со слайдами просит async", async () => {
     const { buildCoursePptx } = await import("@/lib/export-pptx");

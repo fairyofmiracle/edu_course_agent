@@ -23,6 +23,9 @@ export function LectureDeck({ course }: LectureDeckProps) {
 
   return (
     <div className="file-shelf">
+      <p className="muted">
+        Текст слайдов — черновик модели. Часы модуля и штамп паспорта от этих формулировок не зависят.
+      </p>
       <ul className="file-list">
         {lectures.map((lecture) => {
           const courseModule = course.modules.find((item) => item.id === lecture.moduleId);

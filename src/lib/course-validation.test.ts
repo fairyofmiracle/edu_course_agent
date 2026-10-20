@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyCourse } from "./course-schema";
+import { courseDocumentSchema, createEmptyCourse } from "./course-schema";
 import { validateCourseHours } from "./course-validation";
 
 describe("Проверка учебных часов", () => {
@@ -135,5 +135,35 @@ describe("Проверка учебных часов", () => {
     expect(errors).toContain("больше нуля");
     expect(errors).toContain("отсутствует план");
     expect(errors).toContain("сумма часов тем");
+  });
+
+  it("принимает программу длиннее 500 часов", () => {
+    const course = createEmptyCourse();
+    course.brief.durationHours = 1024;
+    course.modules = [
+      {
+        id: "module-1",
+        title: "Архив",
+        hours: 1024,
+        lectureHours: 0,
+        practiceHours: 0,
+        labHours: 0,
+        selfStudyHours: 1024,
+        topics: ["Опись"],
+        plan: [
+          {
+            title: "Опись",
+            lectureHours: 0,
+            practiceHours: 0,
+            labHours: 0,
+            selfStudyHours: 1024,
+          },
+        ],
+        learningOutcomes: ["Ведёт опись"],
+        competencyIds: [],
+      },
+    ];
+    expect(validateCourseHours(course)).toEqual([]);
+    expect(courseDocumentSchema.safeParse(course).success).toBe(true);
   });
 });

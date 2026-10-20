@@ -222,16 +222,18 @@ export function RequestComposer({
 
   const templateHours = Number(fields.durationHours);
   const templateReady =
+    fields.title.trim().length > 0 &&
     fields.audience.trim().length > 0 &&
     fields.goals.trim().length > 0 &&
     Number.isFinite(templateHours) &&
-    templateHours >= 16 &&
-    templateHours <= 500;
+    templateHours >= 16;
 
   const sendTemplate = () => {
     if (pending) return;
     if (!templateReady) {
-      setFormError("Заполните аудиторию, цель и объём от 16 до 500 часов. Без этого запрос не уходит.");
+      setFormError(
+        "Заполните название, аудиторию, цель и объём от 16 часов. Без этого запрос не уходит.",
+      );
       return;
     }
     setFormError("");
@@ -299,7 +301,6 @@ export function RequestComposer({
               type="number"
               required
               min={16}
-              max={500}
               value={fields.durationHours}
               onChange={(event) => setField("durationHours", event.target.value)}
               placeholder="72"
@@ -308,6 +309,7 @@ export function RequestComposer({
           <label className="wide">
             Название
             <input
+              required
               value={fields.title}
               onChange={(event) => setField("title", event.target.value)}
               placeholder="Основы кибербезопасности"

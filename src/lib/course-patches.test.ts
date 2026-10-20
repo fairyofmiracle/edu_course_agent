@@ -85,6 +85,41 @@ describe("applyPatch structure", () => {
     }
   });
 
+  it("повтор уже записанного модуля не стирает остальные блоки", () => {
+    let course = createEmptyCourse();
+    course = applyPatch(course, {
+      type: "update_brief",
+      brief: { title: "Архив", audience: "сотрудники", programKind: "general", durationHours: 120 },
+    });
+    const row = (id: string, title: string) => ({
+      id,
+      title,
+      hours: 40,
+      lectureHours: 10,
+      practiceHours: 20,
+      labHours: 0,
+      selfStudyHours: 10,
+      topics: ["тема"],
+      plan: [],
+      learningOutcomes: ["умеет"],
+      competencyIds: ["c1"],
+    });
+    course = applyPatch(course, {
+      type: "set_structure",
+      modules: [row("1", "Первый"), row("2", "Второй")],
+    });
+    course = applyPatch(course, {
+      type: "set_structure",
+      modules: [row("1", "Первый, правка"), row("3", "Третий")],
+    });
+    expect(course.modules.map((item) => item.id)).toEqual(["1", "2", "3"]);
+    expect(course.modules[0]?.title).toBe("Первый, правка");
+    expect(course.modules[1]?.title).toBe("Второй");
+    expect(
+      applyPatch(course, { type: "set_structure", modules: [] }).modules.map((item) => item.id),
+    ).toEqual(["1", "2", "3"]);
+  });
+
   it("чинит регистр id и кладёт каждую компетенцию в модуль", () => {
     let course = createEmptyCourse();
     course = applyPatch(course, {

@@ -28,7 +28,7 @@ export const briefSchema = z.object({
   title: z.string().max(180).default(""),
   audience: z.string().max(400).default(""),
   level: courseLevelSchema.default("intermediate"),
-  durationHours: z.number().min(0).max(500).default(0),
+  durationHours: z.number().min(0).default(0),
   format: courseFormatSchema.default("blended"),
   programKind: programKindSchema.default("unset"),
   attestationHours: z.number().min(0).max(80).default(0),
@@ -62,20 +62,20 @@ export const competencyMapSchema = z.object({
 
 export const topicPlanSchema = z.object({
   title: z.string().min(1).max(200),
-  lectureHours: z.number().min(0).max(500).default(0),
-  practiceHours: z.number().min(0).max(500).default(0),
-  labHours: z.number().min(0).max(500).default(0),
-  selfStudyHours: z.number().min(0).max(500).default(0),
+  lectureHours: z.number().min(0).default(0),
+  practiceHours: z.number().min(0).default(0),
+  labHours: z.number().min(0).default(0),
+  selfStudyHours: z.number().min(0).default(0),
 });
 
 export const moduleSchema = z.object({
   id: z.string().min(1).max(40),
   title: z.string().min(1).max(180),
-  hours: z.number().min(0.5).max(500),
-  lectureHours: z.number().min(0).max(500).default(0),
-  practiceHours: z.number().min(0).max(500).default(0),
-  labHours: z.number().min(0).max(500).default(0),
-  selfStudyHours: z.number().min(0).max(500).default(0),
+  hours: z.number().min(0.5),
+  lectureHours: z.number().min(0).default(0),
+  practiceHours: z.number().min(0).default(0),
+  labHours: z.number().min(0).default(0),
+  selfStudyHours: z.number().min(0).default(0),
   topics: z.array(z.string().min(1).max(200)).min(1).max(20),
   plan: z.array(topicPlanSchema).max(20).default([]),
   learningOutcomes: z.array(z.string().min(1).max(300)).min(1).max(12),

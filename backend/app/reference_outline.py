@@ -152,11 +152,11 @@ def compact_reference(text: str | None, limit: int = 3500) -> str:
 
 HEADER_VOLUME = re.compile(
     r"(?:объ[её]м|трудо[её]мк|всего|итого|программ\w*).{0,48}?"
-    r"(\d{2,3})\s*(?:академическ\w*\s+)?(?:часов|часа|час\b|ч\b)",
+    r"(\d{2,})\s*(?:академическ\w*\s+)?(?:часов|часа|час\b|ч\b)",
     re.IGNORECASE,
 )
 PLAIN_VOLUME = re.compile(
-    r"(\d{2,3})\s*академических часов",
+    r"(\d{2,})\s*академических часов",
     re.IGNORECASE,
 )
 
@@ -167,7 +167,7 @@ def volume_from_reference(text: str | None) -> int | None:
     head = text[:2500]
     for match in (*HEADER_VOLUME.finditer(head), *PLAIN_VOLUME.finditer(head)):
         value = int(match.group(1))
-        if 8 <= value <= 500:
+        if value >= 8:
             return value
     return None
 

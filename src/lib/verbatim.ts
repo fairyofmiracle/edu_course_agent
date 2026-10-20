@@ -20,19 +20,29 @@ export function referenceNotes(course: CourseDocument) {
   return course.brief.references.map((reference) => reference.note ?? "").join("\n");
 }
 
+export function generatedFields(course: CourseDocument) {
+  const fields: string[] = [];
+  for (const lecture of course.lectures) {
+    fields.push(...lecture.outline);
+    for (const slide of lecture.slides) {
+      fields.push(slide.title, ...slide.bullets, slide.speakerNotes ?? "");
+    }
+  }
+  for (const seminar of course.seminars) {
+    for (const task of seminar.tasks) {
+      fields.push(task.title, task.prompt, ...task.steps, ...task.criteria);
+    }
+  }
+  for (const assessment of course.assessments) {
+    for (const question of assessment.questions) {
+      fields.push(question.stem, question.answer, question.explanation, ...(question.options ?? []));
+    }
+  }
+  return fields;
+}
+
 export function generatedText(course: CourseDocument) {
-  return [
-    ...course.lectures.flatMap((lecture) => [
-      ...lecture.outline,
-      ...lecture.slides.flatMap((slide) => [slide.title, ...slide.bullets, slide.speakerNotes ?? ""]),
-    ]),
-    ...course.seminars.flatMap((seminar) =>
-      seminar.tasks.flatMap((task) => [task.title, task.prompt, ...task.steps]),
-    ),
-    ...course.assessments.flatMap((assessment) =>
-      assessment.questions.flatMap((question) => [question.stem, question.explanation]),
-    ),
-  ].join("\n");
+  return generatedFields(course).join("\n");
 }
 
 /** Общие окна из 12 слов между примечанием референса и текстом комплекта. */
@@ -40,10 +50,12 @@ export function verbatimSpans(course: CourseDocument, size = SPAN) {
   const reference = spans(referenceNotes(course), size);
   if (reference.size === 0) return [];
   const hits: string[] = [];
-  for (const span of spans(generatedText(course), size)) {
-    if (!reference.has(span)) continue;
-    hits.push(span);
-    if (hits.length === 3) break;
+  for (const field of generatedFields(course)) {
+    for (const span of spans(field, size)) {
+      if (!reference.has(span) || hits.includes(span)) continue;
+      hits.push(span);
+      if (hits.length === 3) return hits;
+    }
   }
   return hits;
 }

@@ -7,6 +7,7 @@ import { ChatPanel } from "@/components/ChatPanel";
 import { CourseWorkspace, type WorkspaceTab } from "@/components/CourseWorkspace";
 import { SiteFrame } from "@/components/SiteFrame";
 import {
+  CourseConflictError,
   downloadCourseFromBackend,
   hasBackendStorage,
   loadCourseFromBackend,
@@ -37,7 +38,7 @@ import { exportCourseDocx } from "@/lib/export-docx";
 import { exportCourseMoodle } from "@/lib/export-moodle";
 import { exportCourseCsv, exportCourseGift } from "@/lib/export-tests";
 import { exportCoursePptx } from "@/lib/export-pptx";
-import { SAMPLE_COURSE } from "@/lib/sample-course";
+import { resolveStudioOpen } from "@/lib/studio-open";
 import {
   actionEntry,
   entryFromMessage,
@@ -47,8 +48,6 @@ import {
 } from "@/lib/session-log";
 import {
   loadSessionId,
-  loadStoredCourse,
-  loadStoredMessages,
   newSessionId,
   saveCourse,
   saveMessages,
@@ -62,20 +61,20 @@ function useIsClient() {
   );
 }
 
-export function Studio() {
+export function Studio({ courseId, sample }: { courseId?: string; sample?: boolean }) {
   const isClient = useIsClient();
   if (!isClient) {
     return <div className="boot">Открываю студию…</div>;
   }
-  const params = new URLSearchParams(window.location.search);
-  const showSample = params.get("sample") === "1";
-  const openedCourse = Boolean(params.get("course"));
+  const open = resolveStudioOpen({ courseId, sample }, window.localStorage);
   return (
     <StudioSession
-      initialCourse={showSample ? SAMPLE_COURSE : loadStoredCourse()}
-      initialMessages={showSample ? [] : loadStoredMessages()}
-      initialSessionId={showSample || openedCourse ? newSessionId() : loadSessionId()}
-      initialChatOpen={!openedCourse}
+      initialCourse={open.course}
+      initialMessages={open.messages}
+      initialSessionId={open.rotateSession ? newSessionId() : loadSessionId()}
+      initialChatOpen={!courseId}
+      persist={open.persist}
+      localNotice={open.notice}
     />
   );
 }
@@ -85,20 +84,24 @@ function StudioSession({
   initialMessages,
   initialSessionId,
   initialChatOpen,
+  persist,
+  localNotice,
 }: {
   initialCourse: CourseDocument;
   initialMessages: UIMessage[];
   initialSessionId: string;
   initialChatOpen: boolean;
+  persist: boolean;
+  localNotice: string;
 }) {
   const [storedCourse, setStoredCourse] = useState(initialCourse);
   const [extraReferences, setExtraReferences] = useState("");
   const [tab, setTab] = useState<WorkspaceTab>("overview");
   const [sessionId, setSessionId] = useState(initialSessionId);
   const [backendReady, setBackendReady] = useState(!hasBackendStorage());
-  const [saveState, setSaveState] = useState<"local" | "saving" | "synced" | "offline">(
-    hasBackendStorage() ? "saving" : "local",
-  );
+  const [saveState, setSaveState] = useState<
+    "local" | "saving" | "synced" | "offline" | "conflict"
+  >(hasBackendStorage() ? "saving" : "local");
   const [exportJob, setExportJob] = useState<{
     kind: "json" | "docx" | "pptx";
     phase: "work" | "done" | "error";
@@ -107,8 +110,11 @@ function StudioSession({
     null,
   );
   const [chatOpen, setChatOpen] = useState(initialChatOpen);
+  const [storageNote, setStorageNote] = useState("");
   const exportElapsed = useElapsed(exportJob?.phase === "work");
   const courseRef = useRef(storedCourse);
+  const messagesRef = useRef(initialMessages);
+  const versionRef = useRef<number | undefined>(undefined);
   const refsRef = useRef("");
   const sessionRef = useRef(initialSessionId);
   const seenMessages = useRef(new Set(initialMessages.map((item) => item.id)));
@@ -136,7 +142,7 @@ function StudioSession({
       .filter((item) => item.role === "assistant")
       .map((item) => messageText(item))
       .find((value) =>
-        /Ключа шлюза нет|Шлюз не ответил|Модель написала часть|Собрала комплект/.test(value),
+        /Ключа шлюза нет|Шлюз не ответил|Модель написала часть|Собрала комплект|Комплект написала модель/.test(value),
       );
     if (!text) return "";
     if (text.includes("Ключа шлюза нет")) return "Ключа шлюза нет. Комплект по каркасу.";
@@ -177,8 +183,17 @@ function StudioSession({
 
   useEffect(() => {
     courseRef.current = course;
-    saveCourse(course, messages);
-  }, [course, messages]);
+  }, [course]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    if (!persist) return;
+    const result = saveCourse(course, messages);
+    setStorageNote(result.ok ? "" : result.message);
+  }, [persist, course, messages]);
 
   useEffect(() => {
     refsRef.current = extraReferences;
@@ -189,15 +204,32 @@ function StudioSession({
   }, [sessionId]);
 
   useEffect(() => {
-    saveMessages(messages);
-  }, [messages]);
+    if (!persist) return;
+    const result = saveMessages(messages);
+    if (!result.ok) setStorageNote(result.message);
+  }, [persist, messages]);
 
   useEffect(() => {
-    if (!hasBackendStorage()) return;
+    if (!hasBackendStorage() || !persist) {
+      setBackendReady(true);
+      setSaveState("local");
+      return;
+    }
     let active = true;
+    const stamp = JSON.stringify({
+      course: courseRef.current,
+      messages: messagesRef.current,
+    });
     void loadCourseFromBackend(initialCourse.id)
       .then((stored) => {
         if (!active || !stored) return;
+        versionRef.current = stored.version;
+        const edited =
+          JSON.stringify({
+            course: courseRef.current,
+            messages: messagesRef.current,
+          }) !== stamp;
+        if (edited) return;
         setStoredCourse(stored.course);
         setMessages(stored.messages);
         setSaveState("synced");
@@ -211,18 +243,23 @@ function StudioSession({
     return () => {
       active = false;
     };
-  }, [initialCourse.id, setMessages]);
+  }, [initialCourse.id, persist, setMessages]);
 
   useEffect(() => {
-    if (!backendReady || !hasBackendStorage()) return;
+    if (!backendReady || !hasBackendStorage() || !persist) return;
     const timer = window.setTimeout(() => {
       setSaveState("saving");
-      void saveCourseToBackend(course, messages)
-        .then(() => setSaveState("synced"))
-        .catch(() => setSaveState("offline"));
+      void saveCourseToBackend(course, messages, "autosave", versionRef.current)
+        .then((version) => {
+          if (typeof version === "number") versionRef.current = version;
+          setSaveState("synced");
+        })
+        .catch((error: unknown) => {
+          setSaveState(error instanceof CourseConflictError ? "conflict" : "offline");
+        });
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [backendReady, course, messages]);
+  }, [backendReady, persist, course, messages]);
 
   useEffect(() => {
     const ready = status === "ready";
@@ -376,8 +413,14 @@ function StudioSession({
                 ? exportDoneLabel(exportJob.kind)
                 : exportJob?.phase === "error"
                   ? "Выгрузка не собралась"
-                  : sourceLine
+                  : storageNote
+                  ? storageNote
+                  : localNotice
+                    ? localNotice
+                    : sourceLine
                     ? sourceLine
+                    : saveState === "conflict"
+                      ? "Курс уже сохранила другая вкладка. Обновите страницу, чтобы не затереть её правку."
                     : saveState === "synced"
                       ? "Сохранено"
                     : saveState === "saving"

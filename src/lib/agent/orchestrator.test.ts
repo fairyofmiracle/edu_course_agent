@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decideMode, planStep } from "@/lib/agent/orchestrator";
+import { decideMode, foldSteps, planStep } from "@/lib/agent/orchestrator";
 import { applyPatch } from "@/lib/course-patches";
 import { createEmptyCourse } from "@/lib/course-schema";
 import { frameworkFingerprint, frameworkItems } from "@/lib/framework-check";
@@ -48,5 +48,50 @@ describe("planStep", () => {
     const key = `set_assessment:${approved.modules[0].id}`;
     const skipped = planStep("kit", approved, [key, key], 3);
     expect(skipped).toMatchObject({ tool: "set_seminar", moduleId: approved.modules[0].id });
+  });
+
+  it("готовый комплект и свободный режим не собирают каркас заново", () => {
+    const approved = {
+      ...SAMPLE_COURSE,
+      frameworkApproved: true,
+      frameworkFingerprint: frameworkFingerprint(SAMPLE_COURSE),
+    };
+    expect(decideMode(approved, "поправь формулировку")).toBe("free");
+    expect(decideMode(createEmptyCourse(), "Собери только каркас")).toBe("framework");
+    expect(planStep("kit", approved, [], 4).kind).toBe("reply");
+    expect(planStep("free", approved, [], 4)).toMatchObject({ kind: "auto" });
+  });
+
+  it("уже собранный каркас на первом шаге можно поправить, дальше только ответ", () => {
+    const course = applyPatch(SAMPLE_COURSE, {
+      type: "update_brief",
+      brief: { audience: "" },
+    });
+    const editable = planStep("intake", course, ["update_brief"], 2);
+    expect(editable).toMatchObject({ kind: "auto" });
+    const summary = planStep("intake", course, ["update_brief", "ещё"], 2);
+    expect(summary.kind).toBe("reply");
+    expect(summary.task).toContain("не прошли");
+  });
+
+  it("кривой патч не попадает в документ и зовёт отказ", () => {
+    const reasons: string[] = [];
+    const next = foldSteps(
+      createEmptyCourse(),
+      [
+        { toolResults: [{ output: { type: "не патч" } }] },
+        {
+          toolResults: [
+            {
+              toolName: "set_lecture",
+              output: { type: "set_lecture", lecture: { moduleId: "m1" } },
+            },
+          ],
+        },
+      ],
+      (toolName, reason) => reasons.push(`${toolName}: ${reason}`),
+    );
+    expect(next.lectures).toEqual([]);
+    expect(reasons[0]).toContain("set_lecture");
   });
 });

@@ -6,6 +6,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .access import access_denied, request_allowed
 from .agent_api import router as agent_router
 from .export_api import router as export_router
 from .audit import audit_course
@@ -91,6 +92,13 @@ def cors_origins() -> list[str]:
         if origin.startswith("http://") or origin.startswith("https://"):
             origins.append(origin)
     return origins
+
+
+@app.middleware("http")
+async def studio_network_gate(request, call_next):
+    if not request_allowed(request):
+        return access_denied()
+    return await call_next(request)
 
 
 app.add_middleware(
@@ -180,9 +188,10 @@ def check_regulatory_sources(
         )
         site_ok = probe["state"] == "reachable"
         filled = bool(claim.number and claim.date)
-        number_on_page = probe.get("requisites") != "missing"
+        requisites = probe.get("requisites")
+        number_on_page = requisites == "found"
         source_attached = site_ok and filled and number_on_page
-        if site_ok and filled and not number_on_page:
+        if site_ok and filled and requisites == "missing":
             message = "Сайт ответил, но номер документа на странице не найден. Источник не подтверждён."
         elif source_attached:
             message = "Сайт ответил, номер документа на странице есть. Действующим приказ признаёт методист."
@@ -212,7 +221,9 @@ def check_regulatory_sources(
     operation_id="probeSources",
 )
 def probe_sources(request: SourceProbeRequest) -> SourceProbeResponse:
-    return SourceProbeResponse.model_validate({"results": probe_urls(request.urls[:20])})
+    return SourceProbeResponse.model_validate(
+        {"results": probe_urls(request.urls[:20], expect=request.expect)}
+    )
 
 
 @app.post(

@@ -6,6 +6,7 @@ from io import BytesIO
 from typing import Any
 
 from .legal_basis import required_legal_basis
+from .rationale import module_rationales, result_passport
 from .models import CourseDocument
 
 FORMAT_LABELS = {
@@ -156,6 +157,18 @@ def build_docx(course: CourseDocument) -> bytes:
         ]
     )
     _add_table(doc, ["№", "Наименование", "Всего", "ЛК", "ПР", "ЛБ", "СРС"], plan_rows)
+    doc.add_heading("Паспорт результата", level=2)
+    doc.add_paragraph(
+        "Этот блок считает код. Формулировки лекций в него не входят и при новом прогоне модели могут отличаться."
+    )
+    doc.add_paragraph(result_passport(course.as_api()))
+    doc.add_heading("Почему план такой", level=2)
+    doc.add_paragraph(
+        "Формулировки лекций при новом прогоне модели могут отличаться. "
+        "Часы, результаты и связь со средствами проверки считает код."
+    )
+    for row in module_rationales(course.as_api()):
+        doc.add_paragraph(row["text"], style="List Bullet")
 
     doc.add_heading("2.1. Результаты обучения", level=2)
     for module in course.modules:

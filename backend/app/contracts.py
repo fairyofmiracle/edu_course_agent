@@ -138,6 +138,10 @@ class RegulatoryPolicy(BaseModel):
 
 class SourceProbeRequest(BaseModel):
     urls: list[str] = Field(default_factory=list, max_length=20)
+    expect: dict[str, str] = Field(
+        default_factory=dict,
+        description="Номер документа для сверки со страницей. Ключ — ссылка из urls.",
+    )
 
 
 class SourceProbeHit(BaseModel):

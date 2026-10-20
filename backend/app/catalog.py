@@ -435,6 +435,25 @@ def flatten_internship_hours(course: CourseDocument) -> CourseDocument:
     return CourseDocument.model_validate(value) if changed else course
 
 
+def block_count(hours: float) -> int:
+    """Крупный объём пишется модулями-блоками, не одним текстом.
+
+    После 500 часов блок держится около 40 часов. Число модулей растёт
+    вместе с объёмом, отдельного потолка у программы нет.
+    """
+    if hours <= 24:
+        return 3
+    if hours <= 80:
+        return 4
+    if hours <= 160:
+        return 6
+    if hours <= 320:
+        return 8
+    if hours <= 500:
+        return 12
+    return max(12, int((hours + 39) // 40))
+
+
 def generic_structure(course: CourseDocument) -> list[dict[str, Any]] | None:
     hours = course.brief.duration_hours - course.brief.attestation_hours
     if hours <= 0:
@@ -444,7 +463,7 @@ def generic_structure(course: CourseDocument) -> list[dict[str, Any]] | None:
     subject = subject_name(course)
     audience = (course.brief.audience or "слушатель").rstrip(" .")
     hints = generic_module_titles(course)
-    count = 3 if hours <= 24 else 4 if hours <= 80 else 5
+    count = block_count(hours)
     while len(hints) < count:
         hints.append(f"Раздел {len(hints) + 1}: {subject}")
     chunks = [max(0.5, round((hours / count) * 2) / 2) for _ in range(count)]
@@ -484,6 +503,7 @@ def generic_structure(course: CourseDocument) -> list[dict[str, Any]] | None:
                 ],
                 outcomes=[
                     f"Выполняет работу по теме «{short}» и объясняет результат",
+                    f"Объясняет, что в работе по теме «{short}» сделано и чего делать нельзя",
                 ],
                 competency_ids=[competency],
             )

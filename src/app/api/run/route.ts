@@ -38,7 +38,12 @@ export async function POST(req: Request) {
   try {
     const response = await fetch(`${pythonUrl.replace(/\/$/, "")}/api/run`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(process.env.STUDIO_API_TOKEN?.trim()
+          ? { Authorization: `Bearer ${process.env.STUDIO_API_TOKEN.trim()}` }
+          : {}),
+      },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(790_000),
     });

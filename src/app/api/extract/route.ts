@@ -18,7 +18,10 @@ function stripHtml(html: string) {
 }
 
 function clip(text: string) {
-  return text.length > MAX_CHARS ? `${text.slice(0, MAX_CHARS)}…` : text;
+  if (text.length <= MAX_CHARS) return text;
+  const tail = 4000;
+  const head = MAX_CHARS - tail;
+  return `${text.slice(0, head)}\n...\n${text.slice(-tail)}`;
 }
 
 export async function POST(req: Request) {

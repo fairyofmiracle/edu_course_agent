@@ -7,6 +7,7 @@ import { StackFreshnessPanel } from "@/components/StackFreshness";
 import { LectureDeck } from "@/components/LectureDeck";
 import { MermaidBlock } from "@/components/MermaidBlock";
 import { auditCourse, methodistNotes, type AuditSection, type AuditStatus } from "@/lib/course-audit";
+import { resultPassport } from "@/lib/module-rationale";
 import { isHttpSource, sourceConfidence } from "@/lib/verbatim";
 import { exportAssessmentDocx, exportSeminarDocx } from "@/lib/export-docx";
 import { validateCourseHours } from "@/lib/course-validation";
@@ -37,7 +38,7 @@ const TABS: { id: WorkspaceTab; label: string; hint: string }[] = [
   { id: "overview", label: "Обзор", hint: "Шаблон, аудитория и проверка часов. Каркас утверждают здесь." },
   { id: "structure", label: "План", hint: "Модули и разбивка часов по неделям. Календарные даты сюда не ставятся." },
   { id: "competencies", label: "Компетенции", hint: "Колесо баланса: знания, умения, навыки и покрытие лекцией, заданием и тестом." },
-  { id: "lectures", label: "Лекции", hint: "Файлы презентаций: открыть предпросмотр или скачать." },
+  { id: "lectures", label: "Лекции", hint: "Черновик модели. Штамп паспорта от формулировок слайдов не зависит." },
   { id: "seminars", label: "Семинары", hint: "Файлы заданий: открыть просмотр или скачать." },
   { id: "tests", label: "Тесты", hint: "Файлы проверки: открыть просмотр или скачать." },
   { id: "checks", label: "Проверка", hint: "Часы, связи, комплект, источники и оценивание каждого результата." },
@@ -353,6 +354,13 @@ function Overview({ course, score }: { course: CourseDocument; score: number }) 
         <p className="score">{Math.round(score * 100)}% заполнено</p>
       </header>
       <ConfidenceNote course={course} />
+      <article>
+        <h3>Паспорт результата</h3>
+        <p className="muted">
+          Штамп считает код по виду программы и часам. Лекция — черновик модели: её текст штамп не меняет.
+        </p>
+        <p className="mono">{resultPassport(course)}</p>
+      </article>
       {notes.length ? (
         <article>
           <h3>Для методиста</h3>

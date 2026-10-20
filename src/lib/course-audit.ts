@@ -1,6 +1,8 @@
+import { inventedRequisites, laborCodes } from "@/lib/claims";
 import type { CourseDocument } from "@/lib/course-schema";
 import { frameworkItems } from "@/lib/framework-check";
 import { ORDER_266, citesRepealedOrder499, missingLegalBasis } from "@/lib/legal-basis";
+import { moduleRationales, resultPassport } from "@/lib/module-rationale";
 import { findOutdated } from "@/lib/outdated";
 import { referenceNotes, verbatimSpans } from "@/lib/verbatim";
 
@@ -283,6 +285,27 @@ function genericItems(course: CourseDocument): AuditItem[] {
     );
   }
 
+  for (const row of moduleRationales(course)) {
+    items.push(
+      item(
+        `framework.why.${row.id}`,
+        "Модуль обоснован часами и результатами",
+        true,
+        "framework",
+        row.text,
+      ),
+    );
+  }
+  items.push(
+    item(
+      "framework.passport",
+      "Паспорт результата считает код, формулировки модели в него не входят",
+      true,
+      "framework",
+      resultPassport(course),
+    ),
+  );
+
   const calendarLine = course.brief.constraints.find((line) => /календарн/i.test(line));
   if (course.brief.durationHours > 0) {
     items.push(
@@ -312,27 +335,35 @@ function genericItems(course: CourseDocument): AuditItem[] {
   const copiedText = verbatimItem(course);
   if (copiedText) items.push(copiedText);
 
-  const laborCodes = course.competencies.nodes
-    .map((node) => node.laborFunctionCode?.trim())
-    .filter(Boolean);
-  if (laborCodes.length > 0) {
+  const codes = laborCodes(course);
+  const invented = inventedRequisites(course);
+  if (codes.length > 0) {
+    const grounded = codes.every((code) => !invented.includes(code));
     items.push(
-      course.brief.references.length > 0
-        ? warning(
-            "sources.codes",
-            "Коды трудовых функций требуют ручной сверки с приложенным профстандартом",
-            "sources",
-            laborCodes.join(", "),
-          )
-        : item(
-            "sources.codes",
-            "Коды трудовых функций указаны без источника",
-            false,
-            "sources",
-            laborCodes.join(", "),
-          ),
+      item(
+        "sources.codes",
+        grounded
+          ? "Код трудовой функции есть в тексте методиста"
+          : "Код трудовой функции не найден в источниках методиста",
+        grounded,
+        "sources",
+        codes.join(", "),
+      ),
     );
   }
+  items.push(
+    item(
+      "sources.requisites",
+      invented.length === 0
+        ? "Выдуманных номеров и кодов в комплекте нет"
+        : "В комплекте есть реквизит, которого нет у методиста",
+      invented.length === 0,
+      "sources",
+      invented.length > 0
+        ? invented.join(", ")
+        : "Номер приказа и код трудовой функции сверяются с файлом и условиями запроса.",
+    ),
+  );
 
   return items;
 }

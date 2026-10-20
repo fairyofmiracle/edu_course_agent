@@ -74,4 +74,37 @@ describe("getLanguageModel", () => {
     const { getLanguageModel: getAgain } = await import("./model");
     expect(() => getAgain("chat")).toThrow(/LLM API запрещён/);
   });
+
+  it("логирует ответ шлюза и пропускает тело без JSON", async () => {
+    const { cloudRuFetch } = await import("./model");
+    const fetchImpl = vi.fn(async () => new Response("ошибка шлюза", { status: 429 }));
+    vi.stubGlobal("fetch", fetchImpl);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const plain = await cloudRuFetch("https://foundation-models.api.cloud.ru/v1/chat", { method: "GET" });
+    expect(plain.status).toBe(429);
+    expect(error).not.toHaveBeenCalled();
+
+    const broken = await cloudRuFetch("https://foundation-models.api.cloud.ru/v1/chat", {
+      method: "POST",
+      body: "не json",
+    });
+    expect(broken.status).toBe(429);
+    expect(String(error.mock.calls.at(-1)?.[0])).toContain("тело не JSON");
+
+    const ok = vi.fn(async () => new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", ok);
+    const sent = await cloudRuFetch("https://foundation-models.api.cloud.ru/v1/chat", {
+      method: "POST",
+      body: JSON.stringify({
+        tools: [{ name: "set_structure" }],
+        tool_choice: "auto",
+        messages: [{ role: "assistant", tool_calls: [{ function: { name: "set_structure" } }] }],
+      }),
+    });
+    expect(sent.ok).toBe(true);
+    expect(error).toHaveBeenCalledTimes(1);
+    error.mockRestore();
+    vi.unstubAllGlobals();
+  });
 });

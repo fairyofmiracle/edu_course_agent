@@ -572,6 +572,63 @@ def test_chat_turn_returns_502_on_agent_error(monkeypatch) -> None:
     assert "сеть недоступна" in response.json()["detail"]
 
 
+def test_gateway_failure_on_a_free_turn_keeps_the_course(monkeypatch) -> None:
+    monkeypatch.setattr(
+        agent_module,
+        "plan_step",
+        lambda *_args, **_kwargs: {"kind": "auto", "task": "правь названную часть"},
+    )
+
+    class Down:
+        api_key = "test-key"
+
+        async def complete(self, **_kwargs):
+            raise RuntimeError("шлюз молчит")
+
+    course = empty_course()
+    course.brief.title = "Черновик"
+    result = asyncio.run(
+        run_turn(
+            course,
+            user_texts=["Поправь название на «Сети»"],
+            model_messages=[{"role": "user", "content": "Поправь название на «Сети»"}],
+            client=Down(),
+        )
+    )
+    assert "не изменил программу" in result["assistant"]
+    assert result["course"].brief.title == "Черновик"
+
+
+def test_competency_gateway_failure_uses_the_catalog(monkeypatch) -> None:
+    monkeypatch.setattr(
+        agent_module,
+        "plan_step",
+        lambda *_args, **_kwargs: {"kind": "tool", "tool": "set_competency_map"},
+    )
+
+    class Down:
+        api_key = "test-key"
+
+        async def complete(self, **_kwargs):
+            raise RuntimeError("шлюз молчит")
+
+    course = empty_course()
+    course.brief.title = "Сети для колледжа"
+    course.brief.audience = "студенты колледжа без опыта"
+    course.brief.duration_hours = 72
+    course.brief.program_kind = "general"
+    result = asyncio.run(
+        run_turn(
+            course,
+            user_texts=["Собери каркас"],
+            model_messages=[{"role": "user", "content": "Собери каркас"}],
+            client=Down(),
+        )
+    )
+    assert any(call.get("input") == "local_fallback" for call in result["calls"])
+    assert result["course"].competencies.nodes
+
+
 def test_run_turn_stops_on_client_budget() -> None:
     course = empty_course()
     result = asyncio.run(
@@ -599,7 +656,7 @@ def test_strengthen_internship_sets_attestation() -> None:
 
 def test_max_tokens_match_step_kind() -> None:
     assert max_tokens_for_step({"kind": "reply"}) == 220
-    assert max_tokens_for_step({"kind": "tool", "tool": "set_structure"}) == 1600
-    assert max_tokens_for_step({"kind": "tool", "tool": "set_assessment"}) == 1100
-    assert max_tokens_for_step({"kind": "tool", "tool": "set_lecture"}) == 450
+    assert max_tokens_for_step({"kind": "tool", "tool": "set_structure"}) == 3200
+    assert max_tokens_for_step({"kind": "tool", "tool": "set_assessment"}) == 2400
+    assert max_tokens_for_step({"kind": "tool", "tool": "set_lecture"}) == 2400
     assert max_tokens_for_step({"kind": "tool", "tool": "update_brief"}) == 280

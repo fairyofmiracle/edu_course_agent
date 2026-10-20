@@ -54,7 +54,7 @@ describe("backend storage", () => {
     vi.stubGlobal("fetch", fetchImpl);
 
     expect(api.hasBackendStorage()).toBe(true);
-    expect(await api.saveCourseToBackend(SAMPLE_COURSE, [], "copy", 1)).toBe(true);
+    expect(await api.saveCourseToBackend(SAMPLE_COURSE, [], "copy", 1)).toBe(2);
     expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toMatchObject({
       reason: "copy",
       expectedVersion: 1,
@@ -80,10 +80,10 @@ describe("backend storage", () => {
     });
     fetchImpl.mockResolvedValueOnce(fileResponse);
     expect(await api.downloadCourseFromBackend(SAMPLE_COURSE, "docx")).toBe(true);
-    expect(String(fetchImpl.mock.calls.at(-1)?.[0])).toBe("http://studio.local/api/export/docx");
+    expect(String(fetchImpl.mock.calls.at(-1)?.[0])).toBe("/api/backend/api/export/docx");
     expect(click).toHaveBeenCalled();
     expect(String(fetchImpl.mock.calls[0]?.[0])).toBe(
-      `http://studio.local/api/courses/${encodeURIComponent(SAMPLE_COURSE.id)}`,
+      `/api/backend/api/courses/${encodeURIComponent(SAMPLE_COURSE.id)}`,
     );
   });
 

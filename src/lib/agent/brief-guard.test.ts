@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { guardBrief, mentionedHours } from "@/lib/agent/brief-guard";
+import { guardBrief, mentionedHours, volumeFromText } from "@/lib/agent/brief-guard";
 import { createEmptyCourse } from "@/lib/course-schema";
 
 const CYBER =
@@ -68,5 +68,10 @@ describe("guardBrief", () => {
     expect(brief.audience).toMatch(/стажировку в ИТ-компаниях/i);
     expect(brief.attestationHours).toBe(2);
     expect(brief.goals?.length).toBeGreaterThan(0);
+  });
+
+  it("слышит объём больше трёх знаков", () => {
+    expect(volumeFromText(["нужна программа на 1024 часа"])).toBe(1024);
+    expect(mentionedHours("1024 часа")).toEqual([1024]);
   });
 });

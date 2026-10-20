@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import ipaddress
+import socket
 from typing import Any, Protocol
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
@@ -35,7 +36,42 @@ def public_http_url(url: str) -> bool:
         address = ipaddress.ip_address(host)
     except ValueError:
         return True
-    return not (address.is_private or address.is_loopback or address.is_link_local or address.is_reserved)
+    return _public_ip(address)
+
+
+def _public_ip(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        return _public_ip(address.ipv4_mapped)
+    return not (
+        address.is_private
+        or address.is_loopback
+        or address.is_link_local
+        or address.is_reserved
+        or address.is_multicast
+        or address.is_unspecified
+    )
+
+
+def host_is_public(url: str) -> bool:
+    """Имя хоста режется по DNS. Внутренний адрес не открываем."""
+    host = (urlparse(url).hostname or "").strip("[]")
+    if not host:
+        return False
+    try:
+        addresses = {ipaddress.ip_address(host)}
+    except ValueError:
+        try:
+            infos = socket.getaddrinfo(host, None)
+        except socket.gaierror:
+            return False
+        addresses = set()
+        for info in infos:
+            raw = str(info[4][0]).split("%", 1)[0]
+            try:
+                addresses.add(ipaddress.ip_address(raw))
+            except ValueError:
+                return False
+    return bool(addresses) and all(_public_ip(item) for item in addresses)
 
 
 _STAMP_LIMIT = 65536
@@ -85,36 +121,65 @@ def page_stamp(response: object, expect: str = "") -> tuple[str, str]:
             digest.update(piece)
             read += len(piece)
             if needle and requisites != "found":
-                carry = (carry + piece.decode("utf-8", errors="ignore").casefold())[-80:]
-                if needle in carry:
+                text = piece.decode("utf-8", errors="ignore").casefold()
+                window = carry + text
+                if needle in window:
                     requisites = "found"
+                carry = window[-80:]
     body = digest.hexdigest() if read else ""
     if not etag and not modified and not body:
         return "", "unchecked" if not needle else requisites
     return f"{etag}|{modified}|{body}", requisites
 
 
-def probe_url(url: str, opener: UrlOpener | None = None, expect: str = "") -> dict[str, str]:
+def probe_url(
+    url: str,
+    opener: UrlOpener | None = None,
+    expect: str = "",
+    _hops: int = 0,
+) -> dict[str, str]:
     """Открывает ссылку. Текст приказа не сохраняется, остаётся только отметка страницы."""
     target = url.strip()
+    if _hops > 3:
+        return _result(
+            target,
+            "unavailable",
+            "Слишком много перенаправлений. Приказ не подтверждён.",
+        )
     if not public_http_url(target):
         return _result(
             target,
             "not_checked",
             "Проверяем только публичные http- и https-ссылки. Документ не подтверждён.",
         )
+    real_client = opener is None or isinstance(opener, httpx.Client)
+    if real_client and not host_is_public(target):
+        return _result(
+            target,
+            "not_checked",
+            "Адрес ведёт во внутреннюю сеть. Документ не подтверждён.",
+        )
 
     close = opener is None
     client = opener or httpx.Client(
         timeout=httpx.Timeout(4.0, connect=3.0),
-        follow_redirects=True,
+        follow_redirects=False,
         headers={"User-Agent": "edu-course-studio/0.1"},
     )
     try:
         try:
             with client.stream("GET", target) as response:
                 code = response.status_code
-                stamp, requisites = page_stamp(response, expect) if 200 <= code < 400 else ("", "unchecked")
+                location = ""
+                if 300 <= code < 400:
+                    headers = getattr(response, "headers", None)
+                    if headers is not None and hasattr(headers, "get"):
+                        location = str(headers.get("location") or "")
+                    stamp, requisites = "", "unchecked"
+                else:
+                    stamp, requisites = (
+                        page_stamp(response, expect) if 200 <= code < 400 else ("", "unchecked")
+                    )
         except httpx.TimeoutException:
             return _result(
                 target,
@@ -127,6 +192,15 @@ def probe_url(url: str, opener: UrlOpener | None = None, expect: str = "") -> di
                 "unavailable",
                 "Сайт недоступен. Приказ не подтверждён и не заменяется локальной копией.",
             )
+
+        if 300 <= code < 400:
+            if not location:
+                return _result(
+                    target,
+                    "unavailable",
+                    "Сайт перенаправил без адреса. Приказ не подтверждён.",
+                )
+            return probe_url(urljoin(target, location), client, expect, _hops + 1)
 
         if code in {404, 410}:
             return _result(
@@ -174,5 +248,10 @@ def probe_url(url: str, opener: UrlOpener | None = None, expect: str = "") -> di
             client.close()
 
 
-def probe_urls(urls: list[str], opener: UrlOpener | None = None) -> list[dict[str, Any]]:
-    return [probe_url(url, opener) for url in urls]
+def probe_urls(
+    urls: list[str],
+    opener: UrlOpener | None = None,
+    expect: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    numbers = expect or {}
+    return [probe_url(url, opener, expect=str(numbers.get(url) or "")[:40]) for url in urls]

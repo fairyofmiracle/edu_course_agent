@@ -87,4 +87,46 @@ describe("storage", () => {
     expect(storage.getItem("edu-course-agent:course")).toBeNull();
     expect(storage.getItem(LIBRARY_KEY)).toBe("{}");
   });
+
+  it("переполнение не роняет запись и не стирает прежний курс", () => {
+    const data = new Map<string, string>();
+    let blockCourse = false;
+    let blockLibrary = false;
+    const storage = {
+      getItem: (key: string) => data.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        if (blockCourse && key === "edu-course-agent:course") throw new Error("quota");
+        if (blockLibrary && key === LIBRARY_KEY && value.includes("длинный-диалог")) {
+          throw new Error("quota");
+        }
+        data.set(key, value);
+      },
+      removeItem: (key: string) => {
+        data.delete(key);
+      },
+    };
+    vi.stubGlobal("window", { localStorage: storage });
+    saveCourse(SAMPLE_COURSE, [{ id: "m1", role: "user", parts: [] }]);
+    const kept = storage.getItem("edu-course-agent:course");
+
+    blockCourse = true;
+    const blocked = saveCourse(
+      { ...SAMPLE_COURSE, brief: { ...SAMPLE_COURSE.brief, title: "Не записалось" } },
+      [],
+    );
+    expect(blocked.ok).toBe(false);
+    if (!blocked.ok) expect(blocked.message).toContain("не записалась");
+    expect(storage.getItem("edu-course-agent:course")).toBe(kept);
+
+    blockCourse = false;
+    blockLibrary = true;
+    const listed = saveCourse(SAMPLE_COURSE, [
+      { id: "m2", role: "user", parts: [{ type: "text", text: "длинный-диалог" }] },
+    ]);
+    expect(listed.ok).toBe(false);
+    if (!listed.ok) expect(listed.message).toContain("в списке");
+    expect(storage.getItem(LIBRARY_KEY)).toContain(SAMPLE_COURSE.id);
+    expect(storage.getItem(LIBRARY_KEY)).not.toContain("длинный-диалог");
+    expect(loadStoredCourse().id).toBe(SAMPLE_COURSE.id);
+  });
 });

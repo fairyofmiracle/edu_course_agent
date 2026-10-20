@@ -4,7 +4,7 @@ import re
 from typing import Any, Literal
 
 from .domain import framework_fingerprint, framework_items
-from .catalog import is_data_analysis, is_internship
+from .catalog import block_count, is_data_analysis, is_internship
 from .kit_content import has_stub_lectures, has_stub_questions, outcome_gaps
 from .models import CourseDocument
 
@@ -243,8 +243,29 @@ def plan_step(
                 "Код трудовой функции не выдумывай."
             ),
         }
-    if not tried("set_structure"):
-        hours = course.brief.duration_hours
+    hours = course.brief.duration_hours
+    total_blocks = block_count(hours) if hours > 0 else 0
+    written = len(course.modules)
+    passes = (total_blocks + 7) // 8 if total_blocks else 1
+    if written < total_blocks and (
+        tried("set_structure") == 0
+        or (hours > 80 and tried("set_structure") < passes + 1)
+    ):
+        if hours > 80 and total_blocks > 8:
+            start = written + 1
+            end = min(total_blocks, written + 8)
+            blocks = (
+                f" Всего модулей-блоков: {total_blocks}. "
+                f"Сейчас опиши только модули {start}–{end}. "
+                "У каждого свои темы и часы. Уже записанные модули не повторяй."
+            )
+        elif hours > 80:
+            blocks = (
+                f" Разбей на {total_blocks} модулей-блоков, "
+                "у каждого свои темы и часы. Не описывай всю программу одним текстом."
+            )
+        else:
+            blocks = ""
         if is_internship(course):
             return {
                 "kind": "tool",
@@ -253,6 +274,7 @@ def plan_step(
                     f"Собери модули на {hours:g} ч. Лекции, практика и лабораторные "
                     "равны нулю, часы — самостоятельная работа. Аттестацию не растворяй "
                     "в модулях. Ошибку итоговой строки из образца не копируй."
+                    + blocks
                 ),
             }
         if is_data_analysis(course):
@@ -263,6 +285,7 @@ def plan_step(
                     f"Собери модули на {hours:g} ч: сначала Python для тех, кто был "
                     "в Excel, затем pandas, визуализация, SQL и статистика. "
                     "Текст образца не копируй."
+                    + blocks
                 ),
             }
         if course.brief.program_kind == "qualification" and 24 < hours <= 40:
@@ -287,6 +310,7 @@ def plan_step(
                 else (
                     f"Собери 3–5 модулей на {hours:g} ч по теме и аудитории запроса. "
                     "Не копируй тему и часы образца. Код трудовой функции не выдумывай."
+                    + blocks
                 )
             ),
         }

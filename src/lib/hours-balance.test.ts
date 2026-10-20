@@ -4,10 +4,11 @@ import {
   attachCompetencyIds,
   balanceModules,
   fillModulePlan,
+  flattenInternshipHours,
   kindSum,
   roundHours,
 } from "@/lib/hours-balance";
-import type { CourseModule } from "@/lib/course-schema";
+import { createEmptyCourse, type CourseModule } from "@/lib/course-schema";
 
 function sample(partial: Partial<CourseModule> = {}): CourseModule {
   return {
@@ -89,6 +90,33 @@ describe("fillModulePlan", () => {
     expect(next.lectureHours).toBe(8);
     expect(next.labHours).toBe(4);
   });
+
+  it("без списка тем берёт названия из плана и подставляет имя модуля", () => {
+    const next = fillModulePlan(
+      sample({
+        title: "  ",
+        topics: [],
+        learningOutcomes: [],
+        hours: 4,
+        lectureHours: 0,
+        practiceHours: 0,
+        labHours: 0,
+        selfStudyHours: 4,
+        plan: [
+          {
+            title: "Уже в плане",
+            lectureHours: 0,
+            practiceHours: 0,
+            labHours: 0,
+            selfStudyHours: 4,
+          },
+        ],
+      }),
+    );
+    expect(next.title).toBe("Модуль");
+    expect(next.topics).toEqual(["Уже в плане"]);
+    expect(next.learningOutcomes[0]).toMatch(/Осваивает/);
+  });
 });
 
 describe("balanceModules", () => {
@@ -162,6 +190,31 @@ describe("balanceModules", () => {
     expect(next[0].lectureHours).toBe(0);
     expect(next[0].practiceHours).toBe(0);
     expect(next[0].selfStudyHours).toBe(254);
+  });
+
+  it("стажировка переносит аудиторные часы в самостоятельную работу", () => {
+    const course = createEmptyCourse();
+    course.brief.title = "Стажировка в колледже";
+    course.modules = [
+      sample({
+        hours: 16,
+        lectureHours: 4,
+        practiceHours: 8,
+        labHours: 2,
+        selfStudyHours: 2,
+      }),
+    ];
+    const next = flattenInternshipHours(course);
+    expect(next.modules[0]?.lectureHours).toBe(0);
+    expect(next.modules[0]?.practiceHours).toBe(0);
+    expect(next.modules[0]?.labHours).toBe(0);
+    expect(next.modules[0]?.selfStudyHours).toBe(16);
+    const already = flattenInternshipHours({
+      ...course,
+      modules: [sample({ hours: 10, lectureHours: 0, practiceHours: 0, labHours: 0, selfStudyHours: 10 })],
+    });
+    expect(already.modules[0]?.selfStudyHours).toBe(10);
+    expect(already.modules[0]?.lectureHours).toBe(0);
   });
 });
 

@@ -5,7 +5,7 @@ import time
 from typing import Any
 
 from .cloud import CloudRuClient
-from .domain import apply_patch, framework_fingerprint, framework_items
+from .domain import apply_patch, framework_fingerprint, framework_items, rebalance_course
 from .catalog import (
     default_structure,
     extra_references,
@@ -55,7 +55,6 @@ MAX_STEPS = 12
 KIT_BUDGET_SECONDS = 200
 KIT_CALL_TIMEOUT = 70
 REF_LIMIT = 3500
-USER_LIMIT = 1800
 
 SYSTEM_PROMPT = """Ты методист. Документ меняй только JSON-инструментом.
 Часы и тип программы — только из слов методиста. «Месяц» — срок, не объём.
@@ -156,8 +155,11 @@ def build_system_prompt(
 
 
 def messages_for_model(user_texts: list[str]) -> list[dict[str, Any]]:
-    parts = [text.strip() for text in user_texts if text.strip()][-2:]
-    return [{"role": "user", "content": clip_text("\n\n".join(parts), USER_LIMIT)}]
+    parts = [text.strip() for text in user_texts if text.strip()][-8:]
+    body = "\n\n".join(parts)
+    if len(body) <= 6000:
+        return [{"role": "user", "content": body}]
+    return [{"role": "user", "content": f"[...]\n{body[-6000:]}"}]
 
 
 def tools_for_step(step: dict[str, Any]) -> list[dict[str, Any]]:
@@ -178,11 +180,11 @@ def max_tokens_for_step(step: dict[str, Any]) -> int:
     if tool == "set_competency_map":
         return 500
     if tool == "set_structure":
-        return 1600
+        return 3200
     if tool == "set_assessment":
-        return 1100
+        return 2400
     if tool == "set_lecture":
-        return 450
+        return 2400
     return 400
 
 
@@ -202,15 +204,21 @@ def kit_assistant_text(client: Any, calls: list[dict[str, Any]], planned: list[s
         for call in calls
     )
     local = "fill_missing_kit" in planned or any(
-        call.get("input") == "local_fallback" for call in calls
+        call.get("input") in {"local_fallback", "mixed"} for call in calls
     )
     if not has_key:
         return "Ключа шлюза нет. Комплект дописан по каркасу: тест, слайды и семинар."
     if local and not model_wrote:
         return "Шлюз не ответил. Комплект дописан по каркасу, чтобы программа не осталась пустой."
     if local and model_wrote:
-        return "Модель написала часть комплекта. Остальное дописано по каркасу."
-    return "Собрала комплект: тест, слайды и семинар."
+        return (
+            "Модель написала часть комплекта. Пустые места дописаны по каркасу, "
+            "в чате это сказано прямо."
+        )
+    return (
+        "Комплект написала модель: тест, слайды и задания по этой теме. "
+        "Код проверил часы, источники и дословные совпадения с референсом."
+    )
 
 
 async def run_turn(
@@ -365,6 +373,11 @@ async def run_turn(
                         course = apply_patch(course, output)
                         patches.append(output)
                 continue
+            if step.get("tool") in {None, "update_brief"} or step.get("kind") in {"reply", "auto"}:
+                assistant_text = (
+                    "Шлюз не ответил. Этот ход не изменил программу, повторите сообщение."
+                )
+                break
             raise
         tool_calls = (message.get("tool_calls") or [])[:1]
         model_messages.append(message)
@@ -424,6 +437,9 @@ async def run_turn(
             )
         except json.JSONDecodeError:
             arguments = {}
+            truncated = True
+        else:
+            truncated = False
         output = execute_tool(
             name,
             arguments,
@@ -432,7 +448,14 @@ async def run_turn(
             form_brief,
             module_id=step.get("moduleId"),
         )
-        calls.append({"tool": name, "input": arguments})
+        origin = "catalog" if truncated else str(output.get("origin") or "model")
+        if origin == "mixed":
+            recorded: Any = "mixed"
+        elif origin == "catalog":
+            recorded = "local_fallback"
+        else:
+            recorded = arguments
+        calls.append({"tool": name, "input": recorded})
         if output.get("type") != "tool_error":
             next_course = apply_patch(course, output)
             if next_course != course:
@@ -506,7 +529,7 @@ def strengthen_framework(course: CourseDocument) -> CourseDocument:
             output = execute_tool("set_structure", {"modules": modules}, course, [])
             if output.get("type") != "tool_error":
                 course = apply_patch(course, output)
-    course = flatten_internship_hours(course)
+    course = rebalance_course(flatten_internship_hours(course))
     if has_stub_competencies(course):
         nodes = default_competencies(course)
         output = execute_tool("set_competency_map", {"nodes": nodes}, course, [])

@@ -35,6 +35,11 @@ RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 RETRY_ATTEMPTS = 3
 
 
+def attempts_label(count: int) -> str:
+    word = "попытки" if count % 10 == 1 and count % 100 != 11 else "попыток"
+    return f"Шлюз не ответил после {count} {word}."
+
+
 def validate_llm_endpoint(value: str) -> str:
     try:
         url = urlsplit(value.strip())
@@ -294,7 +299,7 @@ def build_chat_payload(
             {"role": "system", "content": system_text},
             *flatten_history(messages),
         ],
-        "temperature": 0.2,
+        "temperature": 0,
         "max_tokens": max(16, min(int(max_tokens), 1600)),
     }
     if not json_tools:
@@ -390,14 +395,14 @@ class CloudRuClient:
                     self.gateway_retries.append(attempt + 2)
                     await asyncio.sleep(0.4 * (2 ** attempt))
                     continue
-                raise RuntimeError(f"Шлюз не ответил после {RETRY_ATTEMPTS} попыток.") from error
+                raise RuntimeError(attempts_label(total_attempts)) from error
             status = getattr(response, "status_code", 500 if response.is_error else 200)
             if status in RETRY_STATUSES and attempt + 1 < total_attempts:
                 self.gateway_retries.append(attempt + 2)
                 await asyncio.sleep(0.4 * (2 ** attempt))
                 continue
             if status in RETRY_STATUSES:
-                raise RuntimeError(f"Шлюз не ответил после {RETRY_ATTEMPTS} попыток.")
+                raise RuntimeError(attempts_label(total_attempts))
             if response.is_error:
                 raise RuntimeError(
                     f"Cloud.ru вернул ошибку {status}: {getattr(response, 'text', '')[:300]}"
@@ -413,4 +418,4 @@ class CloudRuClient:
             if self.json_tools and not message.get("tool_calls"):
                 return parse_assistant_message(message.get("content"))
             return sanitize(message)
-        raise RuntimeError(f"Шлюз не ответил после {RETRY_ATTEMPTS} попыток.")
+        raise RuntimeError(attempts_label(total_attempts))

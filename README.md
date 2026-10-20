@@ -61,10 +61,29 @@ npm run smoke:llm
 Порт 8000 снаружи один. Его занимают и Docker, и локальный FastAPI: одновременно их не запускают. На личном компьютере этот порт иногда занят редактором; пустой ответ `{"error":"fetch failed"}` значит, что студия не дошла до API.
 
 ```bash
-cp .env.example .env
-docker compose up --build
+```bash
+# Создать .env, если его ещё нет
+cp -n .env.example .env
+
+# Сгенерировать секретный токен
+python3 -c 'import secrets; print(secrets.token_hex(32))'
+```
+
+Откройте `.env` и укажите:
+
+- `STUDIO_API_TOKEN` — вставьте сгенерированный токен.
+- `GIGASCHOOL_API_KEY` или `CLOUDRU_API_KEY` — действующий ключ одного из разрешённых шлюзов.
+- Соответствующий `GIGASCHOOL_BASE_URL` или `CLOUDRU_BASE_URL`.
+
+Без `STUDIO_API_TOKEN` Docker Compose намеренно откажется запускаться. Без LLM-ключа реальная генерация моделью недоступна.
+
+После сохранения `.env` выполните:
+
+```bash
+docker compose up -d --build
 docker compose ps
 ```
+
 
 Дождитесь `db`, `api`, `web`. Compose сам ждёт PostgreSQL и применяет миграции Alembic. Студия: [http://localhost:8000](http://localhost:8000). Swagger: [http://localhost:8000/backend/docs](http://localhost:8000/backend/docs).
 

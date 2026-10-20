@@ -281,6 +281,20 @@ def test_health_survives_a_broken_gateway(monkeypatch) -> None:
     assert body["llmHost"] == ""
 
 
+def test_health_reports_configured_gateway(monkeypatch) -> None:
+    class Ok:
+        def __init__(self) -> None:
+            self.api_key = "k"
+            self.base_url = "https://hub.gigaschool.ru/api/v1/llm/v1"
+
+    monkeypatch.setattr("backend.app.cloud.CloudRuClient", Ok)
+    with TestClient(app) as client:
+        body = client.get("/health").json()
+    assert body["status"] == "ok"
+    assert body["llmConfigured"] is True
+    assert body["llmHost"] == "hub.gigaschool.ru"
+
+
 def test_audit_warns_about_retired_tool_without_failing_hours() -> None:
     from backend.app.audit import audit_course
 

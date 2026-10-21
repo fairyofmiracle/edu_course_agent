@@ -9,7 +9,7 @@ class ContractModel(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
 
-class HealthResponse(BaseModel):
+class HealthResponse(ContractModel):
     status: Literal["ok"] = Field(description="Сервис принимает запросы.")
     service: Literal["edu-course-python"]
     llm_configured: bool = Field(default=False, alias="llmConfigured")

@@ -1,3 +1,4 @@
+import { downloadText } from "@/lib/browser-download";
 import type { CourseDocument } from "@/lib/course-schema";
 
 function asText(value: unknown) {
@@ -38,13 +39,7 @@ function giftTitle(moduleTitle: string, index: number, stem: string) {
 }
 
 function download(filename: string, content: string, type: string) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
+  downloadText(filename, content, type);
 }
 
 export function courseToGift(course: CourseDocument) {

@@ -254,6 +254,25 @@ def _merge_modules(existing: list[Any], incoming: list[Any]) -> list[Any]:
     return [*merged, *novel]
 
 
+PATCH_RANK = {
+    "update_brief": 0,
+    "set_competency_map": 1,
+    "set_structure": 2,
+    "set_lecture": 3,
+    "set_seminar": 3,
+    "set_assessment": 3,
+    "revise_section": 4,
+}
+
+
+def apply_patches(course: CourseDocument, patches: list[dict[str, Any]]) -> CourseDocument:
+    ordered = sorted(patches, key=lambda item: PATCH_RANK.get(str(item.get("type")), 9))
+    next_course = course
+    for patch in ordered:
+        next_course = apply_patch(next_course, patch)
+    return next_course
+
+
 def apply_patch(course: CourseDocument, patch: dict[str, Any]) -> CourseDocument:
     if patch.get("type") not in PATCH_TYPES:
         return course

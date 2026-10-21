@@ -36,8 +36,12 @@ def main() -> int:
     failed = 0
 
     status, health = call("GET", "/health")
-    ok("health", status, health.get("status") == "ok")
-    failed += status != 200
+    ok(
+        "health",
+        status,
+        health.get("status") == "ok" and "llmConfigured" in health,
+    )
+    failed += status != 200 or "llmConfigured" not in health
 
     status, policy = call("GET", "/api/regulatory/policy")
     ok("regulatory.policy", status, bool(policy.get("rules")))

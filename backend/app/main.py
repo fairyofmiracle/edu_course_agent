@@ -4,7 +4,9 @@ from contextlib import asynccontextmanager
 import os
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .access import access_denied, request_allowed
 from .agent_api import router as agent_router
@@ -112,6 +114,14 @@ if courses_router is not None:
     app.include_router(courses_router)
 app.include_router(agent_router)
 app.include_router(export_router)
+
+
+@app.exception_handler(RequestValidationError)
+async def invalid_contract(_request, _error: RequestValidationError):
+    return JSONResponse(
+        status_code=422,
+        content={"detail": "Запрос не подходит под контракт. Проверьте поля и повторите."},
+    )
 
 
 @app.get(

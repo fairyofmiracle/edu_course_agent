@@ -23,6 +23,7 @@ import {
   isKitComplete,
 } from "@/lib/framework-check";
 import { SAMPLE_COURSE } from "@/lib/sample-course";
+import { userFacingError } from "@/lib/user-error";
 import {
   createEmptyCourse,
   isCourseEmpty,
@@ -283,7 +284,7 @@ function StudioSession({
     const key = `${lastUser?.id ?? ""}:${error.message}`;
     if (loggedErrors.current.has(key)) return;
     loggedErrors.current.add(key);
-    persistLog(errorEntry(sessionRef.current, error.message));
+    persistLog(errorEntry(sessionRef.current, userFacingError(error)));
   }, [error, messages]);
 
   const send = (text: string, brief?: Partial<CourseBrief>) => {

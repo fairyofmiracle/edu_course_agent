@@ -109,8 +109,7 @@ export async function POST(req: Request) {
   if (!pythonUrl) {
     return Response.json(
       {
-        error:
-          "Не задан PYTHON_AGENT_URL. Чат идёт только через FastAPI — см. .env.example.",
+        error: "Чат сейчас без API. Откройте студию через Docker на порту 8000.",
       },
       { status: 503 },
     );

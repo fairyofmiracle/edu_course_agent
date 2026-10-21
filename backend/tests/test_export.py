@@ -45,6 +45,8 @@ def test_export_json_docx_pptx_from_body() -> None:
 
     bad = client.post("/api/export/pdf", json=course)
     assert bad.status_code == 400
+    assert "docx" in bad.json()["detail"]
+    assert "Traceback" not in bad.json()["detail"]
 
 
 def test_export_saved_course_after_put() -> None:

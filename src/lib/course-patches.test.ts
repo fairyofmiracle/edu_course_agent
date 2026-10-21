@@ -237,6 +237,66 @@ describe("applyPatch structure", () => {
     );
     expect(folded.brief.title).toBe("Собранный");
     expect(folded.brief.durationHours).toBe(16);
+
+    const outOfOrder = foldCourseFromMessages(
+      [
+        {
+          id: "3",
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-set_lecture",
+              toolCallId: "lec",
+              state: "output-available",
+              input: {},
+              output: {
+                type: "set_lecture",
+                lecture: {
+                  moduleId: "m1",
+                  durationMin: 30,
+                  outline: ["Тема", "Практика", "Проверка"],
+                  slides: [
+                    { title: "Слайд 1", bullets: ["пункт", "ещё"] },
+                    { title: "Слайд 2", bullets: ["пункт", "ещё"] },
+                    { title: "Слайд 3", bullets: ["пункт", "ещё"] },
+                  ],
+                },
+              },
+            },
+            {
+              type: "tool-set_structure",
+              toolCallId: "st",
+              state: "output-available",
+              input: {},
+              output: {
+                type: "set_structure",
+                modules: [
+                  {
+                    id: "m1",
+                    title: "Сети",
+                    hours: 16,
+                    lectureHours: 8,
+                    practiceHours: 8,
+                    labHours: 0,
+                    selfStudyHours: 0,
+                    topics: ["IP"],
+                    plan: [],
+                    learningOutcomes: ["Собирает стенд"],
+                    competencyIds: [],
+                  },
+                ],
+              },
+            },
+          ],
+        } as UIMessage,
+      ],
+      applyPatch(createEmptyCourse(), {
+        type: "update_brief",
+        brief: { durationHours: 16, programKind: "general", audience: "колледж" },
+      }),
+    );
+    expect(outOfOrder.modules.map((item) => item.id)).toEqual(["m1"]);
+    expect(outOfOrder.lectures[0]?.moduleId).toBe("m1");
   });
 
   it("правит компетенции, лекцию и выравнивает уже собранный курс", () => {

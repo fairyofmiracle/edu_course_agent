@@ -10,6 +10,7 @@ from .audit import audit_course_document
 from .catalog import is_incomplete_brief
 from .cloud import CloudRuClient
 from .models import CourseDocument, empty_course
+from .public_errors import public_error_text
 
 router = APIRouter(prefix="/api", tags=["agent"])
 
@@ -17,8 +18,7 @@ FRAMEWORK_PROMPT = "Собери только каркас программы: �
 
 
 def _error_detail(error: Exception) -> str:
-    message = str(error).strip()
-    return f"{type(error).__name__}: {message}" if message else type(error).__name__
+    return public_error_text(error)
 
 
 class RunRequest(BaseModel):

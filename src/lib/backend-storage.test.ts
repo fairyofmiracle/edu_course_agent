@@ -93,12 +93,12 @@ describe("backend storage", () => {
       "fetch",
       vi.fn(async () => new Response("fail", { status: 500 })),
     );
-    await expect(api.saveCourseToBackend(SAMPLE_COURSE, [])).rejects.toThrow(/500/);
-    await expect(api.listCoursesFromBackend()).rejects.toThrow(/список/);
-    await expect(api.copyCourseOnBackend("missing")).rejects.toThrow(/скопировать/);
-    await expect(api.loadCourseFromBackend("missing")).rejects.toThrow(/загрузить/);
-    await expect(api.deleteCourseFromBackend("missing")).rejects.toThrow(/удалить/);
-    await expect(api.downloadCourseFromBackend(SAMPLE_COURSE, "json")).rejects.toThrow(/выгрузить/);
+    await expect(api.saveCourseToBackend(SAMPLE_COURSE, [])).rejects.toThrow(/сохранить программу/);
+    await expect(api.listCoursesFromBackend()).rejects.toThrow(/список курсов/);
+    await expect(api.copyCourseOnBackend("missing")).rejects.toThrow(/скопировать программу/);
+    await expect(api.loadCourseFromBackend("missing")).rejects.toThrow(/открыть программу/);
+    await expect(api.deleteCourseFromBackend("missing")).rejects.toThrow(/удалить программу/);
+    await expect(api.downloadCourseFromBackend(SAMPLE_COURSE, "json")).rejects.toThrow(/выгрузить программу/);
 
     vi.stubGlobal(
       "fetch",

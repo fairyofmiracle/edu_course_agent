@@ -13,6 +13,7 @@ import {
 } from "@/lib/course-schema";
 
 import { FRAMEWORK_PROMPT, KIT_PROMPT } from "@/lib/agent/service-prompts";
+import { userFacingError } from "@/lib/user-error";
 
 type Mode = "free" | "template";
 type ProgramKind = "general" | "qualification";
@@ -137,7 +138,7 @@ export function RequestComposer({
     if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
       return "Чтение заняло слишком много времени. Возьмите файл меньше или повторите.";
     }
-    return error instanceof Error && error.message ? error.message : fallback;
+    return userFacingError(error) || fallback;
   };
 
   const attachFile = async (file: File) => {

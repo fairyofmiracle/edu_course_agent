@@ -1,7 +1,8 @@
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 
-from backend.app.main import app
+from backend.app.main import app, courses_router
 from backend.app.source_probe import probe_url, public_http_url
 
 
@@ -282,6 +283,42 @@ def test_health_survives_a_broken_gateway(monkeypatch) -> None:
 
 
 
+def test_invalid_body_does_not_leak_pydantic() -> None:
+    with TestClient(app) as client:
+        response = client.post("/api/chat/turn", json={})
+    assert response.status_code == 422
+    assert "контракт" in response.json()["detail"]
+    assert "traceback" not in str(response.json()).lower()
+
+
+def test_public_error_hides_exception_type() -> None:
+    from backend.app.public_errors import public_error_text
+
+    assert "RuntimeError" not in public_error_text(RuntimeError("HTTP 502 Traceback"))
+    assert "модели" in public_error_text(RuntimeError("сеть недоступна"))
+
+
+def test_health_response_accepts_snake_and_dumps_camel() -> None:
+    from backend.app.contracts import HealthResponse
+
+    snake = HealthResponse(
+        status="ok",
+        service="edu-course-python",
+        llm_configured=True,
+        llm_host="hub.gigaschool.ru",
+    )
+    camel = HealthResponse(
+        status="ok",
+        service="edu-course-python",
+        llmConfigured=False,
+        llmHost="",
+    )
+    dumped = snake.model_dump(by_alias=True)
+    assert dumped["llmConfigured"] is True
+    assert dumped["llmHost"] == "hub.gigaschool.ru"
+    assert camel.llm_configured is False
+
+
 def test_health_reports_configured_gateway(monkeypatch) -> None:
     class Ok:
         def __init__(self) -> None:
@@ -433,6 +470,8 @@ def test_remote_client_cannot_open_the_api() -> None:
 
 
 def test_token_closes_the_loopback_api(monkeypatch) -> None:
+    if courses_router is None:
+        pytest.skip("persistence unavailable")
     monkeypatch.setenv("STUDIO_API_TOKEN", "secret")
     client = TestClient(app)
     assert client.get("/api/courses").status_code == 401

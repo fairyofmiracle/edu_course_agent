@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { userFacingError } from "@/lib/user-error";
 
 export const maxDuration = 300;
 
@@ -12,7 +13,7 @@ async function forward(req: NextRequest, path: string[]) {
   const base = pythonBase();
   if (!base) {
     return Response.json(
-      { detail: "Не задан PYTHON_AGENT_URL. Сохранение идёт через сайт, не напрямую в API." },
+      { detail: "Сохранение сейчас без API. Откройте студию через Docker на порту 8000." },
       { status: 503 },
     );
   }
@@ -24,12 +25,17 @@ async function forward(req: NextRequest, path: string[]) {
   const token = process.env.STUDIO_API_TOKEN?.trim();
   if (token) headers.set("authorization", `Bearer ${token}`);
   const hasBody = req.method !== "GET" && req.method !== "HEAD";
-  const response = await fetch(target, {
-    method: req.method,
-    headers,
-    body: hasBody ? await req.arrayBuffer() : undefined,
-    signal: AbortSignal.timeout(290_000),
-  });
+  let response: Response;
+  try {
+    response = await fetch(target, {
+      method: req.method,
+      headers,
+      body: hasBody ? await req.arrayBuffer() : undefined,
+      signal: AbortSignal.timeout(290_000),
+    });
+  } catch (error) {
+    return Response.json({ detail: userFacingError(error) }, { status: 502 });
+  }
   const out = new Headers();
   const type = response.headers.get("content-type");
   if (type) out.set("content-type", type);

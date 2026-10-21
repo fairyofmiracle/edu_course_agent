@@ -1,3 +1,4 @@
+import { downloadText } from "@/lib/browser-download";
 import type { CourseDocument } from "@/lib/course-schema";
 
 function cdata(value: string) {
@@ -139,12 +140,9 @@ ${blocks.join("\n")}
 }
 
 export function exportCourseMoodle(course: CourseDocument) {
-  const content = courseToMoodleXml(course);
-  const blob = new Blob([content], { type: "application/xml" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${slug(asText(course.brief?.title))}-moodle.xml`;
-  link.click();
-  URL.revokeObjectURL(url);
+  downloadText(
+    `${slug(asText(course.brief?.title))}-moodle.xml`,
+    courseToMoodleXml(course),
+    "application/xml",
+  );
 }

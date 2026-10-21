@@ -1,4 +1,4 @@
-import { appendServerLog, describeError } from "@/lib/server-log";
+import { appendServerLog, chatFailureText, describeError } from "@/lib/server-log";
 
 export const maxDuration = 800;
 
@@ -28,8 +28,7 @@ export async function POST(req: Request) {
   if (!pythonUrl) {
     return Response.json(
       {
-        error:
-          "Не задан PYTHON_AGENT_URL. Прогон идёт только через FastAPI — см. .env.example.",
+        error: "Прогон сейчас без API. Откройте студию через Docker на порту 8000.",
       },
       { status: 503 },
     );
@@ -54,6 +53,6 @@ export async function POST(req: Request) {
   } catch (error) {
     const text = describeError(error);
     void appendServerLog({ text: `Python /api/run недоступен: ${text}` });
-    return Response.json({ error: text }, { status: 502 });
+    return Response.json({ error: chatFailureText(error) }, { status: 502 });
   }
 }

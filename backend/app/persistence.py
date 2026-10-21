@@ -101,7 +101,7 @@ def save_course(
     session: Session = Depends(get_db),
 ) -> dict[str, Any]:
     if request.course.id != course_id:
-        raise HTTPException(status_code=400, detail="course id does not match path")
+        raise HTTPException(status_code=400, detail="Идентификатор курса в пути и в теле не совпадает.")
     record = session.scalar(
         select(CourseRecord).where(CourseRecord.id == course_id).with_for_update()
     )
@@ -185,7 +185,7 @@ def load_course(
 ) -> dict[str, Any]:
     record = session.get(CourseRecord, course_id)
     if record is None:
-        raise HTTPException(status_code=404, detail="course not found")
+        raise HTTPException(status_code=404, detail="Курс не найден.")
     version = session.scalar(
         select(CourseVersion)
         .where(CourseVersion.course_id == course_id)
@@ -193,7 +193,7 @@ def load_course(
         .limit(1)
     )
     if version is None:
-        raise HTTPException(status_code=404, detail="course has no versions")
+        raise HTTPException(status_code=404, detail="У курса ещё нет сохранённых версий.")
     messages = session.scalars(
         select(ChatMessageRecord)
         .where(ChatMessageRecord.course_id == course_id)
@@ -231,10 +231,10 @@ def export_saved_course(
     session: Session = Depends(get_db),
 ) -> Any:
     if session.get(CourseRecord, course_id) is None:
-        raise HTTPException(status_code=404, detail="course not found")
+        raise HTTPException(status_code=404, detail="Курс не найден.")
     version = _latest_version(session, course_id)
     if version is None:
-        raise HTTPException(status_code=404, detail="course has no versions")
+        raise HTTPException(status_code=404, detail="У курса ещё нет сохранённых версий.")
     return file_response(kind, CourseDocument.model_validate(version.payload))
 
 
@@ -247,7 +247,7 @@ def list_versions(
     course_id: str, session: Session = Depends(get_db)
 ) -> dict[str, Any]:
     if session.get(CourseRecord, course_id) is None:
-        raise HTTPException(status_code=404, detail="course not found")
+        raise HTTPException(status_code=404, detail="Курс не найден.")
     versions = session.scalars(
         select(CourseVersion)
         .where(CourseVersion.course_id == course_id)
@@ -274,7 +274,7 @@ def list_versions(
 def delete_course(course_id: str, session: Session = Depends(get_db)) -> dict[str, Any]:
     record = session.get(CourseRecord, course_id)
     if record is None:
-        raise HTTPException(status_code=404, detail="course not found")
+        raise HTTPException(status_code=404, detail="Курс не найден.")
     session.execute(delete(ChatMessageRecord).where(ChatMessageRecord.course_id == course_id))
     session.execute(delete(SourceRecord).where(SourceRecord.course_id == course_id))
     session.execute(delete(CourseVersion).where(CourseVersion.course_id == course_id))
@@ -293,7 +293,7 @@ def copy_course(course_id: str, session: Session = Depends(get_db)) -> dict[str,
     record = session.get(CourseRecord, course_id)
     version = _latest_version(session, course_id) if record is not None else None
     if record is None or version is None:
-        raise HTTPException(status_code=404, detail="course not found")
+        raise HTTPException(status_code=404, detail="Курс не найден.")
     original = CourseDocument.model_validate(version.payload)
     cloned = original.model_copy(
         update={
@@ -320,7 +320,7 @@ def append_message(
     session: Session = Depends(get_db),
 ) -> dict[str, Any]:
     if session.get(CourseRecord, course_id) is None:
-        raise HTTPException(status_code=404, detail="course not found")
+        raise HTTPException(status_code=404, detail="Курс не найден.")
     message = ChatMessageRecord(
         course_id=course_id,
         role=request.role,

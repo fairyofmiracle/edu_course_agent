@@ -243,9 +243,9 @@ describe("исключения при скачивании", () => {
   it("без document выгрузка бросает TypeError и не пишет файл", () => {
     const course = createEmptyCourse();
 
-    expect(() => exportCourseMoodle(course)).toThrow(ReferenceError);
-    expect(() => exportCourseGift(course)).toThrow(/document is not defined/);
-    expect(() => exportCourseCsv(course)).toThrow(ReferenceError);
+    expect(() => exportCourseMoodle(course)).toThrow(/кнопкой «Выгрузить»/);
+    expect(() => exportCourseGift(course)).toThrow(/кнопкой «Выгрузить»/);
+    expect(() => exportCourseCsv(course)).toThrow(/кнопкой «Выгрузить»/);
   });
 
   it("ошибка создания ссылки доходит до вызывающего кода", () => {

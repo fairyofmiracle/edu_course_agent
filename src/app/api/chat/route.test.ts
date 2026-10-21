@@ -18,7 +18,7 @@ describe("POST /api/chat", () => {
     );
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({
-      error: expect.stringMatching(/PYTHON_AGENT_URL/),
+      error: expect.stringMatching(/без API|порте 8000/),
     });
   });
 

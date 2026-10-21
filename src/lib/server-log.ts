@@ -23,20 +23,4 @@ export async function appendServerLog(entry: Record<string, unknown>) {
   }
 }
 
-export function describeError(error: unknown) {
-  if (!(error instanceof Error)) return String(error);
-  const status = (error as { statusCode?: number }).statusCode;
-  return status ? `${status} ${error.message}` : error.message;
-}
-
-export function chatFailureText(error: unknown) {
-  const name = error instanceof Error ? error.name : "";
-  const message = describeError(error);
-  if (name === "TimeoutError" || name === "AbortError" || /abort|timed out|timeout/i.test(message)) {
-    return "Шлюз не ответил за отведённое время. Каркас на месте, шаг можно повторить.";
-  }
-  if (/fetch failed|ECONNREFUSED|ENOTFOUND|network/i.test(message)) {
-    return "Студия не достучалась до API. Проверьте, что сервер на порту 8000 запущен, и повторите шаг.";
-  }
-  return message;
-}
+export { chatFailureText, describeError, userFacingError } from "@/lib/user-error";

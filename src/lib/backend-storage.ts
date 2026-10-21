@@ -1,4 +1,5 @@
 import type { UIMessage } from "ai";
+import { triggerBrowserDownload } from "@/lib/browser-download";
 import type { CourseDocument } from "@/lib/course-schema";
 
 const configuredBase = process.env.NEXT_PUBLIC_PYTHON_API_URL?.trim();
@@ -41,7 +42,7 @@ export async function saveCourseToBackend(
   });
   if (response.status === 409) throw new CourseConflictError();
   if (!response.ok) {
-    throw new Error(`Не удалось сохранить курс в Python backend: HTTP ${response.status}`);
+    throw new Error("Не удалось сохранить программу. Повторите через минуту.");
   }
   try {
     const body = (await response.json()) as { version?: number };
@@ -67,7 +68,7 @@ export async function listCoursesFromBackend() {
   if (!baseUrl()) return null;
   const response = await fetch(endpoint("/api/courses"), { cache: "no-store" });
   if (!response.ok) {
-    throw new Error(`Не удалось получить список курсов: HTTP ${response.status}`);
+    throw new Error("Не удалось получить список курсов. Обновите страницу.");
   }
   return (await response.json()) as { courses: SavedCourseSummary[] };
 }
@@ -79,7 +80,7 @@ export async function copyCourseOnBackend(courseId: string) {
   });
   if (response.status === 404) return null;
   if (!response.ok) {
-    throw new Error(`Не удалось скопировать курс: HTTP ${response.status}`);
+    throw new Error("Не удалось скопировать программу. Повторите шаг.");
   }
   return (await response.json()) as { course: CourseDocument; version: number };
 }
@@ -91,7 +92,7 @@ export async function deleteCourseFromBackend(courseId: string) {
   });
   if (response.status === 404) return false;
   if (!response.ok) {
-    throw new Error(`Не удалось удалить курс: HTTP ${response.status}`);
+    throw new Error("Не удалось удалить программу. Повторите шаг.");
   }
   return true;
 }
@@ -108,19 +109,14 @@ export async function downloadCourseFromBackend(
     signal: AbortSignal.timeout(120_000),
   });
   if (!response.ok) {
-    throw new Error(`Не удалось выгрузить ${kind}: HTTP ${response.status}`);
+    throw new Error("Не удалось выгрузить программу. Повторите кнопкой «Выгрузить».");
   }
   const blob = await response.blob();
   const slug = (course.brief.title.trim() || "course")
     .replace(/[^\p{L}\p{N}]+/gu, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 60);
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${slug}.${kind}`;
-  link.click();
-  URL.revokeObjectURL(url);
+  triggerBrowserDownload(`${slug}.${kind}`, blob);
   return true;
 }
 
@@ -131,7 +127,7 @@ export async function loadCourseFromBackend(courseId: string) {
   });
   if (response.status === 404) return null;
   if (!response.ok) {
-    throw new Error(`Не удалось загрузить курс из Python backend: HTTP ${response.status}`);
+    throw new Error("Не удалось открыть программу. Обновите страницу.");
   }
   return (await response.json()) as {
     course: CourseDocument;

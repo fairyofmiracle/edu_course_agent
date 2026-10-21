@@ -6,16 +6,11 @@ import {
   type CourseDocument,
   type Lecture,
 } from "@/lib/course-schema";
+import { downloadText } from "@/lib/browser-download";
 import { auditCourse, type OpenCaseId } from "@/lib/course-audit";
 
 function download(filename: string, content: string, type: string) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
+  downloadText(filename, content, type);
 }
 
 function slug(title: string) {

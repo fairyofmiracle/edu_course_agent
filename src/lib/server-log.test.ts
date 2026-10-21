@@ -23,6 +23,9 @@ describe("server log", () => {
       /Шлюз не ответил/,
     );
     expect(chatFailureText(new Error("fetch failed"))).toMatch(/не достучалась/);
+    expect(chatFailureText(new Error("document is not defined"))).toMatch(/кнопкой в студии|повторите/i);
+    expect(chatFailureText(new Error("HTTP 502 Cloud.ru Traceback"))).not.toMatch(/Traceback|502/);
+    expect(chatFailureText(new Error("ZodError: /src/lib/course-schema.ts"))).not.toMatch(/ZodError|course-schema/);
   });
 
   it("дописывает строку журнала и молчит, если каталог недоступен", async () => {

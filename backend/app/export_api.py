@@ -15,7 +15,10 @@ def file_response(kind: str, course: CourseDocument) -> Response:
     try:
         payload, media, filename = build_artifact(kind, course)
     except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
+        raise HTTPException(
+            status_code=400,
+            detail="Этот формат не собираем. Нужны json, docx или pptx.",
+        ) from error
     ascii_name = f"program.{kind.lower().strip()}"
     return Response(
         content=payload,

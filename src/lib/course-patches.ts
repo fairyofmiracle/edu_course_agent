@@ -97,6 +97,30 @@ function withBalancedModules(course: CourseDocument): CourseDocument {
   };
 }
 
+const PATCH_RANK: Record<CoursePatch["type"], number> = {
+  update_brief: 0,
+  set_competency_map: 1,
+  set_structure: 2,
+  set_lecture: 3,
+  set_seminar: 3,
+  set_assessment: 3,
+  revise_section: 4,
+};
+
+export function applyPatches(course: CourseDocument, patches: CoursePatch[]): CourseDocument {
+  const ordered = patches
+    .map((patch, index) => ({ patch, index }))
+    .sort((left, right) => PATCH_RANK[left.patch.type] - PATCH_RANK[right.patch.type] || left.index - right.index)
+    .map((item) => item.patch);
+  let next = course;
+  for (const patch of ordered) {
+    const applied = applyPatch(next, patch);
+    const parsed = courseDocumentSchema.safeParse(applied);
+    if (parsed.success) next = parsed.data;
+  }
+  return next;
+}
+
 export function applyPatch(
   course: CourseDocument,
   patch: CoursePatch,
@@ -232,22 +256,16 @@ export function foldCourseFromMessages(
   messages: UIMessage[],
   fallback: CourseDocument,
 ): CourseDocument {
-  let course = fallback;
-  let applied = false;
-
+  const patches: CoursePatch[] = [];
   for (const message of messages) {
     for (const part of message.parts ?? []) {
       if (!isToolUIPart(part) || part.state !== "output-available") continue;
       if (!isCoursePatch(part.output)) continue;
-      const next = applyPatch(course, part.output);
-      const parsed = courseDocumentSchema.safeParse(next);
-      if (!parsed.success) continue;
-      course = parsed.data;
-      applied = true;
+      patches.push(part.output);
     }
   }
-
-  return applied ? rebalanceCourse(course) : fallback;
+  if (patches.length === 0) return fallback;
+  return rebalanceCourse(applyPatches(fallback, patches));
 }
 
 /** Если объём появился после плана, или модель вызвала tools не по порядку — выровнять часы. */

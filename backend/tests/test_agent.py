@@ -580,7 +580,8 @@ def test_chat_turn_returns_502_on_agent_error(monkeypatch) -> None:
             },
         )
     assert response.status_code == 502
-    assert "сеть недоступна" in response.json()["detail"]
+    assert "модели" in response.json()["detail"] or "сеть" in response.json()["detail"]
+    assert "RuntimeError" not in response.json()["detail"]
 
 
 def test_gateway_failure_on_a_free_turn_keeps_the_course(monkeypatch) -> None:

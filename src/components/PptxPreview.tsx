@@ -117,7 +117,7 @@ export function PptxPreview({
     run().catch((error: unknown) => {
       if (cancelled) return;
       setStatus("error");
-      setNote(error instanceof Error ? error.message : "Предпросмотр не собрался");
+      setNote("Предпросмотр не собрался. Выгрузите PPTX кнопкой «Выгрузить» в студии.");
     });
 
     return () => {

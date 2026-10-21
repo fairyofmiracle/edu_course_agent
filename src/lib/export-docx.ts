@@ -18,6 +18,7 @@ import {
   type CourseDocument,
   type CourseModule,
 } from "@/lib/course-schema";
+import { triggerBrowserDownload } from "@/lib/browser-download";
 import { ORDER_266, ORDER_499, requiredLegalBasis, type LegalDocument } from "@/lib/legal-basis";
 import { moduleRationales, resultPassport } from "@/lib/module-rationale";
 
@@ -450,12 +451,7 @@ export function buildCourseDocx(course: CourseDocument) {
 
 export async function exportCourseDocx(course: CourseDocument) {
   const blob = await Packer.toBlob(buildCourseDocx(course));
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${slug(course.brief.title)}.docx`;
-  link.click();
-  URL.revokeObjectURL(url);
+  triggerBrowserDownload(`${slug(course.brief.title)}.docx`, blob);
 }
 
 export async function exportSeminarDocx(course: CourseDocument, moduleId: string) {
@@ -490,12 +486,7 @@ export async function exportSeminarDocx(course: CourseDocument, moduleId: string
     sections: [{ properties: {}, children }],
   });
   const blob = await Packer.toBlob(docxFile);
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${slug(title)}-семинар.docx`;
-  link.click();
-  URL.revokeObjectURL(url);
+  triggerBrowserDownload(`${slug(title)}-семинар.docx`, blob);
 }
 
 export async function exportAssessmentDocx(course: CourseDocument, moduleId: string) {
@@ -529,10 +520,5 @@ export async function exportAssessmentDocx(course: CourseDocument, moduleId: str
     sections: [{ properties: {}, children }],
   });
   const blob = await Packer.toBlob(docxFile);
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${slug(title)}-тест.docx`;
-  link.click();
-  URL.revokeObjectURL(url);
+  triggerBrowserDownload(`${slug(title)}-тест.docx`, blob);
 }

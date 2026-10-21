@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from backend.app.domain import (
     allocate_integer,
     apply_patch,
+    apply_patches,
     framework_items,
 )
 from backend.app.models import CourseDocument, empty_course
@@ -27,6 +28,41 @@ def test_shared_contract_matches_typescript_expectations() -> None:
     assert all(results.values())
     assert allocate_integer(14, [4, 8, 0, 2]) == [4, 8, 0, 2]
     assert allocate_integer(2, [0.5, 1.5]) == [0.5, 1.5]
+
+
+def test_apply_patches_orders_structure_before_kit() -> None:
+    course = empty_course()
+    course.brief.duration_hours = 16
+    course.brief.program_kind = "general"
+    course.brief.audience = "колледж"
+    lecture = {
+        "type": "set_lecture",
+        "lecture": {
+            "moduleId": "m1",
+            "durationMin": 30,
+            "outline": ["Тема"],
+            "slides": [{"title": "Слайд", "bullets": ["пункт"]}],
+        },
+    }
+    structure = {
+        "type": "set_structure",
+        "modules": [
+            {
+                "id": "m1",
+                "title": "Сети",
+                "hours": 16,
+                "lectureHours": 8,
+                "practiceHours": 8,
+                "labHours": 0,
+                "selfStudyHours": 0,
+                "topics": ["IP"],
+                "learningOutcomes": ["Собирает стенд"],
+            }
+        ],
+    }
+    merged = apply_patches(course, [lecture, structure])
+    assert [item.id for item in merged.modules] == ["m1"]
+    assert merged.lectures[0].module_id == "m1"
 
 
 def test_patch_rebalances_hours_and_keeps_contract() -> None:

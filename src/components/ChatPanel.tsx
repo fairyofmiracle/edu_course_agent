@@ -4,6 +4,7 @@ import { getToolName, isToolUIPart, type UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { RequestComposer } from "@/components/RequestComposer";
 import { chatWaitLabel } from "@/lib/job-status";
+import { userFacingError } from "@/lib/user-error";
 import { useElapsed } from "@/lib/use-elapsed";
 import type { CourseBrief } from "@/lib/course-schema";
 
@@ -139,7 +140,7 @@ export function ChatPanel({
             Готово. Документ справа обновлён.
           </p>
         ) : null}
-        {error ? <p className="chat-error">{error.message}</p> : null}
+        {error ? <p className="chat-error">{userFacingError(error)}</p> : null}
         <div ref={bottomRef} />
       </div>
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -24,7 +25,7 @@ def request_allowed(request: Request) -> bool:
     header = request.headers.get("authorization", "")
     supplied = header[7:].strip() if header.lower().startswith("bearer ") else ""
     if token:
-        return supplied == token
+        return secrets.compare_digest(supplied, token)
     host = request.client.host if request.client else ""
     return host in _LOCAL
 

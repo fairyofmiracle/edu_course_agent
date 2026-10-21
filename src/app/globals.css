@@ -1344,6 +1344,12 @@ button.primary {
   margin-top: 2px;
 }
 
+.export-menu .export-zip-button {
+  grid-column: 1 / -1;
+  width: 100%;
+  white-space: nowrap;
+}
+
 .pptx-preview {
   margin-bottom: 28px;
 }

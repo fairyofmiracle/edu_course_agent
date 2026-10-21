@@ -105,7 +105,7 @@ function StudioSession({
     "local" | "saving" | "synced" | "offline" | "conflict"
   >(hasBackendStorage() ? "saving" : "local");
   const [exportJob, setExportJob] = useState<{
-    kind: "json" | "docx" | "pptx";
+    kind: "json" | "docx" | "pptx" | "zip";
     phase: "work" | "done" | "error";
     place?: "сервере" | "браузере";
   } | null>(
@@ -158,28 +158,54 @@ function StudioSession({
   );
   const missingChecks = checks.filter((item) => !item.ok).map((item) => item.label);
 
-  const exportFromServer = async (kind: "json" | "docx" | "pptx", fallback: () => void | Promise<void>) => {
+  const exportFromServer = async (
+    kind: "json" | "docx" | "pptx" | "zip",
+    fallback?: () => void | Promise<void>,
+  ) => {
     setExportJob({ kind, phase: "work", place: "сервере" });
-    const finish = (phase: "done" | "error", place?: "сервере" | "браузере") => {
+
+    const finish = (
+      phase: "done" | "error",
+      place?: "сервере" | "браузере",
+    ) => {
       setExportJob({ kind, phase, place });
-      window.setTimeout(() => setExportJob((current) => (current && current.phase !== "work" ? null : current)), 3200);
+
+      window.setTimeout(() => {
+        setExportJob((current) =>
+          current && current.phase !== "work" ? null : current
+        );
+      }, 3200);
     };
+
     try {
-      if (await downloadCourseFromBackend(course, kind)) {
+      const downloaded = await downloadCourseFromBackend(course, kind);
+
+      if (downloaded) {
         finish("done", "сервере");
         return;
       }
+    } catch (error) {
+      // Если резервной генерации нет, показываем ошибку.
+      if (!fallback) {
+        console.error("Ошибка экспорта:", error);
+        finish("error");
+        return;
+      }
+    }
+
+    if (!fallback) {
+      console.error("Серверный экспорт недоступен:", kind);
+      finish("error");
+      return;
+    }
+
+    try {
       setExportJob({ kind, phase: "work", place: "браузере" });
       await fallback();
       finish("done", "браузере");
-    } catch {
-      try {
-        setExportJob({ kind, phase: "work", place: "браузере" });
-        await fallback();
-        finish("done", "браузере");
-      } catch {
-        finish("error");
-      }
+    } catch (error) {
+      console.error("Ошибка экспорта в браузере:", error);
+      finish("error");
     }
   };
 
@@ -530,6 +556,15 @@ function StudioSession({
                     onClick={() => void exportFromServer("pptx", () => exportCoursePptx(course))}
                   >
                     Презентация
+                  </button>
+                  <button
+                    type="button"
+                    className="export-zip-button"
+                    title="Скачать JSON, DOCX и PPTX одним архивом"
+                    disabled={isCourseEmpty(course) || exportJob?.phase === "work"}
+                    onClick={() => void exportFromServer("zip")}
+                  >
+                    Скачать архивом (ZIP)
                   </button>
                   <div className="export-tests">
                     <span>Тесты</span>

@@ -34,7 +34,7 @@ def file_response(kind: str, course: CourseDocument) -> Response:
 @router.post(
     "/api/export/{kind}",
     summary="Выгрузить программу с сервера",
-    description="Форматы: json, docx, pptx. Тело — текущий документ курса. Файл собирает FastAPI.",
+    description="Форматы: json, docx, pptx, zip. Тело — текущий документ курса. Файл собирает FastAPI.",
     operation_id="exportCourse",
 )
 def export_course(kind: str, course: CourseDocument) -> Response:

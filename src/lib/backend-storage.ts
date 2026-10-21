@@ -98,7 +98,7 @@ export async function deleteCourseFromBackend(courseId: string) {
 
 export async function downloadCourseFromBackend(
   course: CourseDocument,
-  kind: "json" | "docx" | "pptx",
+  kind: "json" | "docx" | "pptx" | "zip",
 ) {
   if (!baseUrl()) return false;
   const response = await fetch(endpoint(`/api/export/${kind}`), {

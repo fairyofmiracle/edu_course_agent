@@ -1,4 +1,5 @@
 from __future__ import annotations
+from zipfile import ZIP_DEFLATED, ZipFile
 
 import json
 import re
@@ -18,6 +19,7 @@ KIND_MEDIA = {
     "json": "application/json",
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "zip": "application/zip",
 }
 
 
@@ -31,16 +33,35 @@ def artifact_filename(course: CourseDocument, kind: str) -> str:
     return f"{base}.{kind}"
 
 
+#BytesIO() создаёт буфер в оперативной памяти
+#ZipFile() формирует архив
+# writestr() добавляет в него файлы.
+def build_zip(course: CourseDocument) -> bytes:
+    buffer = BytesIO()
+
+    with ZipFile(buffer, "w", compression=ZIP_DEFLATED) as archive:
+        for kind in ("json", "docx", "pptx"):
+            payload, _, filename = build_artifact(kind, course)
+            archive.writestr(filename, payload)
+
+    return buffer.getvalue()
+
+
 def build_artifact(kind: str, course: CourseDocument) -> tuple[bytes, str, str]:
     fmt = kind.lower().strip()
+
     if fmt not in KIND_MEDIA:
-        raise ValueError("Доступны форматы json, docx и pptx")
+        raise ValueError("Доступны форматы json, docx, pptx и zip")
+
     if fmt == "json":
         payload = json.dumps(course.as_api(), ensure_ascii=False, indent=2).encode("utf-8")
     elif fmt == "docx":
         payload = build_docx(course)
-    else:
+    elif fmt == "pptx":
         payload = build_pptx(course)
+    else:
+        payload = build_zip(course)
+
     return payload, KIND_MEDIA[fmt], artifact_filename(course, fmt)
 
 

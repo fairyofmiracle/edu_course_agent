@@ -2,6 +2,7 @@ const EXPORT_NAMES: Record<string, string> = {
   json: "JSON",
   docx: "DOCX",
   pptx: "PPTX",
+  zip: "ZIP",
 };
 
 export function chatWaitLabel(elapsedMs: number): string {

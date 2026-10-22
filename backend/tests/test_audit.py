@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 from backend.app.main import app, audit_course
-from backend.app.rationale import passport_stamp
+from backend.app.rationale import passport_stamp, result_passport
 
 
 def test_audit_checks_hours_and_two_instruments() -> None:
@@ -287,9 +287,10 @@ def test_invented_order_fails_and_passport_ignores_wording() -> None:
     assert by_id["sources.requisites"]["status"] == "fail"
     assert "№ 999" in by_id["sources.requisites"]["details"]
     assert by_id["sources.codes"]["status"] == "fail"
-    assert "m1:16:8:8:0:0:1:0" in by_id["framework.passport"]["details"]
-    assert "штамп=" in by_id["framework.passport"]["details"]
+    assert "m1:16:8:8:0:0:1:0" in result_passport(course)
+    assert "штамп=" in result_passport(course)
     assert "Слайд" not in by_id["framework.passport"]["details"]
+    assert "вид=" not in by_id["framework.passport"]["details"]
     same = by_id["framework.passport"]["details"]
     course["lectures"][0]["slides"][0]["bullets"] = ["Совсем другой текст слайда"]
     again = {item["id"]: item for item in audit_course(course)["items"]}

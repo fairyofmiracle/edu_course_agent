@@ -1,5 +1,13 @@
 from backend.app.agent import assemble_local_course
-from backend.app.brief_guard import audience_from_text, mentioned_hours, volume_from_text
+from backend.app.brief_guard import (
+    attestation_from_text,
+    audience_from_text,
+    mentioned_hours,
+    mentioned_kind,
+    repair_typos,
+    title_from_request,
+    volume_from_text,
+)
 from backend.app.catalog import is_incomplete_brief, profile_name
 from backend.app.kit_content import is_intro_python, is_teacher_ai
 from backend.app.models import empty_course
@@ -147,6 +155,83 @@ def test_chat_log_phrases_do_not_steal_248_hours() -> None:
     assert "студент" in (course.brief.audience or "").lower()
     assert "проект" in (course.brief.attestation_form or "").lower()
     assert course.modules
+
+
+def test_audience_answers_are_kept_and_stop_the_question() -> None:
+    from backend.app.models import empty_course as make_course
+    from backend.app.planner import plan_step
+
+    first = "программа для изучениая алгоритмов 36 часов для студетвов 3 курса"
+    assert repair_typos("Форма обучения: стажировка") == "Форма обучения: стажировка"
+    course = make_course()
+    course = apply_patch(course, execute_tool("update_brief", {}, course, [first]))
+    assert "студент" in course.brief.audience.lower()
+    assert "3 курса" in course.brief.audience.lower()
+    asked = apply_patch(
+        course,
+        execute_tool("update_brief", {}, course, [first, "3 курс"]),
+    )
+    assert asked.brief.audience.lower() == "3 курс"
+    named = apply_patch(
+        asked,
+        execute_tool(
+            "update_brief",
+            {},
+            asked,
+            [first, "3 курс", "стденты 3 курс продвинутые"],
+        ),
+    )
+    assert "студент" in named.brief.audience.lower()
+    assert "продвинут" in named.brief.audience.lower()
+    assert "аудитория" not in missing_brief_lines(named)
+    step = plan_step("intake", course, ["update_brief"], 4)
+    assert step["kind"] == "reply"
+    assert step.get("tool") is None
+
+
+def test_named_format_wins_over_the_model_guess() -> None:
+    from backend.app.models import empty_course as make_course
+
+    course = make_course()
+    named = apply_patch(
+        course,
+        execute_tool(
+            "update_brief",
+            {"format": "workshop"},
+            course,
+            ["Форма обучения: очно"],
+        ),
+    )
+    assert named.brief.format == "lecture"
+    assert named.brief.format_named is True
+    spoken = apply_patch(
+        make_course(),
+        execute_tool("update_brief", {}, make_course(), ["занятия очно, 16 часов"]),
+    )
+    assert spoken.brief.format == "lecture"
+    assert spoken.brief.format_named is True
+
+
+def test_regex_keeps_the_field_it_was_given() -> None:
+    phrase = "программа для изучениая алгоритмов 36 часов для студетвов 3 курса"
+    audience = audience_from_text([phrase]) or ""
+    assert audience.lower().startswith("студент")
+    assert "час" not in audience.lower()
+    assert title_from_request(phrase) == "Изучение алгоритмов"
+    assert volume_from_text(["16 часов практики и 36 часов на программу"]) == 36
+    assert mentioned_hours("поменяй часы на 24") == [24]
+    assert attestation_from_text("курс про корпоративный сайт для витрины") is None
+    assert attestation_from_text("не экзамен, а зачёт") == "зачёт"
+    assert mentioned_kind(["Форма обучения: стажировка"]) is None
+    assert attestation_from_text("итоговая атестация будет сайт") == "защита проекта"
+
+
+def test_typos_still_name_the_students() -> None:
+    text = "программа для изучениая алгоритмов 36 часов для студетвов 3 курса"
+    audience = audience_from_text([text]) or ""
+    assert "студент" in audience.lower()
+    assert "3 курса" in audience.lower()
+    assert mentioned_hours(text) == [36]
 
 
 def test_own1_audience_is_not_title_fragment() -> None:

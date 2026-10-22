@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, IBM_Plex_Sans, Source_Serif_4 } from "next/font/google";
+import { IBM_Plex_Mono, IBM_Plex_Sans, Manrope } from "next/font/google";
 import "./globals.css";
 
 const sans = IBM_Plex_Sans({
@@ -8,9 +8,10 @@ const sans = IBM_Plex_Sans({
   variable: "--font-ibm-sans",
 });
 
-const serif = Source_Serif_4({
+const display = Manrope({
   subsets: ["latin", "cyrillic"],
-  variable: "--font-source-serif",
+  weight: ["500", "600"],
+  variable: "--font-manrope",
 });
 
 const mono = IBM_Plex_Mono({
@@ -29,7 +30,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="ru"
-      className={`${sans.variable} ${serif.variable} ${mono.variable} h-full antialiased`}
+      className={`${sans.variable} ${display.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="h-full">
         <script

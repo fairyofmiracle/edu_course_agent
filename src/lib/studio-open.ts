@@ -54,3 +54,17 @@ export function resolveStudioOpen(
     notice: "",
   };
 }
+
+/** Один и тот же офлайн-пример. Повторное открытие не заводит новую программу. */
+export function openOfflineSample(
+  currentId: string,
+  storage: Pick<Storage, "getItem">,
+): { course: CourseDocument; messages: UIMessage[] } | null {
+  if (currentId === SAMPLE_COURSE.id) return null;
+  const stored = loadLibraryCourse(storage, SAMPLE_COURSE.id);
+  if (stored) return { course: stored.course, messages: stored.messages };
+  return {
+    course: { ...structuredClone(SAMPLE_COURSE), updatedAt: new Date().toISOString() },
+    messages: [],
+  };
+}

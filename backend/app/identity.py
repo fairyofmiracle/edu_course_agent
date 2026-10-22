@@ -24,17 +24,14 @@ router = APIRouter(prefix="/api/auth", tags=["identity"])
 
 JWT_TTL = 900
 STUB_DETAIL = (
-    "Заглушка дорожной карты. Это JWT HS256, остальные маршруты его не принимают. "
-    "Доступ к API по-прежнему задаёт STUDIO_API_TOKEN."
+    "JWT дорожной карты. Курсы, аудит и выгрузку он не открывает: "
+    "их открывает STUDIO_API_TOKEN."
 )
 roadmap_jwt = HTTPBearer(
     auto_error=False,
     scheme_name="roadmapJwt",
     bearerFormat="JWT",
-    description=(
-        "JWT HS256 заглушки. Подпись проверяет только GET /api/auth/me. "
-        "Остальные маршруты этот заголовок как сессию пользователя не читают."
-    ),
+    description="JWT дорожной карты. Подпись читает GET /api/auth/me.",
 )
 
 
@@ -52,17 +49,17 @@ class LoginRequest(BaseModel):
         min_length=3,
         max_length=200,
         examples=["methodist@example.local"],
-        description="Почта учётной записи. Заглушка её не ищет.",
+        description="Почта для будущего входа. Сейчас учётка не ищется.",
     )
     password: str = Field(
         min_length=1,
         max_length=200,
         examples=["не-проверяется"],
-        description="Пароль. Заглушка его не проверяет и не сохраняет.",
+        description="В токен не входит и никуда не отправляется.",
     )
     role: StudioRole = Field(
         default=StudioRole.author,
-        description="Какую роль показать в ответе. На остальные маршруты не влияет.",
+        description="Роль в JWT. Курсы и выгрузку она не закрывает.",
     )
 
 
@@ -85,7 +82,7 @@ class StubUser(BaseModel):
     email: str = "methodist@example.local"
     display_name: str = Field(default="Методист программы", alias="displayName")
     role: StudioRole = StudioRole.author
-    detail: str = "Сессии нет. Это пример роли из дорожной карты, не текущий пользователь."
+    detail: str = "Пример роли. Сессии методиста в этой сборке нет."
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -94,7 +91,7 @@ class StubLogout(BaseModel):
     stub: Literal[True] = True
     enforced: Literal[False] = False
     closed: Literal[False] = False
-    detail: str = "Выход ничего не закрывает: пользовательской сессии нет."
+    detail: str = "Сессии нет, выход ничего не закрывает."
 
 
 class RoleCard(BaseModel):
@@ -107,7 +104,7 @@ class RoleCard(BaseModel):
 class RoleMap(BaseModel):
     stub: Literal[True] = True
     enforced: Literal[False] = False
-    detail: str = "Матрица ролей для дорожной карты. Код эти действия не запрещает."
+    detail: str = "Роли дорожной карты. Сейчас код эти действия не запрещает."
     roles: list[RoleCard]
 
 
@@ -144,7 +141,7 @@ ROLES: tuple[RoleCard, ...] = (
     response_model=RoleMap,
     summary="Роли дорожной карты",
     operation_id="authRoles",
-    description="Четыре роли из продуктовой схемы. Проверка прав не включена.",
+    description="Четыре роли из продуктовой схемы. Проверка прав ещё не включена.",
 )
 def auth_roles() -> RoleMap:
     return RoleMap(roles=list(ROLES))
@@ -153,12 +150,9 @@ def auth_roles() -> RoleMap:
 @router.post(
     "/login",
     response_model=StubSession,
-    summary="Вход, заглушка",
+    summary="Вход по JWT",
     operation_id="authLogin",
-    description=(
-        "Отдаёт JWT HS256 с ролью в payload. Пароль в токен не попадает и не проверяется. "
-        "Рабочие маршруты этот JWT не принимают."
-    ),
+    description="Отдаёт JWT с почтой и ролью. Пароль в токен не входит. Курсы этот токен не открывают.",
 )
 def auth_login(body: LoginRequest) -> StubSession:
     return StubSession(
@@ -171,13 +165,9 @@ def auth_login(body: LoginRequest) -> StubSession:
 @router.get(
     "/me",
     response_model=StubUser,
-    summary="Текущий пользователь по JWT",
+    summary="Кто в JWT",
     operation_id="authMe",
-    description=(
-        "Если прислан подписанный JWT заглушки, возвращает роль из токена. "
-        "Без токена или с чужой подписью отдаёт пример методиста программы. "
-        "Доступ к остальным маршрутам не меняется."
-    ),
+    description="С подписанным JWT возвращает роль из токена. Без подписи показывает пример методиста программы.",
 )
 def auth_me(
     credentials: HTTPAuthorizationCredentials | None = Depends(roadmap_jwt),
@@ -190,16 +180,16 @@ def auth_me(
         email=str(claims["sub"]),
         role=role,
         display_name=role_title(role),
-        detail="JWT заглушки разобран. Доступ к остальным маршрутам он не открывает.",
+        detail="Роль взята из JWT. Остальные маршруты этот токен не открывают.",
     )
 
 
 @router.post(
     "/logout",
     response_model=StubLogout,
-    summary="Выход, заглушка",
+    summary="Выход",
     operation_id="authLogout",
-    description="Ничего не закрывает: пользовательской сессии в этой сборке нет.",
+    description="Сессии методиста нет, поэтому выход ничего не закрывает.",
 )
 def auth_logout() -> StubLogout:
     return StubLogout()

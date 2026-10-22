@@ -180,9 +180,9 @@ def test_save_with_messages_moves_past_an_existing_version() -> None:
     client.delete(f"/api/courses/{course['id']}")
 
 
-def test_old_versions_are_pruned_to_twenty() -> None:
+def test_saved_versions_stay_in_the_list() -> None:
     course = json.loads(FIXTURE.read_text(encoding="utf-8"))
-    course["id"] = "prune-course"
+    course["id"] = "history-course"
     client = TestClient(app)
     for index in range(21):
         course["brief"]["title"] = f"Версия {index}"
@@ -194,7 +194,7 @@ def test_old_versions_are_pruned_to_twenty() -> None:
     reasons = [
         item["reason"] for item in client.get(f"/api/courses/{course['id']}/versions").json()["versions"]
     ]
-    assert len(reasons) == 20
+    assert len(reasons) == 21
     assert reasons[0] == "v20"
-    assert "v0" not in reasons
+    assert "v0" in reasons
     client.delete(f"/api/courses/{course['id']}")

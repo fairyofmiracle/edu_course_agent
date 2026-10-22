@@ -53,6 +53,11 @@ async function pythonChatResponse(options: {
     assistant?: string;
     patches?: Array<{ type: string; [key: string]: unknown }>;
     gatewayRetries?: number[];
+    usage?: {
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      total_tokens?: number;
+    };
   };
   if (!response.ok) {
     throw new Error(payload.detail || `Python backend: HTTP ${response.status}`);
@@ -85,6 +90,17 @@ async function pythonChatResponse(options: {
         writer.write({ type: "text-start", id });
         writer.write({ type: "text-delta", id, delta: text });
         writer.write({ type: "text-end", id });
+      }
+      const usage = payload.usage;
+      if (usage && (usage.total_tokens ?? 0) > 0) {
+        writer.write({
+          type: "data-usage",
+          data: {
+            prompt_tokens: usage.prompt_tokens ?? 0,
+            completion_tokens: usage.completion_tokens ?? 0,
+            total_tokens: usage.total_tokens ?? 0,
+          },
+        });
       }
     },
   });

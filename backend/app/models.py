@@ -34,6 +34,11 @@ class Brief(ApiModel):
         description="Объём программы в академических часах. Потолка нет, шаг — 0,5.",
     )
     format: Literal["lecture", "blended", "workshop"] = "blended"
+    format_named: bool = Field(
+        default=False,
+        alias="formatNamed",
+        description="Методист сам назвал форму. Значение по умолчанию формой не считается.",
+    )
     program_kind: Literal["unset", "general", "qualification"] = Field(
         default="unset", alias="programKind"
     )

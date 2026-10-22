@@ -2,7 +2,7 @@ import { inventedRequisites, laborCodes } from "@/lib/claims";
 import type { CourseDocument } from "@/lib/course-schema";
 import { frameworkItems } from "@/lib/framework-check";
 import { ORDER_266, citesRepealedOrder499, missingLegalBasis } from "@/lib/legal-basis";
-import { moduleRationales, resultPassport } from "@/lib/module-rationale";
+import { moduleRationales } from "@/lib/module-rationale";
 import { findOutdated } from "@/lib/outdated";
 import { referenceNotes, verbatimSpans } from "@/lib/verbatim";
 
@@ -302,7 +302,7 @@ function genericItems(course: CourseDocument): AuditItem[] {
       "Паспорт результата считает код, формулировки модели в него не входят",
       true,
       "framework",
-      resultPassport(course),
+      "Считает вид программы, часы и состав модулей. Текст лекции в этот расчёт не входит.",
     ),
   );
 

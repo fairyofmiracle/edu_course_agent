@@ -316,7 +316,7 @@ def build_chat_payload(
             *flatten_history(messages),
         ],
         "temperature": 0,
-        "max_tokens": max(16, min(int(max_tokens), 1600)),
+        "max_tokens": max(16, min(int(max_tokens), 4096)),
     }
     if not json_tools:
         payload["tools"] = tools
@@ -420,14 +420,12 @@ class CloudRuClient:
             if status in RETRY_STATUSES:
                 raise RuntimeError(attempts_label(total_attempts))
             if response.is_error:
-                raise RuntimeError(
-                    f"Cloud.ru вернул ошибку {status}: {getattr(response, 'text', '')[:300]}"
-                )
+                raise RuntimeError(f"HTTP {status}")
             data = response.json()
             self.add_usage(data.get("usage"))
             choices = data.get("choices") or []
             if not choices:
-                raise RuntimeError(f"Cloud.ru вернул ответ без choices: {json.dumps(data)[:500]}")
+                raise RuntimeError("Шлюз вернул ответ без списка вариантов.")
             message = dict(choices[0]["message"])
             if not str(message.get("content") or "").strip() and message.get("reasoning"):
                 message["content"] = message.get("reasoning")

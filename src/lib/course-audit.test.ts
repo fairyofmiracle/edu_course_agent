@@ -47,7 +47,8 @@ describe("auditCourse", () => {
     const clean = copy();
     const passport = auditCourse(clean).items.find((item) => item.id === "framework.passport");
     expect(passport?.status).toBe("pass");
-    expect(passport?.details).toContain(clean.modules[0].id);
+    expect(passport?.details).toContain("Текст лекции");
+    expect(passport?.details).not.toContain("вид=");
     expect(passport?.details).not.toContain(clean.lectures[0].slides[0].title);
     const first = resultPassport(clean);
     clean.lectures[0].slides[0].title = "Совсем другая формулировка слайда";

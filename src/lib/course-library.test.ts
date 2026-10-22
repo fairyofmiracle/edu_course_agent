@@ -5,6 +5,8 @@ import {
   duplicateCourse,
   forgetCourse,
   LIBRARY_KEY,
+  groupByDirection,
+  itDirection,
   listLibrary,
   loadLibraryCourse,
   readLibrary,
@@ -20,6 +22,20 @@ function memory() {
     },
   };
 }
+
+describe("направления библиотеки", () => {
+  it("собирает только направления, которые есть у программ", () => {
+    expect(itDirection("Первые шаги в Python")).toBe("Python");
+    expect(itDirection("Кибербезопасность для колледжа")).toBe("Кибербезопасность");
+    const groups = groupByDirection([
+      { title: "Первые шаги в Python" },
+      { title: "Python для архива" },
+      { title: "Сети Cisco" },
+    ]);
+    expect(groups.map((group) => group.label)).toEqual(["Сети", "Python"]);
+    expect(groups.find((group) => group.label === "Python")?.courses).toHaveLength(2);
+  });
+});
 
 describe("библиотека курсов", () => {
   it("новый курс не затирает уже сохранённый", () => {

@@ -7,7 +7,6 @@ import { StackFreshnessPanel } from "@/components/StackFreshness";
 import { LectureDeck } from "@/components/LectureDeck";
 import { MermaidBlock } from "@/components/MermaidBlock";
 import { auditCourse, methodistNotes, type AuditSection, type AuditStatus } from "@/lib/course-audit";
-import { resultPassport } from "@/lib/module-rationale";
 import { isHttpSource, sourceConfidence } from "@/lib/verbatim";
 import { exportAssessmentDocx, exportSeminarDocx } from "@/lib/export-docx";
 import { validateCourseHours } from "@/lib/course-validation";
@@ -21,7 +20,6 @@ import {
   PROGRAM_KIND_LABELS,
   QUESTION_LABELS,
   courseCompleteness,
-  isCourseEmpty,
   type CourseDocument,
 } from "@/lib/course-schema";
 
@@ -34,10 +32,12 @@ export type WorkspaceTab =
   | "tests"
   | "checks";
 
-const TABS: { id: WorkspaceTab; label: string; hint: string }[] = [
+const CONTENT_TABS: WorkspaceTab[] = ["lectures", "seminars", "tests"];
+
+const WORKSPACE_TABS: { id: WorkspaceTab; label: string; hint: string }[] = [
   { id: "overview", label: "Обзор", hint: "Шаблон, аудитория и проверка часов. Каркас утверждают здесь." },
   { id: "structure", label: "План", hint: "Модули и разбивка часов по неделям. Календарные даты сюда не ставятся." },
-  { id: "competencies", label: "Компетенции", hint: "Колесо баланса: знания, умения, навыки и покрытие лекцией, заданием и тестом." },
+  { id: "competencies", label: "Компетенции", hint: "Чему научатся: знания, умения и навыки по каждой компетенции." },
   { id: "lectures", label: "Лекции", hint: "Черновик модели. Штамп паспорта от формулировок слайдов не зависит." },
   { id: "seminars", label: "Семинары", hint: "Файлы заданий: открыть просмотр или скачать." },
   { id: "tests", label: "Тесты", hint: "Файлы проверки: открыть просмотр или скачать." },
@@ -47,47 +47,50 @@ const TABS: { id: WorkspaceTab; label: string; hint: string }[] = [
 type CourseWorkspaceProps = {
   course: CourseDocument;
   tab: WorkspaceTab;
-  onTabChange: (tab: WorkspaceTab) => void;
 };
 
-export function CourseWorkspace({ course, tab, onTabChange }: CourseWorkspaceProps) {
-  const empty = isCourseEmpty(course);
-  const completeness = courseCompleteness(course);
-  const approved = isFrameworkApproved(course);
-  const contentTabs: WorkspaceTab[] = ["lectures", "seminars", "tests"];
-  const locked = contentTabs.includes(tab) && !approved;
-
+export function CourseTabs({
+  tab,
+  approved,
+  onTabChange,
+}: {
+  tab: WorkspaceTab;
+  approved: boolean;
+  onTabChange: (tab: WorkspaceTab) => void;
+}) {
   return (
-    <section className="workspace">
-      <nav className="tabs" aria-label="Разделы курса">
-        {TABS.map((item) => (
+    <nav className="journal-tabs" aria-label="Разделы курса">
+      {WORKSPACE_TABS.map((item) => {
+        const later = CONTENT_TABS.includes(item.id) && !approved;
+        return (
           <button
             key={item.id}
             type="button"
-            className={[
-              "tab",
-              tab === item.id ? "active" : "",
-              contentTabs.includes(item.id) && !approved ? "locked" : "",
-            ].filter(Boolean).join(" ")}
-            title={
-              contentTabs.includes(item.id) && !approved
-                ? "Раздел заполнится после утверждения каркаса"
-                : item.hint
-            }
+            className={["journal-tab", tab === item.id ? "active" : "", later ? "locked" : ""].filter(Boolean).join(" ")}
+            title={later ? "Раздел откроется после утверждения каркаса" : item.hint}
+            disabled={later}
             onClick={() => onTabChange(item.id)}
           >
-            {item.label}
-            {contentTabs.includes(item.id) && !approved ? <span aria-hidden="true"> · позже</span> : null}
+            <span>{item.label}</span>
           </button>
-        ))}
-      </nav>
-      <p className="kicker section-hint">{TABS.find((item) => item.id === tab)?.hint}</p>
+        );
+      })}
+    </nav>
+  );
+}
+
+export function CourseWorkspace({ course, tab }: CourseWorkspaceProps) {
+  const completeness = courseCompleteness(course);
+  const approved = isFrameworkApproved(course);
+  const locked = CONTENT_TABS.includes(tab) && !approved;
+
+  return (
+    <section className="workspace">
+      <p className="kicker section-hint">{WORKSPACE_TABS.find((item) => item.id === tab)?.hint}</p>
 
       <div className="workspace-body">
         {locked ? (
           <LockedContentState />
-        ) : empty && tab === "overview" ? (
-          <EmptyState />
         ) : (
           <>
             {tab === "overview" ? <Overview course={course} score={completeness.score} /> : null}
@@ -175,24 +178,6 @@ function AuditPanel({ course }: { course: CourseDocument }) {
       })}
       <SourceChecks course={course} />
       <StackFreshnessPanel course={course} />
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="hero-empty">
-      <p className="kicker">Студия методиста</p>
-      <h2>Курс ещё не собран</h2>
-      <p>
-        Пишите слева. Здесь появится каркас. Тесты, задания и лекции откроются
-        после кнопки «Утвердить каркас» над документом.
-      </p>
-      <ol>
-        <li>Запрос и уточняющие вопросы</li>
-        <li>Каркас: компетенции и учебный план, часы сходятся</li>
-        <li>После утверждения — программа, тесты, задания и слайды</li>
-      </ol>
     </div>
   );
 }
@@ -320,12 +305,7 @@ function ModuleBoard({ course }: { course: CourseDocument }) {
           {topics.map((topic) => (
             <li key={topic.title}>
               <strong>{topic.title}</strong>
-              {selected.plan.length ? (
-                <span>
-                  л {topic.lectureHours} · п {topic.practiceHours} · лаб {topic.labHours} · срс{" "}
-                  {topic.selfStudyHours}
-                </span>
-              ) : null}
+              {selected.plan.length ? <span>{topicHoursLine(topic)}</span> : null}
             </li>
           ))}
         </ol>
@@ -349,18 +329,14 @@ function Overview({ course, score }: { course: CourseDocument; score: number }) 
       <header className="overview-head">
         <div>
           <p className="kicker">Программа</p>
-          <h2>{brief.title || "Без названия"}</h2>
+          <h2>{brief.title || "Новая образовательная программа"}</h2>
+          {!brief.title && course.modules.length === 0 ? (
+            <p className="program-soon">скоро здесь будет программа</p>
+          ) : null}
         </div>
         <p className="score">{Math.round(score * 100)}% заполнено</p>
       </header>
       <ConfidenceNote course={course} />
-      <article>
-        <h3>Паспорт результата</h3>
-        <p className="muted">
-          Штамп считает код по виду программы и часам. Лекция — черновик модели: её текст штамп не меняет.
-        </p>
-        <p className="mono">{resultPassport(course)}</p>
-      </article>
       {notes.length ? (
         <article>
           <h3>Для методиста</h3>
@@ -512,6 +488,21 @@ function formatHours(value: number) {
   return String(snapHalf(value)).replace(".", ",");
 }
 
+function topicHoursLine(topic: {
+  lectureHours: number;
+  practiceHours: number;
+  labHours: number;
+  selfStudyHours: number;
+}) {
+  const parts = [
+    topic.lectureHours > 0 ? `лекция ${formatHours(topic.lectureHours)} ч` : "",
+    topic.practiceHours > 0 ? `практика ${formatHours(topic.practiceHours)} ч` : "",
+    topic.labHours > 0 ? `лабораторная ${formatHours(topic.labHours)} ч` : "",
+    topic.selfStudyHours > 0 ? `самостоятельно ${formatHours(topic.selfStudyHours)} ч` : "",
+  ].filter(Boolean);
+  return parts.length ? parts.join(", ") : "часы по видам ещё не разложены";
+}
+
 function weekWord(count: number) {
   if (count % 10 === 1 && count % 100 !== 11) return "неделя";
   if (count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 12 || count % 100 > 14)) return "недели";
@@ -567,7 +558,7 @@ function WeekPlan({ course }: { course: CourseDocument }) {
                 <li key={`${piece.id}-${pieceIndex}`}>
                   <strong>{piece.title}</strong>
                   <span>
-                    {piece.continued ? "продолжение · " : ""}
+                    {piece.continued ? "продолжение, " : ""}
                     {formatHours(piece.hours)} ч
                   </span>
                 </li>

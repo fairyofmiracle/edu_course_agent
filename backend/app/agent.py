@@ -4,6 +4,7 @@ import json
 import time
 from typing import Any
 
+from .brief_guard import repair_typos
 from .cloud import CloudRuClient
 from .domain import apply_patch, framework_fingerprint, framework_items, rebalance_course
 from .catalog import (
@@ -93,8 +94,7 @@ async def extract_brief_arguments(
         tools=tools_for_step(step),
         tool_choice=_tool_choice(step),
         max_tokens=600,
-        #model=getattr(client, "model_writer", None),
-        model=None, #  сам выберет модель (временно)
+        model=getattr(client, "model_writer", None) or getattr(client, "model", None),
         timeout=60,
         attempts=1,
     )
@@ -282,6 +282,7 @@ async def run_turn(
     client: CloudRuClient | None = None,
 ) -> dict[str, Any]:
     client = client or CloudRuClient()
+    user_texts = [repair_typos(text) for text in user_texts]
     last_text = user_texts[-1] if user_texts else ""
     if kit_request_ready(course, last_text):
         course = approve_framework(course)

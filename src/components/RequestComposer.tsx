@@ -120,6 +120,8 @@ export function RequestComposer({
   const [busyFile, setBusyFile] = useState(false);
   const [fileNote, setFileNote] = useState("");
   const [showRefs, setShowRefs] = useState(false);
+  const [showLink, setShowLink] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
   const [formError, setFormError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const fileElapsed = useElapsed(busyFile);
@@ -185,7 +187,7 @@ export function RequestComposer({
   };
 
   const attachUrl = async () => {
-    const url = window.prompt("URL референса");
+    const url = linkUrl.trim();
     if (!url) return;
     setBusyFile(true);
     setFileNote("");
@@ -206,6 +208,8 @@ export function RequestComposer({
         note: "Ссылка добавлена методистом",
       });
       setShowRefs(true);
+      setShowLink(false);
+      setLinkUrl("");
       setFileNote(`Готово: ${payload.title || url}`);
     } catch (err) {
       setFileNote(readFailure(err, "Ссылка не открылась."));
@@ -392,18 +396,14 @@ export function RequestComposer({
       )}
 
       {formError && mode === "template" ? <p className="chat-error">{formError}</p> : null}
-      {mode === "free" ? (
-        <p className="input-hint">
-          Enter отправляет запрос. Если аудитория и часы уже известны, откройте «По шаблону».
-        </p>
-      ) : null}
+      {mode === "free" ? <p className="input-hint">Enter — отправить. Точные поля — во вкладке «По шаблону».</p> : null}
 
       <div className="composer-row">
         <button type="button" onClick={() => fileRef.current?.click()} disabled={busyFile}>
           {busyFile ? "Читаю…" : "Файл"}
         </button>
-        <button type="button" onClick={() => void attachUrl()} disabled={busyFile}>
-          Ссылка
+        <button type="button" onClick={() => setShowLink((value) => !value)} disabled={busyFile}>
+          {showLink ? "Скрыть ссылку" : "Ссылка"}
         </button>
         <button type="button" onClick={() => setShowRefs((value) => !value)}>
           {showRefs ? "Скрыть материал" : extraReferences ? "Материал приложен" : "Материал"}
@@ -467,6 +467,20 @@ export function RequestComposer({
           </button>
         ) : null}
       </div>
+      {showLink ? (
+        <div className="composer-row link-row">
+          <input
+            value={linkUrl}
+            onChange={(event) => setLinkUrl(event.target.value)}
+            placeholder="https://"
+            inputMode="url"
+            aria-label="Ссылка"
+          />
+          <button type="button" disabled={busyFile || !linkUrl.trim()} onClick={() => void attachUrl()}>
+            {busyFile ? "Читаю…" : "Добавить"}
+          </button>
+        </div>
+      ) : null}
     </form>
   );
 }

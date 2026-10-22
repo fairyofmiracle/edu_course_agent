@@ -296,6 +296,9 @@ def test_public_error_hides_exception_type() -> None:
 
     assert "RuntimeError" not in public_error_text(RuntimeError("HTTP 502 Traceback"))
     assert "модели" in public_error_text(RuntimeError("сеть недоступна"))
+    dumped = public_error_text(RuntimeError('Cloud.ru вернул ответ без choices: {"secret":"x"}'))
+    assert "secret" not in dumped
+    assert "choices" not in dumped
 
 
 def test_health_response_accepts_snake_and_dumps_camel() -> None:

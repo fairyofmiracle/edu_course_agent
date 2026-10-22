@@ -156,14 +156,6 @@ def save_course(
             )
             for reference in request.course.brief.references
         )
-        stale = session.scalars(
-            select(CourseVersion)
-            .where(CourseVersion.course_id == course_id)
-            .order_by(CourseVersion.version.desc())
-            .offset(20)
-        ).all()
-        for item in stale:
-            session.delete(item)
         session.commit()
     except IntegrityError as error:
         session.rollback()

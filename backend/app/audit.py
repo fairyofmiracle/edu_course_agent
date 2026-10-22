@@ -8,7 +8,7 @@ from .domain import framework_items
 from .legal_basis import legal_basis_items
 from .models import CourseDocument
 from .outdated import find_outdated
-from .rationale import module_rationales, result_passport
+from .rationale import module_rationales
 from .verbatim import reference_notes, verbatim_spans
 
 KIND_FIELDS = ("lectureHours", "practiceHours", "labHours", "selfStudyHours")
@@ -257,7 +257,7 @@ def audit_course(course: dict[str, Any]) -> dict[str, Any]:
             "label": "Паспорт результата считает код, формулировки модели в него не входят",
             "status": "pass",
             "section": "framework",
-            "details": result_passport(course),
+            "details": "Считает вид программы, часы и состав модулей. Текст лекции в этот расчёт не входит.",
         }
     )
 

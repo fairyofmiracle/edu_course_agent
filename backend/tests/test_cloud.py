@@ -179,6 +179,16 @@ def test_step_prompt_does_not_ship_the_whole_course() -> None:
     dumped = json.dumps(payload, ensure_ascii=False)
     assert payload["max_tokens"] == 280
     assert len(dumped) < 3500
+    long_step = build_chat_payload(
+        model="GigaChat/GigaChat-3-Pro",
+        system="Собери модули.",
+        messages=messages_for_model(["36 часов"]),
+        tools=course_tools(),
+        tool_choice={"type": "function", "function": {"name": "set_structure"}},
+        json_tools=True,
+        max_tokens=3200,
+    )
+    assert long_step["max_tokens"] == 3200
 
 
 def test_structure_instruction_does_not_teach_empty_arguments() -> None:
@@ -373,7 +383,7 @@ def test_complete_uses_reasoning_and_rejects_empty_choices(monkeypatch) -> None:
             )
         )
     except RuntimeError as error:
-        assert "choices" in str(error)
+        assert "без списка вариантов" in str(error)
     else:
         raise AssertionError("пустой choices должен падать")
     Response.payload = {

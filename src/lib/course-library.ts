@@ -146,6 +146,42 @@ export function rememberCourse(
   return "failed";
 }
 
+const IT_DIRECTIONS: { label: string; pattern: RegExp }[] = [
+  { label: "Кибербезопасность", pattern: /кибер|информационн\p{L}*\s+безопас/iu },
+  { label: "Сети", pattern: /сет(и|ей|ям|ях)\b|cisco|vlan|маршрутиз/i },
+  { label: "Python", pattern: /python|питон/i },
+  { label: "Искусственный интеллект", pattern: /нейросет|искусственн\p{L}*\s+интеллект|машинн\p{L}*\s+обучен/iu },
+  { label: "Веб", pattern: /веб|frontend|html|javascript|\breact\b/i },
+  { label: "Базы данных", pattern: /\bsql\b|баз\p{L}*\s+данн|postgres/iu },
+  { label: "1С", pattern: /1\s*[сc]/i },
+  { label: "DevOps", pattern: /devops|docker|kubernetes/i },
+  { label: "Аналитика", pattern: /аналитик|figma/i },
+  { label: "Программирование", pattern: /программир/i },
+];
+
+export function itDirection(title: string) {
+  const text = title.trim();
+  for (const item of IT_DIRECTIONS) {
+    if (item.pattern.test(text)) return item.label;
+  }
+  return "Другие программы";
+}
+
+export function groupByDirection<T extends { title: string }>(items: T[]) {
+  const buckets = new Map<string, T[]>();
+  for (const item of items) {
+    const label = itDirection(item.title);
+    buckets.set(label, [...(buckets.get(label) ?? []), item]);
+  }
+  return [...buckets.entries()]
+    .map(([label, courses]) => ({ label, courses }))
+    .sort((left, right) => {
+      if (left.label === "Другие программы") return 1;
+      if (right.label === "Другие программы") return -1;
+      return left.label.localeCompare(right.label, "ru");
+    });
+}
+
 export function listLibrary(storage: Pick<Storage, "getItem">): CourseSummary[] {
   return Object.values(readLibrary(storage))
     .map(({ course }) => ({

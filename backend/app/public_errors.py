@@ -14,6 +14,8 @@ def public_error_text(error: Exception) -> str:
         return "Шлюз не ответил за отведённое время. Каркас на месте, шаг можно повторить."
     if re.search(r"fetch failed|ECONNREFUSED|ENOTFOUND|сеть|network|ECONNRESET", raw, re.I):
         return "Студия не достучалась до модели. Повторите шаг."
+    if re.search(r"\{|\[|choices|Bearer |api_key|без списка вариантов", message, re.I):
+        return "Шлюз ответил не тем форматом. Каркас на месте, шаг можно повторить."
     if re.search(
         r"Traceback|HTTP \d|ValidationError|document is not defined|[A-Za-z]+Error:",
         raw,

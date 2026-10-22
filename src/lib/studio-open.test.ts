@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { rememberCourse } from "@/lib/course-library";
 import { createEmptyCourse } from "@/lib/course-schema";
 import { SAMPLE_COURSE } from "@/lib/sample-course";
-import { resolveStudioOpen } from "@/lib/studio-open";
+import { openOfflineSample, resolveStudioOpen } from "@/lib/studio-open";
 
 function memory() {
   const values = new Map<string, string>();
@@ -85,5 +85,17 @@ describe("resolveStudioOpen", () => {
     expect(resolved.course.id).not.toBe("текущий");
     expect(resolved.notice).toContain("не найден");
     expect(storage.getItem("edu-course-agent:course")).toContain("Текущий");
+  });
+
+  it("офлайн-пример открывает один и тот же курс, а не новый экземпляр", () => {
+    const storage = memory();
+    const first = openOfflineSample("другой", storage);
+    expect(first?.course.id).toBe(SAMPLE_COURSE.id);
+    rememberCourse(first!.course, [{ id: "пример", role: "user", parts: [] }], storage);
+
+    const again = openOfflineSample("другой", storage);
+    expect(again?.course.id).toBe(SAMPLE_COURSE.id);
+    expect(again?.messages[0]?.id).toBe("пример");
+    expect(openOfflineSample(SAMPLE_COURSE.id, storage)).toBeNull();
   });
 });

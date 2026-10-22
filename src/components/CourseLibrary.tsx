@@ -13,13 +13,14 @@ import {
 } from "@/lib/backend-storage";
 import {
   adaptCourseCopy,
+  groupByDirection,
   listLibrary,
   loadLibraryCourse,
   rememberCourse,
   type CopyAdaptation,
   type CourseSummary,
 } from "@/lib/course-library";
-import { PROGRAM_KIND_LABELS, courseDocumentSchema, type CourseDocument } from "@/lib/course-schema";
+import { courseDocumentSchema } from "@/lib/course-schema";
 import { dropStoredCourse, newSessionId, saveCourse } from "@/lib/storage";
 import type { UIMessage } from "ai";
 
@@ -46,10 +47,22 @@ function asUiMessages(value: unknown): UIMessage[] {
   return messages;
 }
 
-function formatWhen(iso: string) {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" });
+function CopyIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="8" y="8" width="10" height="11" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M6 15V5h10" fill="none" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M9 9v8M12 9v8M15 9v8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
 export function CourseCatalog() {
@@ -183,9 +196,7 @@ export function CourseCatalog() {
 
   return (
     <SiteFrame
-      actions={
-        <Link href="/">К программе</Link>
-      }
+      actions={() => <Link href="/">К программе</Link>}
     >
       <section className="catalog-page">
         <p className="pane-label">Библиотека</p>
@@ -204,11 +215,12 @@ export function CourseCatalog() {
               : "Пока нет сохранённых курсов. Программа запишется, когда вы начнёте её в студии."}
           </p>
         ) : (
+          <div className="catalog-groups">
+            {groupByDirection(visible).map((group) => (
+          <section key={group.label} className="catalog-group">
+            <h2>{group.label}</h2>
           <ul className="catalog-list">
-            {visible.map((item) => {
-              const kind =
-                PROGRAM_KIND_LABELS[item.programKind as CourseDocument["brief"]["programKind"]] ??
-                item.programKind;
+            {group.courses.map((item) => {
               return (
                 <li key={item.id}>
                   <button
@@ -220,21 +232,22 @@ export function CourseCatalog() {
                       void openCourse(item.id).finally(() => setBusy(false));
                     }}
                   >
-                    <strong>{item.title.trim() || "Новая образовательная программа"}</strong>
-                    <span>
+                    <strong className="catalog-theme">
+                      {item.title.trim() || "Новая образовательная программа"}
+                    </strong>
+                    <span className="catalog-hours">
+                      {item.durationHours ? `${item.durationHours} ч` : "Часы не заданы"}
+                    </span>
+                    <span className="catalog-audience">
                       {item.audience.trim() || "Аудитория не указана"}
-                      {" · "}
-                      {kind}
-                      {" · "}
-                      {item.durationHours ? `${item.durationHours} ч` : "объём не задан"}
-                      {" · "}
-                      {formatWhen(item.updatedAt)}
                     </span>
                   </button>
                   {draft.id === item.id || pendingDelete === item.id ? null : (
-                    <span className="library-actions">
+                    <span className="library-actions catalog-tools">
                       <button
                         type="button"
+                        aria-label="Копия"
+                        title="Копия"
                         disabled={busy}
                         onClick={() => {
                           setPendingDelete("");
@@ -247,17 +260,19 @@ export function CourseCatalog() {
                           });
                         }}
                       >
-                        Копия
+                        <CopyIcon />
                       </button>
                       <button
                         type="button"
+                        aria-label="Удалить"
+                        title="Удалить"
                         disabled={busy}
                         onClick={() => {
                           setDraft({ id: "", audience: "", duration: "", attestation: "", error: "" });
                           setPendingDelete(item.id);
                         }}
                       >
-                        Удалить
+                        <TrashIcon />
                       </button>
                     </span>
                   )}
@@ -350,6 +365,9 @@ export function CourseCatalog() {
               );
             })}
           </ul>
+          </section>
+            ))}
+          </div>
         )}
       </section>
     </SiteFrame>

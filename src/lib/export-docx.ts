@@ -20,7 +20,7 @@ import {
 } from "@/lib/course-schema";
 import { triggerBrowserDownload } from "@/lib/browser-download";
 import { ORDER_266, ORDER_499, requiredLegalBasis, type LegalDocument } from "@/lib/legal-basis";
-import { moduleRationales, resultPassport } from "@/lib/module-rationale";
+import { moduleRationales } from "@/lib/module-rationale";
 
 const LETTERHEAD = [
   "Автономная некоммерческая организация",
@@ -149,9 +149,8 @@ function composeCourseDocx(course: CourseDocument) {
     studyPlan(course),
     mark("Паспорт результата", HeadingLevel.HEADING_2),
     paragraph(
-      "Этот блок считает код. Формулировки лекций в него не входят и при новом прогоне модели могут отличаться.",
+      "Часы, вид программы и состав модулей считает код. Формулировки лекций в этот расчёт не входят.",
     ),
-    paragraph(resultPassport(course)),
     mark("Почему план такой", HeadingLevel.HEADING_2),
     paragraph(
       "Формулировки лекций при новом прогоне модели могут отличаться. Часы, результаты и связь со средствами проверки считает код.",

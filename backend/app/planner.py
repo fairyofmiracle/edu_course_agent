@@ -220,15 +220,13 @@ def plan_step(
             "task": "Перенеси только явно названные методистом поля брифа.",
         }
     missing = missing_brief_lines(course)
-    answered_enough = user_turns >= 2 and bool(
-        course.brief.audience.strip() or course.brief.goals
-    )
-    if mode == "intake" and missing and not answered_enough:
+    if mode == "intake" and missing:
         return {
             "kind": "reply",
             "task": (
                 f"Уточни: {', '.join(missing)}. Задай не больше пяти вопросов. "
-                "«Примерно месяц» не считай точным объёмом."
+                "«Примерно месяц» не считай точным объёмом. "
+                "Компетенции и модули не собирай, пока этих данных нет."
             ),
         }
     short = 0 < course.brief.duration_hours <= 24

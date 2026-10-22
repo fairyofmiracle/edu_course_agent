@@ -11,6 +11,7 @@ export const SAMPLE_COURSE: CourseDocument = {
     level: "intermediate",
     durationHours: 24,
     format: "blended",
+    formatNamed: true,
     programKind: "general",
     attestationHours: 0,
     attestationForm: "Защита мини-проекта",

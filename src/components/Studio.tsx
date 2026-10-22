@@ -4,7 +4,7 @@ import { DefaultChatTransport, type UIMessage } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ChatPanel } from "@/components/ChatPanel";
-import { CourseWorkspace, type WorkspaceTab } from "@/components/CourseWorkspace";
+import { CourseTabs, CourseWorkspace, type WorkspaceTab } from "@/components/CourseWorkspace";
 import { SiteFrame } from "@/components/SiteFrame";
 import {
   CourseConflictError,
@@ -13,7 +13,7 @@ import {
   loadCourseFromBackend,
   saveCourseToBackend,
 } from "@/lib/backend-storage";
-import { exportDoneLabel, exportWaitLabel } from "@/lib/job-status";
+import { exportDoneLabel, exportWaitLabel, workProgress } from "@/lib/job-status";
 import { useElapsed } from "@/lib/use-elapsed";
 import { applyPatch, foldCourseFromMessages } from "@/lib/course-patches";
 import {
@@ -22,7 +22,6 @@ import {
   isFrameworkApproved,
   isKitComplete,
 } from "@/lib/framework-check";
-import { SAMPLE_COURSE } from "@/lib/sample-course";
 import { userFacingError } from "@/lib/user-error";
 import {
   createEmptyCourse,
@@ -40,7 +39,7 @@ import { exportCourseDocx } from "@/lib/export-docx";
 import { exportCourseMoodle } from "@/lib/export-moodle";
 import { exportCourseCsv, exportCourseGift } from "@/lib/export-tests";
 import { exportCoursePptx } from "@/lib/export-pptx";
-import { resolveStudioOpen } from "@/lib/studio-open";
+import { openOfflineSample, resolveStudioOpen } from "@/lib/studio-open";
 import {
   actionEntry,
   entryFromMessage,
@@ -74,7 +73,6 @@ export function Studio({ courseId, sample }: { courseId?: string; sample?: boole
       initialCourse={open.course}
       initialMessages={open.messages}
       initialSessionId={open.rotateSession ? newSessionId() : loadSessionId()}
-      initialChatOpen={!courseId}
       persist={open.persist}
       localNotice={open.notice}
     />
@@ -85,20 +83,19 @@ function StudioSession({
   initialCourse,
   initialMessages,
   initialSessionId,
-  initialChatOpen,
   persist,
   localNotice,
 }: {
   initialCourse: CourseDocument;
   initialMessages: UIMessage[];
   initialSessionId: string;
-  initialChatOpen: boolean;
   persist: boolean;
   localNotice: string;
 }) {
   const [storedCourse, setStoredCourse] = useState(initialCourse);
   const [extraReferences, setExtraReferences] = useState("");
   const [tab, setTab] = useState<WorkspaceTab>("overview");
+  const [chatOpen, setChatOpen] = useState(true);
   const [sessionId, setSessionId] = useState(initialSessionId);
   const [backendReady, setBackendReady] = useState(!hasBackendStorage());
   const [saveState, setSaveState] = useState<
@@ -111,7 +108,6 @@ function StudioSession({
   } | null>(
     null,
   );
-  const [chatOpen, setChatOpen] = useState(initialChatOpen);
   const [storageNote, setStorageNote] = useState("");
   const exportElapsed = useElapsed(exportJob?.phase === "work");
   const courseRef = useRef(storedCourse);
@@ -150,14 +146,14 @@ function StudioSession({
     if (text.includes("Ключа шлюза нет")) return "Ключа шлюза нет. Комплект по каркасу.";
     if (text.includes("Шлюз не ответил")) return "Шлюз не ответил. Недостающее дописано по каркасу.";
     if (text.includes("Модель написала часть") || text.includes("подготовлен частично")) {
-      return "Часть комплекта написала модель. Остальное проверьте.";
+      return "Часть комплекта написала модель. Проверьте перед выгрузкой.";
     }
     return "Комплект написала модель.";
   })();
   const stage = frameworkApproved ? "kit" : course.modules.length ? "framework" : "ask";
-  const showDocument = Boolean(
-    course.brief.title.trim() || course.modules.length || messages.length > 0,
-  );
+  const chatPending = status === "submitted" || status === "streaming";
+  const chatElapsed = useElapsed(chatPending);
+  const activity = chatPending ? workProgress(stage, chatElapsed) : null;
   const missingChecks = checks.filter((item) => !item.ok).map((item) => item.label);
 
   const exportFromServer = async (
@@ -349,7 +345,6 @@ function StudioSession({
     setMessages([]);
     setExtraReferences("");
     setTab("overview");
-    setChatOpen(true);
     persistLog(actionEntry(nextSession, "Новый курс"));
   };
 
@@ -393,18 +388,18 @@ function StudioSession({
   };
 
   const loadSample = () => {
-    const sample = {
-      ...SAMPLE_COURSE,
-      id: crypto.randomUUID(),
-      updatedAt: new Date().toISOString(),
-    };
+    const opened = openOfflineSample(courseRef.current.id, window.localStorage);
+    if (!opened) {
+      setTab("overview");
+      return;
+    }
     const nextSession = newSessionId();
     seenMessages.current = new Set();
     loggedErrors.current = new Set();
     sessionRef.current = nextSession;
     setSessionId(nextSession);
-    setStoredCourse(sample);
-    setMessages([]);
+    setStoredCourse(opened.course);
+    setMessages(opened.messages);
     setExtraReferences("");
     setTab("overview");
     persistLog(actionEntry(nextSession, "Загружен пример 24 ч"));
@@ -412,7 +407,40 @@ function StudioSession({
 
   return (
     <SiteFrame
-      actions={
+      title={course.brief.title || "Новая образовательная программа"}
+      chatOpen={chatOpen}
+      activity={activity}
+      note={
+        exportJob?.phase === "work"
+          ? exportWaitLabel(exportJob.kind, exportElapsed, exportJob.place)
+          : exportJob?.phase === "done"
+            ? exportDoneLabel(exportJob.kind)
+            : exportJob?.phase === "error"
+              ? "Выгрузка не собралась"
+              : storageNote
+                ? storageNote
+                : localNotice
+                  ? localNotice
+                  : sourceLine
+                    ? sourceLine
+                    : saveState === "conflict"
+                      ? "Курс уже сохранила другая вкладка. Обновите страницу, чтобы не затереть её правку."
+                      : saveState === "synced"
+                        ? "Сохранено"
+                        : saveState === "saving"
+                          ? "Сохраняю…"
+                          : "Сохранено на этом компьютере"
+      }
+      progress={
+        <ol className="stages" aria-label="Шаги">
+          <li className={stage === "ask" ? "current" : "done"}>Запрос</li>
+          <li className={stage === "framework" ? "current" : stage === "kit" ? "done" : ""}>
+            Каркас
+          </li>
+          <li className={stage === "kit" ? (kitComplete ? "done" : "current") : ""}>Комплект</li>
+        </ol>
+      }
+      actions={() => (
         <>
           <a href="/courses">Мои курсы</a>
           <button type="button" title="Готовая программа без модели. В проход проверяющего не входит." onClick={loadSample}>
@@ -422,82 +450,27 @@ function StudioSession({
             Новый курс
           </button>
         </>
-      }
+      )}
     >
       <div className="topbar">
-        <div>
-          <p className="kicker">
-            {stage === "ask"
-              ? "1. Запрос. Слева напишите, для кого программа и сколько в ней часов."
-              : stage === "framework"
-                ? "2. Каркас. Справа сверьте часы и компетенции, затем утвердите каркас."
-                : kitComplete
-                  ? "3. Комплект собран. Смотрите программу и выгружайте файлы."
-                  : "3. Комплект. Каркас утверждён: можно собирать лекции, задания и тесты."}
-          </p>
-          <h1>{course.brief.title || "Новая образовательная программа"}</h1>
-          <p className="save-state" aria-live="polite">
-            {exportJob?.phase === "work"
-              ? exportWaitLabel(exportJob.kind, exportElapsed, exportJob.place)
-              : exportJob?.phase === "done"
-                ? exportDoneLabel(exportJob.kind)
-                : exportJob?.phase === "error"
-                  ? "Выгрузка не собралась"
-                  : storageNote
-                  ? storageNote
-                  : localNotice
-                    ? localNotice
-                    : sourceLine
-                    ? sourceLine
-                    : saveState === "conflict"
-                      ? "Курс уже сохранила другая вкладка. Обновите страницу, чтобы не затереть её правку."
-                    : saveState === "synced"
-                      ? "Сохранено"
-                    : saveState === "saving"
-                      ? "Сохраняю…"
-                      : "Сохранено на этом компьютере"}
-          </p>
-        </div>
-        <div className="topbar-side">
-        {showDocument ? (
-          <button
-            type="button"
-            className="chat-dock"
-            aria-expanded={chatOpen}
-            onClick={() => setChatOpen((open) => !open)}
-          >
-            {chatOpen ? "Скрыть чат" : "Чат"}
-          </button>
-        ) : null}
-        <ol className="stages" aria-label="Шаги">
-          <li className={stage === "ask" ? "current" : "done"}>Запрос</li>
-          <li className={stage === "framework" ? "current" : stage === "kit" ? "done" : ""}>
-            Каркас
-          </li>
-          <li className={stage === "kit" ? (kitComplete ? "done" : "current") : ""}>Комплект</li>
-        </ol>
+        <div className="topbar-tools">
+          <CourseTabs tab={tab} approved={frameworkApproved} onTabChange={setTab} />
         </div>
       </div>
-      <div
-        className={`studio-body${showDocument ? "" : " chat-only"}${
-          showDocument && !chatOpen ? " chat-away" : ""
-        }`}
-      >
-        <ChatPanel
-          messages={messages}
-          status={status}
-          error={error}
-          extraReferences={extraReferences}
-          frameworkApproved={frameworkApproved}
-          kitComplete={kitComplete}
-          stage={stage}
-          missingChecks={missingChecks}
-          onReferencesChange={setExtraReferences}
-          onReferenceAdd={addReference}
-          onSend={send}
-          onStop={() => stop()}
-        />
-        {showDocument ? (
+      <div className={`studio-body${chatOpen ? "" : " chat-away"}`}>
+        {chatOpen ? null : (
+          <button
+            type="button"
+            className="chat-edge chat-edge-open"
+            aria-label="Открыть чат"
+            title="Открыть чат"
+            onClick={() => setChatOpen(true)}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        )}
         <div className="pane pane-doc">
           <header className="pane-head">
             <p className="pane-label">2. Результат</p>
@@ -505,12 +478,12 @@ function StudioSession({
             <p className="kicker">
               {frameworkApproved
                 ? kitComplete
-                  ? "Комплект собран. Смотрите программу справа и выгружайте файлы."
+                  ? "Комплект собран. Смотрите программу и выгружайте файлы."
                   : "Каркас утверждён. Соберите содержание или выгрузите программу."
                 : frameworkReady
                   ? "Часы и связи сходятся. Утвердите каркас, чтобы открыть лекции, задания и тесты."
-                  : stage === "ask"
-                    ? "Документ появится здесь после запроса с аудиторией и часами."
+                    : stage === "ask"
+                    ? "Скоро здесь будет программа."
                     : `Пока рано утверждать: ${missingChecks.slice(0, 2).join("; ")}.`}
             </p>
             <div className="pane-actions">
@@ -599,9 +572,23 @@ function StudioSession({
               </details>
             </div>
           </header>
-          <CourseWorkspace course={course} tab={tab} onTabChange={setTab} />
+          <CourseWorkspace course={course} tab={tab} />
         </div>
-        ) : null}
+        <ChatPanel
+          messages={messages}
+          status={status}
+          error={error}
+          extraReferences={extraReferences}
+          frameworkApproved={frameworkApproved}
+          kitComplete={kitComplete}
+          stage={stage}
+          missingChecks={missingChecks}
+          onReferencesChange={setExtraReferences}
+          onReferenceAdd={addReference}
+          onSend={send}
+          onStop={() => stop()}
+          onClose={() => setChatOpen(false)}
+        />
       </div>
     </SiteFrame>
   );

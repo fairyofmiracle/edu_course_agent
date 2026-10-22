@@ -217,6 +217,30 @@ def test_named_format_is_not_asked_again_while_hours_are_missing() -> None:
     assert "точный объём в академических часах" in missing
 
 
+def test_exam_without_a_number_takes_two_hours_from_the_volume() -> None:
+    from backend.app.models import empty_course as make_course
+
+    course = assemble_local_course(
+        [
+            "Повышение квалификации, 72 академических часа, студенты 3 курса колледжа, "
+            "знают Linux. Итоговая аттестация: экзамен."
+        ]
+    )
+    assert course.brief.attestation_hours == 2
+    assert "экзамен" in course.brief.attestation_form.lower()
+    assert abs(sum(module.hours for module in course.modules) - 70) < 0.01
+    untouched = apply_patch(
+        make_course(),
+        execute_tool(
+            "update_brief",
+            {},
+            make_course(),
+            ["Итоговая аттестация занимает 6 часов. Объём 24 академических часа."],
+        ),
+    )
+    assert untouched.brief.attestation_hours == 6
+
+
 def test_named_format_wins_over_the_model_guess() -> None:
     from backend.app.models import empty_course as make_course
 

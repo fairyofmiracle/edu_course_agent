@@ -109,9 +109,10 @@ def test_case2_teacher_ai() -> None:
     distance = sum(module.practice_hours + module.self_study_hours for module in course.modules)
     assert course.brief.program_kind == "qualification"
     assert course.brief.duration_hours == 36
+    assert course.brief.attestation_hours == 2
     assert any("удостоверение" in line.lower() for line in course.brief.constraints)
     assert any("Очно:" in line for line in course.brief.constraints)
-    assert ochno + distance == 36
+    assert ochno + distance + course.brief.attestation_hours == 36
     assert any(node.labor_function_code == "A/01.6" for node in course.competencies.nodes)
     assert "риск" in blob and "персональн" in blob
     assert "chatgpt" not in blob

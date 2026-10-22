@@ -258,6 +258,13 @@ ATTESTATION_HOURS_FLIP = re.compile(
 )
 
 
+def default_attestation_hours(form: str, named_hours: float, duration: float) -> float | None:
+    """2 часа из объёма, как в шаблоне повышения квалификации, если своё число не названо."""
+    if named_hours > 0 or not (form or "").strip() or duration < 24:
+        return None
+    return 2.0
+
+
 def attestation_hours_from_text(texts: list[str]) -> float | None:
     blob = " ".join(texts)
     for pattern in (ATTESTATION_HOURS, ATTESTATION_HOURS_FLIP):
@@ -550,6 +557,16 @@ def guard_brief(
         att_hours = attestation_hours_from_text(texts)
         if att_hours:
             brief["attestationHours"] = att_hours
+        else:
+            form_name = str(
+                brief.get("attestationForm") or current.get("attestationForm") or ""
+            )
+            duration = float(
+                brief.get("durationHours") or current.get("durationHours") or 0
+            )
+            fallback = default_attestation_hours(form_name, 0, duration)
+            if fallback:
+                brief["attestationHours"] = fallback
     if not current.get("title", "").strip() and not brief.get("title", "").strip():
         first = next(
             (

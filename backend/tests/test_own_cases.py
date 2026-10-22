@@ -268,3 +268,53 @@ def test_own1_audience_is_not_title_fragment() -> None:
     course = apply_patch(course, output)
     assert "»" not in (course.brief.audience or "")
     assert "сотрудник" in (course.brief.audience or "").lower()
+
+def test_course_volume_with_educational_hours() -> None:
+    text = (
+        "создай курс по основам кибербезопасности на 20 учебных часов. "
+        "Аттестация будет в виде теста. Для школьников 9-11 классов"
+    )
+
+    assert mentioned_hours(text) == [20]
+    assert volume_from_text([text]) == 20
+
+def test_final_attestation_can_be_a_test() -> None:
+    course = empty_course()
+    text = (
+        "Создай курс по Python на 20 часов. "
+        "Аттестация будет в виде теста."
+    )
+
+    output = execute_tool("update_brief", {}, course, [text])
+    updated = apply_patch(course, output)
+
+    assert updated.brief.attestation_form == "тест"
+    assert updated.brief.duration_hours == 20
+
+def test_intermediate_tests_do_not_override_final_attestation() -> None:
+    course = empty_course()
+    text = (
+        "Создай курс Python на 20 часов. "
+        "После каждого модуля проводи промежуточные тесты. "
+        "Итоговая аттестация — защита проекта."
+    )
+
+    output = execute_tool("update_brief", {}, course, [text])
+    updated = apply_patch(course, output)
+
+    assert updated.brief.attestation_form == "защита проекта"
+    assert updated.brief.duration_hours == 20
+
+def test_final_test_with_intermediate_tests() -> None:
+    course = empty_course()
+    text = (
+        "Создай курс Python на 20 часов. "
+        "После каждого модуля проводи промежуточные тесты. "
+        "Итоговая аттестация — тестирование."
+    )
+
+    output = execute_tool("update_brief", {}, course, [text])
+    updated = apply_patch(course, output)
+
+    assert updated.brief.attestation_form == "тест"
+    assert updated.brief.duration_hours == 20

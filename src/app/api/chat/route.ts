@@ -54,9 +54,10 @@ async function pythonChatResponse(options: {
     patches?: Array<{ type: string; [key: string]: unknown }>;
     gatewayRetries?: number[];
     usage?: {
-      prompt_tokens?: number;
-      completion_tokens?: number;
-      total_tokens?: number;
+      prompt_tokens: number;
+      completion_tokens: number;
+      total_tokens: number;
+      calls: number;
     };
   };
   if (!response.ok) {
@@ -66,6 +67,14 @@ async function pythonChatResponse(options: {
   const stream = createUIMessageStream({
     originalMessages: options.messages,
     execute: ({ writer }) => {
+      if (payload.usage) {
+        writer.write({
+          type: "message-metadata",
+          messageMetadata: {
+            usage: payload.usage,
+          },
+        });
+      }
       for (const [index, patch] of (payload.patches ?? []).entries()) {
         const toolCallId = `python-${Date.now()}-${index}`;
         writer.write({

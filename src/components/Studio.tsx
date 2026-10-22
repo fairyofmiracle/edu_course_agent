@@ -1,5 +1,6 @@
 "use client";
 
+import { sumTokenUsage } from "@/lib/token-usage";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -126,6 +127,11 @@ function StudioSession({
     messages: initialMessages,
   });
 
+  const tokenUsage = useMemo(
+    () => sumTokenUsage(messages),
+    [messages],
+  );
+
   const course = useMemo(
     () => foldCourseFromMessages(messages, storedCourse),
     [messages, storedCourse],
@@ -140,14 +146,12 @@ function StudioSession({
       .filter((item) => item.role === "assistant")
       .map((item) => messageText(item))
       .find((value) =>
-        /Ключа шлюза нет|Шлюз не ответил|Модель написала часть|подготовлен частично|Собрала комплект|Комплект написала модель/.test(value),
+        /Ключа шлюза нет|Шлюз не ответил|Учебный комплект подготовлен частично|Собрала комплект|Комплект написала модель/.test(value),
       );
     if (!text) return "";
     if (text.includes("Ключа шлюза нет")) return "Ключа шлюза нет. Комплект по каркасу.";
     if (text.includes("Шлюз не ответил")) return "Шлюз не ответил. Недостающее дописано по каркасу.";
-    if (text.includes("Модель написала часть") || text.includes("подготовлен частично")) {
-      return "Часть комплекта написала модель. Проверьте перед выгрузкой.";
-    }
+    if (text.includes("Учебный комплект подготовлен частично")) return "Часть комплекта написала модель.";
     return "Комплект написала модель.";
   })();
   const stage = frameworkApproved ? "kit" : course.modules.length ? "framework" : "ask";
@@ -457,20 +461,27 @@ function StudioSession({
           <CourseTabs tab={tab} approved={frameworkApproved} onTabChange={setTab} />
         </div>
       </div>
-      <div className={`studio-body${chatOpen ? "" : " chat-away"}`}>
-        {chatOpen ? null : (
-          <button
-            type="button"
-            className="chat-edge chat-edge-open"
-            aria-label="Открыть чат"
-            title="Открыть чат"
-            onClick={() => setChatOpen(true)}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-        )}
+      <div
+        className={`studio-body${showDocument ? "" : " chat-only"}${
+          showDocument && !chatOpen ? " chat-away" : ""
+        }`}
+      >
+        <ChatPanel
+          messages={messages}
+          tokenUsage={tokenUsage}
+          status={status}
+          error={error}
+          extraReferences={extraReferences}
+          frameworkApproved={frameworkApproved}
+          kitComplete={kitComplete}
+          stage={stage}
+          missingChecks={missingChecks}
+          onReferencesChange={setExtraReferences}
+          onReferenceAdd={addReference}
+          onSend={send}
+          onStop={() => stop()}
+        />
+        {showDocument ? (
         <div className="pane pane-doc">
           <header className="pane-head">
             <p className="pane-label">2. Результат</p>

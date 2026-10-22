@@ -1,5 +1,7 @@
 "use client";
 
+import type { TokenUsage } from "@/lib/token-usage";
+import { displayServicePrompt } from "@/lib/agent/service-prompts";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { RequestComposer } from "@/components/RequestComposer";
@@ -76,6 +78,7 @@ const TOOL_LABELS: Record<string, string> = {
 
 type ChatPanelProps = {
   messages: UIMessage[];
+  tokenUsage: TokenUsage;
   status: string;
   error?: Error;
   extraReferences: string;
@@ -92,6 +95,7 @@ type ChatPanelProps = {
 
 export function ChatPanel({
   messages,
+  tokenUsage,
   status,
   error,
   extraReferences,
@@ -166,141 +170,69 @@ export function ChatPanel({
         </div>
       </header>
 
+      <div className="token-usage" aria-label="Статистика токенов">
+        <strong>Расход токенов за курс</strong>
+
+        <div>
+          Входящие: {tokenUsage.prompt_tokens.toLocaleString("ru-RU")}
+        </div>
+
+        <div>
+          Исходящие: {tokenUsage.completion_tokens.toLocaleString("ru-RU")}
+        </div>
+
+        <div>
+          Всего: {tokenUsage.total_tokens.toLocaleString("ru-RU")}
+        </div>
+
+        <div>
+          Вызовов модели: {tokenUsage.calls}
+        </div>
+      </div>
+
       <div className="messages" aria-live="polite">
-        {messages.length === 0 ? null : (
-          messages.map((message) => {
-            const texts = message.parts.filter(
-              (part): part is { type: "text"; text: string } => part.type === "text" && Boolean(part.text),
-            );
-            const tools = message.parts.filter(isToolUIPart);
-            const asking = texts.some((part) => isIntakeAsk(part.text));
-            const wrote = asking
-              ? []
-              : tools
-                  .filter((part) => part.state !== "output-error")
-                  .map((part) => TOOL_LABELS[getToolName(part)] ?? getToolName(part));
-            const failed = tools.filter((part) => part.state === "output-error");
-            return (
-              <article key={message.id} className={`turn ${message.role}`}>
-                {texts.length > 0 ? (
-                  <div className={`bubble ${message.role}`}>
-                    {texts.map((part, index) => {
-                      const card = message.role === "assistant" ? questionCard(part.text) : null;
-                      const canAnswer = message.role === "assistant" && message.id === messages.at(-1)?.id && !pending;
-                      if (!card) return <p key={`${message.id}-t-${index}`}>{part.text}</p>;
-                      return (
-                        <div key={`${message.id}-t-${index}`} className="ask-card">
-                          {card.lead ? <p>{card.lead}</p> : null}
-                          <ol>
-                            {card.items.map((item) => {
-                              const choices = canAnswer ? choicesFor(item) : [];
-                              const aboutAttestation = /аттестац/i.test(item);
-                              const aboutHours = isHoursQuestion(item);
-                              return (
-                                <li key={item}>
-                                  <span>{item}</span>
-                                  {choices.length ? (
-                                    <span className="ask-choices">
-                                      {choices.map((choice) => (
-                                        <button
-                                          key={choice.text}
-                                          type="button"
-                                          className={picks[item] === choice.text ? "picked" : undefined}
-                                          disabled={pending}
-                                          onClick={() => {
-                                            if (aboutAttestation) setOwnAttestation("");
-                                            setPicks((current) => {
-                                              if (current[item] === choice.text) {
-                                                const next = { ...current };
-                                                delete next[item];
-                                                return next;
-                                              }
-                                              return { ...current, [item]: choice.text };
-                                            });
-                                          }}
-                                        >
-                                          {choice.label}
-                                        </button>
-                                      ))}
-                                    </span>
-                                  ) : null}
-                                  {canAnswer && aboutHours ? (
-                                    <input
-                                      className="ask-own"
-                                      value={ownHours}
-                                      inputMode="numeric"
-                                      placeholder="Часы, например 72"
-                                      disabled={pending}
-                                      onChange={(event) => setOwnHours(event.target.value)}
-                                    />
-                                  ) : null}
-                                  {canAnswer && aboutAttestation ? (
-                                    <input
-                                      className="ask-own"
-                                      value={ownAttestation}
-                                      placeholder="Свой вариант"
-                                      disabled={pending}
-                                      onChange={(event) => {
-                                        const value = event.target.value;
-                                        setOwnAttestation(value);
-                                        if (value.trim()) {
-                                          setPicks((current) => {
-                                            const next = { ...current };
-                                            for (const key of Object.keys(next)) {
-                                              if (/аттестац/i.test(key)) delete next[key];
-                                            }
-                                            return next;
-                                          });
-                                        }
-                                      }}
-                                    />
-                                  ) : null}
-                                </li>
-                              );
-                            })}
-                          </ol>
-                          {canAnswer && card.items.some((item) => choicesFor(item).length > 0 || isHoursQuestion(item)) ? (
-                            <button
-                              type="button"
-                              className="ask-send"
-                              disabled={
-                                pending ||
-                                (!ownAttestation.trim() && !hoursAnswer(ownHours) && Object.keys(picks).length === 0)
-                              }
-                              onClick={() => {
-                                const lines = Object.entries(picks)
-                                  .filter(([item]) => !(/аттестац/i.test(item) && ownAttestation.trim()))
-                                  .map(([, text]) => text);
-                                const hours = hoursAnswer(ownHours);
-                                if (hours) lines.push(hours);
-                                if (ownAttestation.trim()) {
-                                  lines.push(`Итоговая аттестация: ${ownAttestation.trim()}`);
-                                }
-                                if (!lines.length) return;
-                                onSend(lines.join("\n"));
-                                setPicks({});
-                                setOwnAttestation("");
-                                setOwnHours("");
-                              }}
-                            >
-                              Ответить
-                            </button>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : null}
-                {wrote.length > 0 ? <p className="tool-line">В программу: {wrote.join(", ")}</p> : null}
-                {failed.map((part, index) => (
-                  <p key={`${message.id}-fail-${index}`} className="tool-line failed">
-                    Не записалось: {TOOL_LABELS[getToolName(part)] ?? getToolName(part)}
-                    {part.errorText ? ` — ${part.errorText}` : ""}
-                  </p>
-                ))}
-              </article>
-            );
-          })
+        {messages.length === 0 ? (
+          <div className="onboarding">
+            <p className="pane-label">Как это работает</p>
+            <h3>Начните со свободного запроса</h3>
+            <p>
+              Например: «Нужен курс по Python для школьников на 16 часов».
+              Если данных не хватит, студия задаст несколько вопросов одним сообщением.
+            </p>
+            <ol>
+              <li>Опишите задачу и приложите материалы.</li>
+              <li>Проверьте каркас и часы справа.</li>
+              <li>Утвердите каркас, чтобы собрать тесты, задания и слайды.</li>
+            </ol>
+          </div>
+        ) : (
+          messages.map((message) => (
+            <article key={message.id} className={`bubble ${message.role}`}>
+              {message.parts.map((part, index) => {
+                if (part.type === "text" && part.text) {
+                  return (
+                    <p key={`${message.id}-t-${index}`}>
+                      {message.role === "user"
+                        ? displayServicePrompt(part.text)
+                        : part.text}
+                    </p>
+                  );
+                }
+                if (isToolUIPart(part)) {
+                  const name = getToolName(part);
+                  const failed = part.state === "output-error";
+                  return (
+                    <span key={`${message.id}-tool-${index}`} className={`tool-chip ${part.state}`}>
+                      {TOOL_LABELS[name] ?? name}
+                      {part.state === "output-available" ? " ✓" : ""}
+                      {failed ? ` — ${part.errorText || "ошибка"}` : ""}
+                    </span>
+                  );
+                }
+                return null;
+              })}
+            </article>
+          ))
         )}
         {pending ? (
           <article className="turn assistant" aria-busy="true">

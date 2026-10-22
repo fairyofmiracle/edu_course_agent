@@ -8,6 +8,10 @@ HOURS = re.compile(
     r"(?:часов|часа|час\b|ч(?![а-яё]))",
     re.IGNORECASE,
 )
+HOURS_NAMED = re.compile(
+    r"(?:часов|часа|часы|час)\s+(?:на|до)\s+(\d{1,4})\b",
+    re.IGNORECASE,
+)
 
 VOLUME = re.compile(
     r"(?:объ[её]м\w*|на)\s*[:—-]?\s*(\d+)\s*"

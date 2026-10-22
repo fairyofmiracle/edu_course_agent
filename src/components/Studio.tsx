@@ -1,6 +1,5 @@
 "use client";
 
-import { sumTokenUsage } from "@/lib/token-usage";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -127,11 +126,6 @@ function StudioSession({
     messages: initialMessages,
   });
 
-  const tokenUsage = useMemo(
-    () => sumTokenUsage(messages),
-    [messages],
-  );
-
   const course = useMemo(
     () => foldCourseFromMessages(messages, storedCourse),
     [messages, storedCourse],
@@ -155,6 +149,9 @@ function StudioSession({
     return "Комплект написала модель.";
   })();
   const stage = frameworkApproved ? "kit" : course.modules.length ? "framework" : "ask";
+  const showDocument = Boolean(
+    course.brief.title.trim() || course.modules.length || messages.length > 0,
+  );
   const chatPending = status === "submitted" || status === "streaming";
   const chatElapsed = useElapsed(chatPending);
   const activity = chatPending ? workProgress(stage, chatElapsed) : null;
@@ -468,7 +465,6 @@ function StudioSession({
       >
         <ChatPanel
           messages={messages}
-          tokenUsage={tokenUsage}
           status={status}
           error={error}
           extraReferences={extraReferences}
@@ -480,6 +476,7 @@ function StudioSession({
           onReferenceAdd={addReference}
           onSend={send}
           onStop={() => stop()}
+          onClose={() => setChatOpen(false)}
         />
         {showDocument ? (
         <div className="pane pane-doc">
@@ -585,21 +582,7 @@ function StudioSession({
           </header>
           <CourseWorkspace course={course} tab={tab} />
         </div>
-        <ChatPanel
-          messages={messages}
-          status={status}
-          error={error}
-          extraReferences={extraReferences}
-          frameworkApproved={frameworkApproved}
-          kitComplete={kitComplete}
-          stage={stage}
-          missingChecks={missingChecks}
-          onReferencesChange={setExtraReferences}
-          onReferenceAdd={addReference}
-          onSend={send}
-          onStop={() => stop()}
-          onClose={() => setChatOpen(false)}
-        />
+        ) : null}
       </div>
     </SiteFrame>
   );

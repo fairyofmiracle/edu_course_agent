@@ -144,12 +144,14 @@ function StudioSession({
       .filter((item) => item.role === "assistant")
       .map((item) => messageText(item))
       .find((value) =>
-        /Ключа шлюза нет|Шлюз не ответил|Модель написала часть|Собрала комплект|Комплект написала модель/.test(value),
+        /Ключа шлюза нет|Шлюз не ответил|Модель написала часть|подготовлен частично|Собрала комплект|Комплект написала модель/.test(value),
       );
     if (!text) return "";
     if (text.includes("Ключа шлюза нет")) return "Ключа шлюза нет. Комплект по каркасу.";
     if (text.includes("Шлюз не ответил")) return "Шлюз не ответил. Недостающее дописано по каркасу.";
-    if (text.includes("Модель написала часть")) return "Часть комплекта написала модель.";
+    if (text.includes("Модель написала часть") || text.includes("подготовлен частично")) {
+      return "Часть комплекта написала модель. Остальное проверьте.";
+    }
     return "Комплект написала модель.";
   })();
   const stage = frameworkApproved ? "kit" : course.modules.length ? "framework" : "ask";

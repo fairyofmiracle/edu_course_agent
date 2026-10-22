@@ -330,7 +330,7 @@ def test_empty_kit_reply_asks_the_model_again() -> None:
         )
     )
     assert any("Вопрос модели 0" in str(patch) for patch in result["patches"])
-    assert "Модель написала часть" in result["assistant"]
+    assert "подготовлен частично" in result["assistant"]
 
 
 def test_gateway_silence_still_returns_kit_patches() -> None:

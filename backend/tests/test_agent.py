@@ -24,6 +24,7 @@ class FakeClient:
 def test_agent_does_not_invent_hours_from_month() -> None:
     fake = FakeClient(
         [
+
             {
                 "role": "assistant",
                 "content": None,
@@ -68,6 +69,7 @@ def test_agent_does_not_invent_hours_from_month() -> None:
 def test_chat_turn_http_contract(monkeypatch) -> None:
     fake = FakeClient(
         [
+
             {
                 "role": "assistant",
                 "content": None,

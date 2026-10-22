@@ -87,16 +87,37 @@ button {
 .studio {
   height: 100vh;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-columns: 208px minmax(0, 1fr);
 }
 
-.studio-main {
+.studio-column {
+  min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
-.site-header,
+.studio-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.site-nav {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 12px;
+  background: var(--menu);
+  border-right: 1px solid var(--line);
+}
+
 .site-footer {
   display: flex;
   align-items: center;
@@ -109,9 +130,12 @@ button {
 
 .site-mark {
   margin: 0;
+  padding: 0 4px 12px;
+  border-bottom: 1px solid var(--line);
   color: var(--accent);
   font-size: 13px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
+  line-height: 1.35;
   text-transform: uppercase;
   text-decoration: none;
 }
@@ -212,9 +236,31 @@ button {
   text-decoration: none;
 }
 
+.site-nav .top-actions {
+  flex: 1;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+}
+
+.site-nav .top-actions a,
+.site-nav .top-actions button {
+  justify-content: flex-start;
+  width: 100%;
+  text-align: left;
+}
+
 .top-actions .theme-toggle {
   width: 34px;
   padding: 0;
+}
+
+.site-nav .top-actions .theme-toggle {
+  width: 100%;
+  margin-top: auto;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 7px 12px;
 }
 
 .top-actions a:hover,
@@ -1638,6 +1684,11 @@ button.primary {
 
   .studio {
     height: auto;
+    grid-template-columns: 168px minmax(0, 1fr);
+  }
+
+  .site-nav {
+    padding: 12px 8px;
   }
 
   .pane-write {

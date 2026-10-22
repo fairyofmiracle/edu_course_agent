@@ -22,11 +22,12 @@ export function SiteFrame({
 
   return (
     <div className="studio">
-      <header className="site-header">
+      <nav className="site-nav" aria-label="Меню студии">
         <Link className="site-mark" href="/">
           Студия методиста
         </Link>
         <div className="top-actions">
+          {actions}
           <button
             type="button"
             className="theme-toggle"
@@ -40,16 +41,18 @@ export function SiteFrame({
             }}
           >
             {theme === "dark" ? <SunIcon /> : <MoonIcon />}
+            {theme === "dark" ? "Светлая тема" : "Тёмная тема"}
           </button>
-          {actions}
         </div>
-      </header>
-      <div className="studio-main">{children}</div>
-      <footer className="site-footer">
-        <span>Команда not_idea</span>
-        <span>Запрос, каркас, комплект</span>
-        <span>Next.js · FastAPI · Cloud.ru</span>
-      </footer>
+      </nav>
+      <div className="studio-column">
+        <div className="studio-main">{children}</div>
+        <footer className="site-footer">
+          <span>Команда not_idea</span>
+          <span>Запрос, каркас, комплект</span>
+          <span>Next.js · FastAPI · Cloud.ru</span>
+        </footer>
+      </div>
     </div>
   );
 }

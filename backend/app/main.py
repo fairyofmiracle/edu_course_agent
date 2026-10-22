@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from .access import access_denied, request_allowed
 from .agent_api import router as agent_router
 from .export_api import router as export_router
+from .identity import router as identity_router
 from .audit import audit_course
 from .contracts import (
     AuditCourse,
@@ -78,6 +79,16 @@ app = FastAPI(
             "name": "export",
             "description": "Серверная выдача JSON, DOCX и PPTX. Браузер файл не собирает.",
         },
+        {
+            "name": "identity",
+            "description": (
+                "Дорожная карта. Вход — JWT HS256, роли: методист на входе, "
+                "методист программы, нормоконтроль, руководитель направления. "
+                "Пароль не проверяется. Подпись читает только GET /api/auth/me. "
+                "Остальные маршруты этот JWT не принимают. Доступ к API "
+                "по-прежнему задаёт STUDIO_API_TOKEN."
+            ),
+        },
     ],
 )
 def cors_origins() -> list[str]:
@@ -114,6 +125,7 @@ if courses_router is not None:
     app.include_router(courses_router)
 app.include_router(agent_router)
 app.include_router(export_router)
+app.include_router(identity_router)
 
 
 @app.exception_handler(RequestValidationError)

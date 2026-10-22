@@ -1,5 +1,6 @@
 "use client";
 
+import { sumTokenUsage } from "@/lib/token-usage";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -130,6 +131,11 @@ function StudioSession({
     messages: initialMessages,
   });
 
+  const tokenUsage = useMemo(
+    () => sumTokenUsage(messages),
+    [messages],
+  );
+
   const course = useMemo(
     () => foldCourseFromMessages(messages, storedCourse),
     [messages, storedCourse],
@@ -144,12 +150,12 @@ function StudioSession({
       .filter((item) => item.role === "assistant")
       .map((item) => messageText(item))
       .find((value) =>
-        /Ключа шлюза нет|Шлюз не ответил|Модель написала часть|Собрала комплект|Комплект написала модель/.test(value),
+        /Ключа шлюза нет|Шлюз не ответил|Учебный комплект подготовлен частично|Собрала комплект|Комплект написала модель/.test(value),
       );
     if (!text) return "";
     if (text.includes("Ключа шлюза нет")) return "Ключа шлюза нет. Комплект по каркасу.";
     if (text.includes("Шлюз не ответил")) return "Шлюз не ответил. Недостающее дописано по каркасу.";
-    if (text.includes("Модель написала часть")) return "Часть комплекта написала модель.";
+    if (text.includes("Учебный комплект подготовлен частично")) return "Часть комплекта написала модель.";
     return "Комплект написала модель.";
   })();
   const stage = frameworkApproved ? "kit" : course.modules.length ? "framework" : "ask";
@@ -483,6 +489,7 @@ function StudioSession({
       >
         <ChatPanel
           messages={messages}
+          tokenUsage={tokenUsage}
           status={status}
           error={error}
           extraReferences={extraReferences}

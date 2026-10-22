@@ -247,6 +247,18 @@ def _tool_choice(step: dict[str, Any]) -> str | dict[str, Any]:
         }
     return "none"
 
+# def _tool_choice(step: dict[str, Any]) -> str | dict[str, Any]:
+#     if step["kind"] == "tool":
+#         return {
+#             "type": "function",
+#             "function": {"name": step["tool"]},
+#         }
+
+#     if step["kind"] == "auto":
+#         return "auto"
+
+#     return "none"
+
 
 def kit_assistant_text(client: Any, calls: list[dict[str, Any]], planned: list[str]) -> str:
     has_key = bool(getattr(client, "api_key", None))

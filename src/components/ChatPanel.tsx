@@ -1,5 +1,7 @@
 "use client";
 
+import type { TokenUsage } from "@/lib/token-usage";
+import { displayServicePrompt } from "@/lib/agent/service-prompts";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { RequestComposer } from "@/components/RequestComposer";
@@ -20,6 +22,7 @@ const TOOL_LABELS: Record<string, string> = {
 
 type ChatPanelProps = {
   messages: UIMessage[];
+  tokenUsage: TokenUsage;
   status: string;
   error?: Error;
   extraReferences: string;
@@ -35,6 +38,7 @@ type ChatPanelProps = {
 
 export function ChatPanel({
   messages,
+  tokenUsage,
   status,
   error,
   extraReferences,
@@ -78,6 +82,26 @@ export function ChatPanel({
         </p>
       </header>
 
+      <div className="token-usage" aria-label="Статистика токенов">
+        <strong>Расход токенов за курс</strong>
+
+        <div>
+          Входящие: {tokenUsage.prompt_tokens.toLocaleString("ru-RU")}
+        </div>
+
+        <div>
+          Исходящие: {tokenUsage.completion_tokens.toLocaleString("ru-RU")}
+        </div>
+
+        <div>
+          Всего: {tokenUsage.total_tokens.toLocaleString("ru-RU")}
+        </div>
+
+        <div>
+          Вызовов модели: {tokenUsage.calls}
+        </div>
+      </div>
+
       <div className="messages" aria-live="polite">
         {messages.length === 0 ? (
           <div className="onboarding">
@@ -98,7 +122,13 @@ export function ChatPanel({
             <article key={message.id} className={`bubble ${message.role}`}>
               {message.parts.map((part, index) => {
                 if (part.type === "text" && part.text) {
-                  return <p key={`${message.id}-t-${index}`}>{part.text}</p>;
+                  return (
+                    <p key={`${message.id}-t-${index}`}>
+                      {message.role === "user"
+                        ? displayServicePrompt(part.text)
+                        : part.text}
+                    </p>
+                  );
                 }
                 if (isToolUIPart(part)) {
                   const name = getToolName(part);

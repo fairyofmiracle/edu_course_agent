@@ -3,3 +3,15 @@ export const FRAMEWORK_PROMPT =
 
 export const KIT_PROMPT =
   "Каркас утверждён. Для каждого модуля вызови set_assessment, set_seminar и set_lecture. Часы и список компетенций не меняй. Каждый вопрос привяжи к компетенции.";
+
+  export function displayServicePrompt(text: string): string {
+  if (text === KIT_PROMPT) {
+    return "Подготовь учебный комплект: лекции, практические задания и тесты.";
+  }
+
+  if (text === FRAMEWORK_PROMPT) {
+    return "Сформируй каркас образовательной программы.";
+  }
+
+  return text;
+}

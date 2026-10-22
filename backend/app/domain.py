@@ -76,6 +76,23 @@ def _kind_sum(value: dict[str, Any]) -> float:
     return sum(academic_hours(value.get(key, 0)) for key in KIND_KEYS)
 
 
+def _spread_classroom(lecture: float, practice: float, hours: float) -> list[float]:
+    """Лекции остаются объяснением. Из практики выделяются лабораторная и самостоятельная."""
+    self_study = academic_hours(hours * 0.2)
+    if self_study <= 0 and hours >= 2:
+        self_study = 0.5
+    hands = academic_hours(max(0, hours - self_study))
+    share = lecture / (lecture + practice) if lecture + practice else 0.35
+    lecture_hours = academic_hours(hands * share)
+    pool = academic_hours(max(0, hands - lecture_hours))
+    lab = academic_hours(pool / 2)
+    practice_hours = academic_hours(max(0, pool - lab))
+    drift = academic_hours(hours) - (lecture_hours + practice_hours + lab + self_study)
+    if drift:
+        practice_hours = academic_hours(max(0, practice_hours + drift))
+    return [lecture_hours, practice_hours, lab, self_study]
+
+
 def _fill_plan(module: dict[str, Any]) -> dict[str, Any]:
     result = deepcopy(module)
     title = str(result.get("title") or "").strip() or "Модуль"
@@ -86,6 +103,8 @@ def _fill_plan(module: dict[str, Any]) -> dict[str, Any]:
     ] or [title]
     hours = academic_hours(result.get("hours")) or _kind_sum(result) or 1
     weights = [academic_hours(result.get(key)) for key in KIND_KEYS]
+    if weights[2] == 0 and weights[3] == 0 and (weights[0] > 0 or weights[1] > 0):
+        weights = _spread_classroom(weights[0], weights[1], hours)
     kinds = allocate_integer(
         hours,
         weights if any(weights) else [1, 2, 0, 1],

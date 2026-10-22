@@ -38,6 +38,16 @@ function choicesFor(item: string) {
   return ASK_CHOICES.find((entry) => entry.test.test(item))?.options ?? [];
 }
 
+function isHoursQuestion(item: string) {
+  return /академических часах|точный объём/i.test(item);
+}
+
+function hoursAnswer(value: string) {
+  const match = value.match(/(\d{1,4})/);
+  if (!match) return "";
+  return `Объём: ${match[1]} академических часа`;
+}
+
 function isIntakeAsk(text: string) {
   return text.includes("Не хватает данных");
 }
@@ -48,7 +58,8 @@ function questionCard(text: string) {
     .map((line) => line.trim())
     .filter(Boolean);
   const items = lines.filter((line) => /^\d+\.\s+/.test(line)).map((line) => line.replace(/^\d+\.\s+/, ""));
-  if (items.length < 2) return null;
+  const canPick = items.some((item) => choicesFor(item).length > 0 || isHoursQuestion(item));
+  if (!canPick) return null;
   const lead = lines.find((line) => !/^\d+\.\s+/.test(line)) ?? "";
   return { lead, items };
 }
@@ -111,6 +122,7 @@ export function ChatPanel({
   const [doneFlash, setDoneFlash] = useState(false);
   const [picks, setPicks] = useState<Record<string, string>>({});
   const [ownAttestation, setOwnAttestation] = useState("");
+  const [ownHours, setOwnHours] = useState("");
   const wasPending = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -183,6 +195,7 @@ export function ChatPanel({
                             {card.items.map((item) => {
                               const choices = canAnswer ? choicesFor(item) : [];
                               const aboutAttestation = /аттестац/i.test(item);
+                              const aboutHours = isHoursQuestion(item);
                               return (
                                 <li key={item}>
                                   <span>{item}</span>
@@ -211,6 +224,16 @@ export function ChatPanel({
                                       ))}
                                     </span>
                                   ) : null}
+                                  {canAnswer && aboutHours ? (
+                                    <input
+                                      className="ask-own"
+                                      value={ownHours}
+                                      inputMode="numeric"
+                                      placeholder="Часы, например 72"
+                                      disabled={pending}
+                                      onChange={(event) => setOwnHours(event.target.value)}
+                                    />
+                                  ) : null}
                                   {canAnswer && aboutAttestation ? (
                                     <input
                                       className="ask-own"
@@ -236,15 +259,20 @@ export function ChatPanel({
                               );
                             })}
                           </ol>
-                          {canAnswer && card.items.some((item) => choicesFor(item).length > 0) ? (
+                          {canAnswer && card.items.some((item) => choicesFor(item).length > 0 || isHoursQuestion(item)) ? (
                             <button
                               type="button"
                               className="ask-send"
-                              disabled={pending || (!ownAttestation.trim() && Object.keys(picks).length === 0)}
+                              disabled={
+                                pending ||
+                                (!ownAttestation.trim() && !hoursAnswer(ownHours) && Object.keys(picks).length === 0)
+                              }
                               onClick={() => {
                                 const lines = Object.entries(picks)
                                   .filter(([item]) => !(/аттестац/i.test(item) && ownAttestation.trim()))
                                   .map(([, text]) => text);
+                                const hours = hoursAnswer(ownHours);
+                                if (hours) lines.push(hours);
                                 if (ownAttestation.trim()) {
                                   lines.push(`Итоговая аттестация: ${ownAttestation.trim()}`);
                                 }
@@ -252,6 +280,7 @@ export function ChatPanel({
                                 onSend(lines.join("\n"));
                                 setPicks({});
                                 setOwnAttestation("");
+                                setOwnHours("");
                               }}
                             >
                               Ответить
@@ -288,7 +317,7 @@ export function ChatPanel({
       {messages.length > 0 ? (
         <p className="chat-hint">
           {stage === "ask"
-            ? "Тип, аттестацию и форму можно выбрать кнопками и отправить одним сообщением. Слушателей напишите текстом."
+            ? "Часы впишите в вопрос. Тип, аттестацию и форму можно выбрать кнопками. Слушателей напишите текстом."
             : stage === "framework"
               ? missingChecks.length
                 ? `В программе ещё проверить: ${missingChecks.slice(0, 2).join("; ")}.`

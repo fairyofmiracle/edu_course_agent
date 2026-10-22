@@ -8,6 +8,7 @@ from backend.app.domain import (
     allocate_integer,
     apply_patch,
     apply_patches,
+    balance_modules,
     framework_items,
 )
 from backend.app.models import CourseDocument, empty_course
@@ -20,6 +21,37 @@ FIXTURE = Path(__file__).parents[2] / "fixtures" / "course-contract.json"
 
 def fixture_course() -> CourseDocument:
     return CourseDocument.model_validate(json.loads(FIXTURE.read_text(encoding="utf-8")))
+
+
+def test_classroom_hours_fill_lab_and_self_study() -> None:
+    modules = balance_modules(
+        [
+            {
+                "id": "m1",
+                "title": "Алгоритмы",
+                "hours": 10,
+                "lectureHours": 2.5,
+                "practiceHours": 7.5,
+                "labHours": 0,
+                "selfStudyHours": 0,
+                "topics": ["Сортировка"],
+                "learningOutcomes": ["Сортирует массив"],
+                "competencyIds": ["c1"],
+            }
+        ],
+        10,
+        0,
+    )
+    module = modules[0]
+    assert module["labHours"] > 0
+    assert module["selfStudyHours"] > 0
+    assert (
+        module["lectureHours"]
+        + module["practiceHours"]
+        + module["labHours"]
+        + module["selfStudyHours"]
+        == 10
+    )
 
 
 def test_shared_contract_matches_typescript_expectations() -> None:

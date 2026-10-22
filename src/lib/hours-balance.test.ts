@@ -60,6 +60,21 @@ describe("fillModulePlan", () => {
     expect(next.learningOutcomes[0]).toMatch(/Сети/);
   });
 
+  it("лекции и семинары оставляют часы на лабораторную и самостоятельную", () => {
+    const next = fillModulePlan(
+      sample({
+        hours: 10,
+        lectureHours: 2.5,
+        practiceHours: 7.5,
+        labHours: 0,
+        selfStudyHours: 0,
+      }),
+    );
+    expect(next.labHours).toBeGreaterThan(0);
+    expect(next.selfStudyHours).toBeGreaterThan(0);
+    expect(kindSum(next)).toBe(10);
+  });
+
   it("если виды часов нули, делит объём целыми: практика ≈ половина, без десятых", () => {
     const next = fillModulePlan(
       sample({ lectureHours: 0, practiceHours: 0, labHours: 0, selfStudyHours: 0, hours: 8 }),

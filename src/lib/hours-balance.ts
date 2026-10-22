@@ -116,6 +116,23 @@ export function allocateInteger(
   return result.map((value) => value / 2);
 }
 
+function spreadClassroom(lecture: number, practice: number, hours: number) {
+  const selfStudy = academicHours(Math.max(hours * 0.2, hours >= 2 ? 0.5 : 0));
+  const hands = academicHours(Math.max(0, hours - selfStudy));
+  const share = lecture + practice > 0 ? lecture / (lecture + practice) : 0.35;
+  const lectureHours = academicHours(hands * share);
+  const pool = academicHours(Math.max(0, hands - lectureHours));
+  const labHours = academicHours(pool / 2);
+  const practiceHours = academicHours(Math.max(0, pool - labHours));
+  const drift = academicHours(hours) - (lectureHours + practiceHours + labHours + selfStudy);
+  return [
+    lectureHours,
+    academicHours(Math.max(0, practiceHours + drift)),
+    labHours,
+    selfStudy,
+  ];
+}
+
 function scaleKinds(module: CourseModule, hours: number): KindHours {
   const target = academicHours(hours);
   const current = [
@@ -124,6 +141,8 @@ function scaleKinds(module: CourseModule, hours: number): KindHours {
     academicHours(module.labHours),
     academicHours(module.selfStudyHours),
   ];
+  const classroomOnly =
+    current[2] === 0 && current[3] === 0 && (current[0] > 0 || current[1] > 0);
   if (target <= 0) {
     return {
       hours: current.reduce((total, value) => total + value, 0),
@@ -133,8 +152,9 @@ function scaleKinds(module: CourseModule, hours: number): KindHours {
       selfStudyHours: current[3],
     };
   }
-  const allocated =
-    current.some((value) => value > 0)
+  const allocated = classroomOnly
+    ? allocateInteger(target, spreadClassroom(current[0], current[1], target), { keepZero: true })
+    : current.some((value) => value > 0)
       ? allocateInteger(target, current, { keepZero: true })
       : allocateInteger(target, [1, 2, 0, 1], { keepZero: true });
   return {

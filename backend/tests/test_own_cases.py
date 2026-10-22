@@ -189,6 +189,34 @@ def test_audience_answers_are_kept_and_stop_the_question() -> None:
     assert step.get("tool") is None
 
 
+def test_named_format_is_not_asked_again_while_hours_are_missing() -> None:
+    from backend.app.models import empty_course as make_course
+
+    course = make_course()
+    named = apply_patch(
+        course,
+        execute_tool(
+            "update_brief",
+            {},
+            course,
+            [
+                "Общеразвивающая программа с сертификатом",
+                "Итоговая аттестация: защита проекта",
+                "Форма обучения: стажировка",
+            ],
+        ),
+    )
+    assert named.brief.program_kind == "general"
+    assert named.brief.format == "workshop"
+    assert named.brief.format_named is True
+    assert "проект" in named.brief.attestation_form.lower()
+    missing = missing_brief_lines(named)
+    assert "форма обучения" not in missing
+    assert "тип программы" not in missing
+    assert "форма итоговой аттестации" not in missing
+    assert "точный объём в академических часах" in missing
+
+
 def test_named_format_wins_over_the_model_guess() -> None:
     from backend.app.models import empty_course as make_course
 

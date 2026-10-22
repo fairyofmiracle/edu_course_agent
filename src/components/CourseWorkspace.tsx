@@ -377,14 +377,15 @@ function Overview({ course, score }: { course: CourseDocument; score: number }) 
         </div>
       </dl>
       {course.modules.length > 0 ? (
+        <>
         <table className="hours-table">
           <thead>
             <tr>
               <th>Модуль</th>
               <th>Лекции</th>
-              <th>Практика</th>
-              <th>Лаб.</th>
-              <th>Самост.</th>
+              <th>Семинары</th>
+              <th>Лабораторные</th>
+              <th>Самостоятельно</th>
               <th>Всего</th>
             </tr>
           </thead>
@@ -401,6 +402,12 @@ function Overview({ course, score }: { course: CourseDocument; score: number }) 
             ))}
           </tbody>
         </table>
+        <p className="muted">
+          Лекции — объяснение преподавателя. Семинары — разбор вместе с группой. Лабораторные —
+          работа за компьютером. Самостоятельно — без преподавателя. Сумма четырёх колонок равна
+          «Всего».
+        </p>
+        </>
       ) : null}
       <div className="two-col">
         <article>

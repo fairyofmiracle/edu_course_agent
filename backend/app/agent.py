@@ -62,6 +62,57 @@ SYSTEM_PROMPT = """Ты методист. Документ меняй тольк
 Нормативы студия подставит сама — номера приказов не выдумывай.
 Лекции и тесты — только после утверждения каркаса. Текст лекции, задания и теста пишешь ты, по этой теме и этой аудитории. Сделай ровно текущий шаг."""
 
+async def extract_brief_arguments(
+    client: CloudRuClient,
+    course: CourseDocument,
+    user_texts: list[str],
+) -> dict[str, Any]:
+    step = {
+        "kind": "tool",
+        "tool": "update_brief",
+        "task": (
+            "Ты анализируешь запрос методиста на разработку образовательной "
+            "программы по IT-направлению. Тематика может включать любые "
+            "информационные технологии, языки программирования, инфраструктуру, "
+            "данные, безопасность и смежные IT-дисциплины. "
+            "Извлеки только явно указанные или однозначно следующие из "
+            "контекста параметры курса. "
+            "Не придумывай общий объём часов, тип программы, "
+            "форму аттестации и другие неизвестные сведения. "
+            "Не путай расписание занятий с общим объёмом программы. "
+            "Не путай способ проведения занятий (очно, дистанционно) "
+            "с педагогическим форматом (лекции, практика, смешанный). "
+            "Если параметр не указан, не включай его в JSON. "
+            "Учитывай исправления в последних сообщениях."
+        ),
+    }
+
+    message = await client.complete(
+        system=build_system_prompt(course, step),
+        messages=messages_for_model(user_texts),
+        tools=tools_for_step(step),
+        tool_choice=_tool_choice(step),
+        max_tokens=600,
+        #model=getattr(client, "model_writer", None),
+        model=None, #  сам выберет модель (временно)
+        timeout=60,
+        attempts=1,
+    )
+
+    calls = message.get("tool_calls") or []
+    if not calls:
+        return {}
+
+    function = calls[0].get("function") or {}
+
+    if function.get("name") != "update_brief":
+        return {}
+    arguments = function.get("arguments") or "{}"
+
+    if isinstance(arguments, str):
+        arguments = json.loads(arguments)
+
+    return arguments if isinstance(arguments, dict) else {}
 
 def clip_text(value: str | None, limit: int) -> str:
     text = (value or "").strip()
@@ -212,12 +263,12 @@ def kit_assistant_text(client: Any, calls: list[dict[str, Any]], planned: list[s
         return "Шлюз не ответил. Комплект дописан по каркасу, чтобы программа не осталась пустой."
     if local and model_wrote:
         return (
-            "Модель написала часть комплекта. Пустые места дописаны по каркасу, "
-            "в чате это сказано прямо."
-        )
+            "Учебный комплект подготовлен частично с помощью ИИ. "
+            "Некоторые материалы дополнены по шаблону и требуют проверки. "
+            "Просмотрите лекции, практические задания и тесты перед выгрузкой."
+            )
     return (
         "Комплект написала модель: тест, слайды и задания по этой теме. "
-        "Код проверил часы, источники и дословные совпадения с референсом."
     )
 
 
@@ -257,6 +308,20 @@ async def run_turn(
     outgoing = messages_for_model(user_texts)
     kit_started = time.monotonic()
 
+    brief_is_complete = not missing_brief_lines(course)
+
+    explicit_build_request = last_text.strip().lower() in {
+        "собери каркас",
+        "собери каркас по заполненному шаблону",
+        "сформируй каркас",
+        "создай каркас",
+    }
+
+    skip_brief_extraction = (
+        brief_is_complete
+        and explicit_build_request
+    )
+
     for _ in range(MAX_STEPS):
         if hasattr(client, "budget_left") and not client.budget_left():
             if not assistant_text:
@@ -270,7 +335,25 @@ async def run_turn(
         )
         planned.append(key)
         if step.get("tool") == "update_brief":
-            output = execute_tool("update_brief", {}, course, user_texts, form_brief)
+            if skip_brief_extraction:
+                arguments = {}
+            else:
+                try:
+                    arguments = await extract_brief_arguments(
+                        client,
+                        course,
+                        user_texts,
+                    )
+                except (RuntimeError, ValueError, TypeError, KeyError, AttributeError):
+                    arguments = {}
+
+            output = execute_tool(
+                "update_brief",
+                arguments,
+                course,
+                user_texts,
+                form_brief,
+            )
             calls.append({"tool": "update_brief", "input": output.get("brief")})
             if output.get("type") != "tool_error":
                 next_course = apply_patch(course, output)

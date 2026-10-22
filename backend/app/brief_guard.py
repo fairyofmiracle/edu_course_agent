@@ -327,9 +327,10 @@ def guard_brief(
             brief.pop("programKind")
             dropped.append("programKind")
 
-    inferred_format = format_from_text(texts)
-    if inferred_format:
-        brief["format"] = inferred_format
+    if "format" not in brief:
+        inferred_format = format_from_text(texts)
+        if inferred_format:
+            brief["format"] = inferred_format
     extracted_audience = audience_from_text(texts)
     last_names_audience = bool(
         re.search(r"(?:слушател\w*|аудитори\w*)\s*[:—]", last, re.IGNORECASE)

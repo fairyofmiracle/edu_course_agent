@@ -238,6 +238,16 @@ def test_kit_prompt_opens_kit_when_framework_checks_pass() -> None:
     )
 
 
+def test_edit_request_prefers_free_over_kit() -> None:
+    course = approve_framework(fixture_course())
+    assert kit_needed(course) is True
+    assert decide_mode(course, "Измени блок на продвинутый") == "free"
+    assert decide_mode(course, "Экзамен сократи на 2 часа") == "free"
+    step = plan_step("free", course, [], 2)
+    assert step["kind"] == "auto"
+    assert "revise_section" in step["tools"]
+
+
 def test_planner_starts_with_brief_tool() -> None:
     course = fixture_course()
     assert decide_mode(course, "Новый запрос") == "intake"

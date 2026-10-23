@@ -70,11 +70,31 @@ def kit_request_ready(course: CourseDocument, last_user_text: str) -> bool:
     )
 
 
+EDIT_REQUEST = re.compile(
+    r"(измен|замен|поправ|правь|сократ|увелич|уменьш|сделай|"
+    r"продвинут|базов|аттестац|экзамен|зач[её]т|переимен|назван|"
+    r"час(а|ов|ам)?\b|модул|блок)",
+    re.IGNORECASE,
+)
+
+
+def is_edit_request(text: str) -> bool:
+    cleaned = (text or "").strip()
+    if not cleaned or KIT_REQUEST.search(cleaned) or FRAMEWORK_REQUEST.search(cleaned):
+        return False
+    return bool(EDIT_REQUEST.search(cleaned))
+
+
 def decide_mode(course: CourseDocument, last_user_text: str) -> TurnMode:
+    edit = is_edit_request(last_user_text)
     if is_framework_approved(course) or kit_request_ready(course, last_user_text):
+        if edit:
+            return "free"
         return "kit" if kit_needed(course) else "free"
     if FRAMEWORK_REQUEST.search(last_user_text.strip()):
         return "framework"
+    if course.modules and edit:
+        return "free"
     return "intake"
 
 
@@ -202,16 +222,24 @@ def plan_step(
                 }
         return {"kind": "reply", "task": "Коротко подведи итог: что уже собрано."}
     if mode == "free":
-        return {
-            "kind": "auto",
-            "tools": [
+        if is_framework_approved(course):
+            tools = [
                 "revise_section",
                 "set_lecture",
                 "set_seminar",
                 "set_assessment",
                 "update_brief",
-            ],
-            "task": "Измени только названную методистом часть.",
+            ]
+        else:
+            tools = ["revise_section", "update_brief", "set_structure"]
+        return {
+            "kind": "auto",
+            "tools": tools,
+            "task": (
+                "Измени только названную методистом часть. "
+                "Обязательно вызови инструмент с новой версией данных, "
+                "не ограничивайся текстом ответа."
+            ),
         }
     if not tried("update_brief"):
         return {

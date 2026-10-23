@@ -219,6 +219,15 @@ def tools_for_step(step: dict[str, Any]) -> list[dict[str, Any]]:
     if step.get("kind") == "tool" and name:
         selected = [item for item in tools if ((item.get("function") or {}).get("name") == name)]
         return selected or tools
+    allowed = step.get("tools")
+    if step.get("kind") == "auto" and isinstance(allowed, list) and allowed:
+        names = {str(item) for item in allowed}
+        selected = [
+            item
+            for item in tools
+            if ((item.get("function") or {}).get("name") in names)
+        ]
+        return selected or tools
     return tools
 
 
@@ -226,6 +235,8 @@ def max_tokens_for_step(step: dict[str, Any]) -> int:
     tool = step.get("tool")
     if step.get("kind") == "reply":
         return 220
+    if step.get("kind") == "auto":
+        return 1200
     if tool == "update_brief":
         return 280
     if tool == "set_competency_map":
@@ -245,19 +256,9 @@ def _tool_choice(step: dict[str, Any]) -> str | dict[str, Any]:
             "type": "function",
             "function": {"name": step["tool"]},
         }
+    if step["kind"] == "auto":
+        return "auto"
     return "none"
-
-# def _tool_choice(step: dict[str, Any]) -> str | dict[str, Any]:
-#     if step["kind"] == "tool":
-#         return {
-#             "type": "function",
-#             "function": {"name": step["tool"]},
-#         }
-
-#     if step["kind"] == "auto":
-#         return "auto"
-
-#     return "none"
 
 
 def kit_assistant_text(client: Any, calls: list[dict[str, Any]], planned: list[str]) -> str:

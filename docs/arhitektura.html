@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Not_Idea · архитектура</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #1c1614;
+      --ink-soft: #5c534c;
+      --paper: #f6f4f1;
+      --panel: #fff;
+      --line: #ddd6cf;
+      --accent: #6e2432;
+      --ui: #3d5a80;
+      --api: #6e2432;
+      --rules: #2f6b4a;
+      --model: #8a6a2a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(ellipse 70% 40% at 50% 0%, color-mix(in srgb, var(--accent) 7%, transparent), transparent),
+        var(--paper);
+      color: var(--ink);
+      font-family: "IBM Plex Sans", sans-serif;
+      padding: 2rem 1.25rem 2.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .brand {
+      font-family: Manrope, sans-serif;
+      font-size: 0.72rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    h1 {
+      font-family: Manrope, sans-serif;
+      font-size: clamp(1.35rem, 3vw, 1.75rem);
+      font-weight: 700;
+      text-align: center;
+      margin: 0.35rem 0 0.4rem;
+      letter-spacing: -0.02em;
+    }
+    .lead {
+      text-align: center;
+      color: var(--ink-soft);
+      font-size: 0.92rem;
+      max-width: 34rem;
+      margin: 0 0 1.6rem;
+      line-height: 1.45;
+    }
+    .board {
+      width: min(920px, 100%);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 1.5rem 1.35rem 1.35rem;
+      box-shadow: 0 14px 36px color-mix(in srgb, var(--ink) 5%, transparent);
+    }
+    .flow {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: stretch;
+      justify-content: center;
+      gap: 0.55rem;
+    }
+    .node {
+      flex: 1 1 140px;
+      max-width: 170px;
+      min-height: 96px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0.85rem 0.75rem;
+      text-align: center;
+      animation: up 0.55s ease both;
+    }
+    .node:nth-child(1) { animation-delay: 0.05s; border-top: 3px solid var(--ui); }
+    .node:nth-child(3) { animation-delay: 0.12s; border-top: 3px solid var(--api); }
+    .node:nth-child(5) { animation-delay: 0.19s; border-top: 3px solid var(--rules); }
+    .node:nth-child(7) { animation-delay: 0.26s; border-top: 3px solid var(--model); }
+    .node strong {
+      display: block;
+      font-family: Manrope, sans-serif;
+      font-size: 0.95rem;
+      margin-bottom: 0.35rem;
+    }
+    .node span {
+      font-size: 0.78rem;
+      color: var(--ink-soft);
+      line-height: 1.35;
+    }
+    .arrow {
+      align-self: center;
+      color: var(--ink-soft);
+      font-size: 1.25rem;
+      animation: fade 0.5s ease both;
+    }
+    .arrow:nth-child(2) { animation-delay: 0.1s; }
+    .arrow:nth-child(4) { animation-delay: 0.17s; }
+    .arrow:nth-child(6) { animation-delay: 0.24s; }
+    .side {
+      margin-top: 1.15rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.65rem;
+    }
+    @media (max-width: 640px) {
+      .arrow { display: none; }
+      .side { grid-template-columns: 1fr; }
+    }
+    .chip {
+      border: 1px dashed var(--line);
+      border-radius: 6px;
+      padding: 0.7rem 0.85rem;
+      font-size: 0.82rem;
+      color: var(--ink-soft);
+      line-height: 1.4;
+      animation: up 0.55s ease both;
+      animation-delay: 0.32s;
+    }
+    .chip b { color: var(--ink); }
+    .next-label {
+      margin: 1.2rem 0 0.55rem;
+      text-align: center;
+      font-family: Manrope, sans-serif;
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .flow.next .node {
+      border-style: dashed;
+      background: color-mix(in srgb, var(--paper) 65%, white);
+    }
+    .foot {
+      margin-top: 1rem;
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--ink-soft);
+    }
+    @keyframes up {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: none; }
+    }
+    @keyframes fade {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="brand">Not_Idea</div>
+  <h1>Архитектура сейчас</h1>
+  <p class="lead">Методист работает в интерфейсе. К модели ходит только сервер. Часы и правила держит код.</p>
+
+  <div class="board">
+    <div class="flow" aria-label="Схема потока">
+      <div class="node">
+        <strong>Методист</strong>
+        <span>запрос, утверждение, правки</span>
+      </div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="node">
+        <strong>Next.js</strong>
+        <span>студия в браузере</span>
+      </div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="node">
+        <strong>FastAPI</strong>
+        <span>оркестрация, БД, API</span>
+      </div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="node">
+        <strong>Модель</strong>
+        <span>Cloud.ru / GigaSchool</span>
+      </div>
+    </div>
+    <div class="side">
+      <div class="chip"><b>Код рядом с моделью:</b> часы, шаблон АЦР, источники, проверка перед выгрузкой.</div>
+      <div class="chip"><b>На выходе:</b> DOCX, PPTX, JSON.</div>
+    </div>
+    <p class="next-label">Следующий шаг</p>
+    <div class="flow next" aria-label="Следующий шаг: очередь к шлюзу">
+      <div class="node">
+        <strong>FastAPI</strong>
+        <span>кладёт ход в очередь</span>
+      </div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="node">
+        <strong>Redis</strong>
+        <span>очередь запросов к шлюзу</span>
+      </div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="node">
+        <strong>Celery</strong>
+        <span>несколько воркеров, один бюджет токенов</span>
+      </div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="node">
+        <strong>Модель</strong>
+        <span>остальные запросы ждут</span>
+      </div>
+    </div>
+    <p class="foot">PostgreSQL на сервере · Compose · к модели только с backend</p>
+  </div>
+</body>
+</html>

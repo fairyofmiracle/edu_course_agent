@@ -1313,6 +1313,13 @@ button.primary {
   border-color: var(--accent);
 }
 
+.composer-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--muted, var(--ink-soft, #5c534c));
+}
+
 .template-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -275,19 +275,25 @@ export function RequestComposer({
       </div>
 
       {mode === "free" ? (
-        <textarea
-          id="course-request"
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          placeholder="Например: нужен курс по кибербезопасности для студентов колледжа…"
-          rows={3}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              sendFree();
-            }
-          }}
-        />
+        <>
+          <p className="composer-hint">
+            Свободный текст — как от заказчика. Можно сразу заполнить поля во вкладке «По
+            шаблону».
+          </p>
+          <textarea
+            id="course-request"
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            placeholder="Например: нужен курс по кибербезопасности для студентов колледжа…"
+            rows={3}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                sendFree();
+              }
+            }}
+          />
+        </>
       ) : (
         <div className="template-grid">
           <label>

@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Под капотом · студия</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #1c1614;
+      --ink-soft: #5c534c;
+      --paper: #f6f4f1;
+      --panel: #fff;
+      --line: #ddd6cf;
+      --accent: #6e2432;
+      --soft: #f0ebe6;
+      --ok: #2f6b4a;
+      --ok-bg: #e8f2ec;
+      --skip: #3d7a5a;
+      --skip-bg: #dceee4;
+      --ask: #8a6a2a;
+      --ask-bg: #f5eedc;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, color-mix(in srgb, var(--accent) 8%, transparent), transparent),
+        var(--paper);
+      color: var(--ink);
+      font-family: "IBM Plex Sans", sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1.5rem 1rem 2rem;
+    }
+    .brand {
+      font-family: Manrope, sans-serif;
+      font-size: 0.68rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .tagline {
+      font-family: Manrope, sans-serif;
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin: 0.35rem 0 0.15rem;
+      text-align: center;
+      letter-spacing: -0.02em;
+    }
+    .tagline em {
+      font-style: normal;
+      color: var(--accent);
+    }
+    .hint {
+      font-size: 0.78rem;
+      color: var(--ink-soft);
+      margin-bottom: 1.25rem;
+      text-align: center;
+    }
+
+    .board {
+      width: min(780px, 100%);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 1.35rem 1.4rem 1.15rem;
+      box-shadow:
+        0 1px 0 color-mix(in srgb, var(--ink) 3%, transparent),
+        0 18px 40px color-mix(in srgb, var(--ink) 5%, transparent);
+    }
+
+    /* wow-строка */
+    .wow {
+      text-align: center;
+      margin-bottom: 1.1rem;
+      min-height: 3.4rem;
+    }
+    .wow .big {
+      font-family: Manrope, sans-serif;
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      opacity: 0;
+      transform: translateY(8px);
+      animation: rise 0.7s ease forwards;
+    }
+    .wow .why {
+      margin-top: 0.35rem;
+      font-size: 0.84rem;
+      color: var(--ink-soft);
+      opacity: 0;
+      animation: rise 0.7s ease 0.15s forwards;
+    }
+    @keyframes rise {
+      to { opacity: 1; transform: none; }
+    }
+
+    .req-label {
+      font-size: 0.62rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      margin-bottom: 0.4rem;
+    }
+    .req-box {
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 1rem 1.1rem;
+      font-size: 0.94rem;
+      line-height: 1.55;
+      min-height: 4.6rem;
+      transition: box-shadow 0.6s, border-color 0.6s;
+    }
+    .req-box.pulse {
+      border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
+    }
+    mark.skip {
+      background: var(--skip-bg);
+      color: var(--skip);
+      padding: 0.05rem 0.2rem;
+      border-radius: 2px;
+      text-decoration: line-through;
+      text-decoration-color: color-mix(in srgb, var(--skip) 45%, transparent);
+      animation: markIn 0.5s ease;
+    }
+    mark.ask {
+      background: var(--ask-bg);
+      color: var(--ask);
+      padding: 0.05rem 0.2rem;
+      border-radius: 2px;
+      box-shadow: inset 0 -2px 0 var(--ask);
+      animation: markIn 0.5s ease;
+    }
+    mark.got {
+      background: var(--ok-bg);
+      color: var(--ok);
+      padding: 0.05rem 0.2rem;
+      border-radius: 2px;
+      font-weight: 600;
+      animation: markIn 0.5s ease;
+    }
+    @keyframes markIn {
+      from { filter: brightness(1.4); }
+      to { filter: none; }
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem 1.1rem;
+      margin: 0.55rem 0 1rem;
+      font-size: 0.7rem;
+      color: var(--ink-soft);
+    }
+    .legend b { font-weight: 600; }
+    .l-skip b { color: var(--skip); }
+    .l-ask b { color: var(--ask); }
+    .l-got b { color: var(--ok); }
+
+    .cols {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.6rem;
+      margin-bottom: 1rem;
+    }
+    @media (max-width: 640px) { .cols { grid-template-columns: 1fr; } }
+    .col {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 0.65rem 0.7rem;
+      min-height: 10rem;
+      background: var(--panel);
+      transition: border-color 0.5s, box-shadow 0.5s;
+    }
+    .col.focus {
+      border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
+    }
+    .col h2 {
+      font-family: Manrope, sans-serif;
+      font-size: 0.66rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      margin: 0 0 0.5rem;
+    }
+    .item {
+      font-size: 0.78rem;
+      padding: 0.32rem 0;
+      border-bottom: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
+      color: var(--ink-soft);
+      opacity: 0.2;
+      transform: translateX(-4px);
+      transition: opacity 0.55s, transform 0.55s, color 0.55s;
+    }
+    .item:last-child { border-bottom: 0; }
+    .item.on {
+      opacity: 1;
+      transform: none;
+      color: var(--ink);
+    }
+    .item.skip.on { color: var(--skip); text-decoration: line-through; }
+    .item.ask.on { color: var(--ask); }
+    .item.got.on { color: var(--ok); font-weight: 600; }
+    .item.call.on {
+      color: var(--accent);
+      font-family: Manrope, sans-serif;
+      font-weight: 650;
+      font-size: 0.76rem;
+    }
+
+    .hours {
+      position: relative;
+      text-align: center;
+      padding: 1rem;
+      background: var(--soft);
+      border-radius: 4px;
+      font-family: Manrope, sans-serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      overflow: hidden;
+      transition: background 0.7s, color 0.7s, transform 0.5s;
+    }
+    .hours.done {
+      background: var(--ok-bg);
+      color: var(--ok);
+      animation: snap 0.65s ease;
+    }
+    @keyframes snap {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.04); }
+      100% { transform: scale(1); }
+    }
+    .hours .tiny {
+      display: block;
+      font-size: 0.62rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      margin-bottom: 0.4rem;
+    }
+    .hours span { opacity: 0.3; transition: opacity 0.7s; }
+    .hours span.on { opacity: 1; }
+    .hours.drift {
+      background: var(--ask-bg);
+      color: var(--ask);
+      animation: shake 0.55s ease;
+    }
+    .hours .note {
+      display: block;
+      margin-top: 0.45rem;
+      font-family: "IBM Plex Sans", sans-serif;
+      font-size: 0.72rem;
+      font-weight: 500;
+      letter-spacing: 0;
+      text-transform: none;
+      color: var(--ink-soft);
+      min-height: 1.1rem;
+    }
+    .hours.drift .note { color: var(--ask); }
+    .hours.done .note { color: var(--ok); }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      30% { transform: translateX(-3px); }
+      60% { transform: translateX(3px); }
+    }
+
+    .who {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.45rem;
+      margin: 0.75rem 0 0.85rem;
+    }
+    @media (max-width: 640px) { .who { grid-template-columns: 1fr; } }
+    .who .role {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 0.45rem 0.55rem;
+      font-size: 0.72rem;
+      line-height: 1.35;
+      color: var(--ink-soft);
+      opacity: 0.35;
+      transition: opacity 0.45s, border-color 0.45s, background 0.45s, color 0.45s;
+    }
+    .who .role.on {
+      opacity: 1;
+      color: var(--ink);
+      border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+      background: color-mix(in srgb, var(--accent) 4%, var(--panel));
+    }
+    .who .role b {
+      display: block;
+      font-family: Manrope, sans-serif;
+      font-size: 0.62rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 0.2rem;
+      color: var(--accent);
+    }
+
+    .tokens {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.4rem 1rem;
+      margin-top: 0.75rem;
+      padding: 0.65rem 0.75rem;
+      border: 1px dashed var(--line);
+      border-radius: 4px;
+      font-size: 0.78rem;
+      color: var(--ink-soft);
+    }
+    .tokens strong {
+      font-family: Manrope, sans-serif;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .tokens .cut {
+      color: var(--ok);
+      font-weight: 600;
+    }
+    .tokens.zero strong { color: var(--ok); }
+
+    .bar {
+      margin-top: 0.85rem;
+      height: 3px;
+      background: var(--line);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .bar > i {
+      display: block;
+      height: 100%;
+      width: 0;
+      background: var(--accent);
+    }
+
+    .controls {
+      margin-top: 1.1rem;
+      display: flex;
+      gap: 0.45rem;
+      align-items: center;
+    }
+    button {
+      font-family: Manrope, sans-serif;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.42rem 0.9rem;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: #fff;
+      color: var(--ink);
+      cursor: pointer;
+    }
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .dots { display: flex; gap: 6px; margin: 0 0.45rem; }
+    .dots i {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--line);
+      transition: background 0.4s, transform 0.4s;
+    }
+    .dots i.on {
+      background: var(--accent);
+      transform: scale(1.35);
+    }
+  </style>
+</head>
+<body>
+  <div class="brand">Студия образовательных программ</div>
+  <div class="tagline">Модель <em>пишет</em> · код <em>не выпускает</em></div>
+  <p class="hint">Запрос → вопросы без LLM → каркас → перерасчёт часов → токены · авто ~8 с</p>
+
+  <div class="board">
+    <div class="wow">
+      <div class="big" id="big"></div>
+      <div class="why" id="why"></div>
+    </div>
+
+    <div class="req-label">Запрос</div>
+    <div class="req-box" id="req"></div>
+    <div class="legend">
+      <span class="l-skip"><b>зелёное</b> — не берём в часы</span>
+      <span class="l-ask"><b>жёлтое</b> — спрашиваем</span>
+      <span class="l-got"><b>закреплено</b> — из ответа методиста</span>
+    </div>
+
+    <div class="who" id="who">
+      <div class="role" data-who="methodist"><b>Методист</b><span id="who-m">задаёт объём и утверждает каркас</span></div>
+      <div class="role" data-who="model"><b>Модель</b><span id="who-llm">пишет формулировки одним tool</span></div>
+      <div class="role" data-who="code"><b>Код</b><span id="who-code">вопросы, rebalance, аудит, DOCX</span></div>
+    </div>
+
+    <div class="cols">
+      <div class="col" id="col-extract">
+        <h2>Вычленение</h2>
+        <div id="extract"></div>
+      </div>
+      <div class="col" id="col-ask">
+        <h2>Уточняем</h2>
+        <div id="ask"></div>
+      </div>
+      <div class="col" id="col-calls">
+        <h2>Вызываем</h2>
+        <div id="calls"></div>
+      </div>
+    </div>
+
+    <div class="hours" id="hours">
+      <span class="tiny">паспорт часов · объём = модули + аттестация</span>
+      <span id="h1">—</span> = <span id="h2">—</span> + <span id="h3">—</span>
+      <span class="note" id="hnote"></span>
+    </div>
+
+    <div class="tokens" id="tokens">
+      <div>Токены на этот шаг: <strong id="tok-now">0</strong></div>
+      <div>Накопительно: <strong id="tok-sum">0</strong> <span id="tok-cut" class="cut"></span></div>
+    </div>
+    <div class="bar"><i id="bar"></i></div>
+  </div>
+
+  <div class="controls">
+    <button type="button" id="prev">◀</button>
+    <div class="dots" id="dots"></div>
+    <button type="button" id="next">▶</button>
+    <button type="button" class="primary" id="play">⏸</button>
+  </div>
+
+  <script>
+    const RAW =
+      "Сделайте курс по кибербезопасности для студентов колледжа, примерно на месяц, чтобы после него ребята могли пойти работать в эту сферу.";
+
+    const EXTRACT = [
+      { id: "theme", text: "тема: кибербезопасность", kind: "ask" },
+      { id: "aud", text: "аудитория: студенты колледжа", kind: "got" },
+      { id: "month", text: "«месяц» → не часы", kind: "skip" },
+      { id: "job", text: "«пойти работать» → не обещаем", kind: "skip" },
+      { id: "type", text: "тип программы — нет", kind: "ask" },
+      { id: "hours", text: "объём в часах — нет", kind: "ask" }
+    ];
+    const ASK = [
+      { id: "q1", text: "ОР или ПК?" },
+      { id: "q2", text: "точный объём в ач?" },
+      { id: "q3", text: "уровень слушателей?" },
+      { id: "q4", text: "форма аттестации?" },
+      { id: "q5", text: "форма обучения?" }
+    ];
+    const CALLS = [
+      { id: "c0", text: "missing_brief_lines()" },
+      { id: "c1", text: "intake_questions() · 0 токенов" },
+      { id: "c2", text: "brief_guard · 72 ч" },
+      { id: "c3", text: "decide_mode → framework" },
+      { id: "c4", text: "course_snapshot · один tool" },
+      { id: "c5", text: "модель · set_structure" },
+      { id: "c6", text: "rebalance_course() · 0 токенов" },
+      { id: "c7", text: "audit · DOCX · 0 токенов" },
+      { id: "c8", text: "лимиты · max_tokens / бюджет 25k" }
+    ];
+
+    const STEP_MS = 8000;
+
+    const scenes = [
+      {
+        big: "Сырой запрос заказчика",
+        why: "Методист приносит текст как есть — без готовых часов.",
+        req: "plain",
+        focus: null,
+        extract: [],
+        ask: [],
+        calls: [],
+        hours: ["—", "—", "—"],
+        note: "",
+        who: ["methodist"],
+        whoText: {
+          methodist: "приносит сырой текст заказчика",
+          model: "ещё не вызываем",
+          code: "ждёт разбор"
+        },
+        tok: 0,
+        tokLabel: "ещё нет шлюза"
+      },
+      {
+        big: "Код читает — не додумывает",
+        why: "«Месяц» и «пойти работать» отбрасываем. Часы сами не появятся.",
+        req: "marks",
+        focus: "extract",
+        extract: ["theme", "aud", "month", "job", "type", "hours"],
+        ask: [],
+        calls: [],
+        hours: ["—", "—", "—"],
+        note: "объём пока неизвестен",
+        who: ["code"],
+        whoText: {
+          methodist: "ещё не отвечал на уточнения",
+          model: "не участвует",
+          code: "парсит бриф, отбрасывает «месяц»"
+        },
+        tok: 0,
+        tokLabel: "0 — только код"
+      },
+      {
+        big: "Вау №1 — вопросы без модели",
+        why: "Ноль токенов. Каркас не стартует, пока бриф дырявый.",
+        req: "marks",
+        focus: "ask",
+        extract: ["month", "job", "type", "hours"],
+        ask: ["q1", "q2", "q3", "q4", "q5"],
+        calls: ["c0", "c1"],
+        hours: ["—", "—", "—"],
+        note: "каркас заперт",
+        who: ["code", "methodist"],
+        whoText: {
+          methodist: "ответит кнопками / одним сообщением",
+          model: "не вызываем — экономия",
+          code: "intake_questions() · фиксированные поля"
+        },
+        tok: 0,
+        tokLabel: "0 вместо тысяч на выдуманную программу"
+      },
+      {
+        big: "Методист закрыл бриф",
+        why: "72 часа — из ответа человека, не из фантазии модели.",
+        req: "filled",
+        focus: "calls",
+        extract: ["theme", "aud", "month", "job"],
+        ask: [],
+        calls: ["c2", "c3"],
+        hours: ["72", "?", "?"],
+        note: "объём зафиксировал методист",
+        who: ["methodist", "code"],
+        whoText: {
+          methodist: "ПК · 72 ач · очно · экзамен",
+          model: "ещё ждёт режима framework",
+          code: "brief_guard: часы только из явных слов"
+        },
+        tok: 0,
+        tokLabel: "0 — бриф без LLM"
+      },
+      {
+        big: "Модель пишет каркас",
+        why: "Один ход — один tool. В шлюз — снимок шага, не весь курс.",
+        req: "filled",
+        focus: "calls",
+        extract: [],
+        ask: [],
+        calls: ["c4", "c5"],
+        hours: ["72", "68", "6"],
+        hoursDrift: true,
+        note: "модель предложила 68+6 — сумма «плывёт»",
+        who: ["model"],
+        whoText: {
+          methodist: "смотрит черновик структуры",
+          model: "set_structure · формулировки модулей",
+          code: "ждёт rebalance после ответа"
+        },
+        tok: 2800,
+        tokLabel: "снимок шага, не весь JSON"
+      },
+      {
+        big: "Вау №2 — перерасчёт часов",
+        why: "Код чинит паспорт: balance_modules → 70 + 2 = 72. Без второго вызова модели.",
+        req: "filled",
+        focus: "calls",
+        extract: [],
+        ask: [],
+        calls: ["c6"],
+        hours: ["72", "70", "2"],
+        hoursDone: true,
+        note: "rebalance_course() · шаг 0,5 · 0 токенов",
+        who: ["code"],
+        whoText: {
+          methodist: "не ловит расхождение глазами",
+          model: "уже отработала — снова не зовём",
+          code: "пересчитал модули и аттестацию"
+        },
+        tok: 0,
+        tokLabel: "пересчёт бесплатный"
+      },
+      {
+        big: "Аудит и файл — снова без LLM",
+        why: "Проверка и DOCX на сервере. Методист видит «X из Y», не правит часы вручную.",
+        req: "filled",
+        focus: "calls",
+        extract: [],
+        ask: [],
+        calls: ["c6", "c7"],
+        hours: ["72", "70", "2"],
+        hoursDone: true,
+        note: "одна цифра на экране и в DOCX",
+        who: ["code", "methodist"],
+        whoText: {
+          methodist: "утверждает каркас → комплект",
+          model: "комплект — только после кнопки",
+          code: "audit + экспорт без шлюза"
+        },
+        tok: 0,
+        tokLabel: "финиш демо не зависит от шлюза"
+      },
+      {
+        big: "Как ещё режем токены",
+        why: "Уже: 0 на бриф, снимок шага, лимиты, комплект после утверждения. Дальше — кэш каркаса, дешевле модель на мелочи, RAG только по файлам методиста.",
+        req: "filled",
+        focus: "calls",
+        extract: [],
+        ask: [],
+        calls: ["c4", "c8", "c7"],
+        hours: ["72", "70", "2"],
+        hoursDone: true,
+        note: "бюджет задачи ≤ 25 000 · температура 0",
+        who: ["code", "model", "methodist"],
+        whoText: {
+          methodist: "не гоняет лишние перегенерации",
+          model: "max_tokens по шагу 220–3200",
+          code: "история ≤ 8 · тело ≤ 6000 · бюджет 25k"
+        },
+        tok: 0,
+        tokLabel: "запас: кэш · лёгкая модель · RAG по своим PDF"
+      }
+    ];
+
+    function fill(el, items, kind) {
+      el.innerHTML = items
+        .map(
+          (it) =>
+            `<div class="item ${kind || it.kind || ""}" data-id="${it.id}">${it.text}</div>`
+        )
+        .join("");
+    }
+    fill(document.getElementById("extract"), EXTRACT);
+    fill(document.getElementById("ask"), ASK, "ask");
+    fill(document.getElementById("calls"), CALLS, "call");
+
+    const dots = document.getElementById("dots");
+    scenes.forEach(() => dots.appendChild(document.createElement("i")));
+
+    let i = 0;
+    let timer = null;
+    let playing = true;
+
+    function setReq(mode) {
+      const el = document.getElementById("req");
+      el.classList.remove("pulse");
+      void el.offsetWidth;
+      el.classList.add("pulse");
+      if (mode === "plain") {
+        el.textContent = RAW;
+        return;
+      }
+      if (mode === "marks") {
+        el.innerHTML = RAW
+          .replace("курс по кибербезопасности", '<mark class="ask">курс по кибербезопасности</mark>')
+          .replace("студентов колледжа", '<mark class="got">студентов колледжа</mark>')
+          .replace("примерно на месяц", '<mark class="skip">примерно на месяц</mark>')
+          .replace(
+            "чтобы после него ребята могли пойти работать в эту сферу",
+            '<mark class="skip">чтобы после него ребята могли пойти работать в эту сферу</mark>'
+          );
+        return;
+      }
+      el.innerHTML =
+        '<mark class="got">ПК · 72 ач</mark> · ИСиП · <mark class="got">очно</mark> · <mark class="got">экзамен на стенде</mark>' +
+        '<div style="margin-top:0.45rem;font-size:0.78rem;color:var(--ink-soft)">' +
+        RAW.replace("примерно на месяц", '<mark class="skip">месяц</mark>') +
+        "</div>";
+    }
+
+    function light(root, ids) {
+      root.querySelectorAll(".item").forEach((el) => {
+        el.classList.toggle("on", ids.includes(el.dataset.id));
+      });
+    }
+
+    function paint() {
+      const s = scenes[i];
+      const big = document.getElementById("big");
+      const why = document.getElementById("why");
+      big.style.animation = "none";
+      why.style.animation = "none";
+      void big.offsetWidth;
+      big.style.animation = "";
+      why.style.animation = "";
+      big.textContent = s.big;
+      why.textContent = s.why;
+
+      setReq(s.req);
+      light(document.getElementById("extract"), s.extract);
+      light(document.getElementById("ask"), s.ask);
+      light(document.getElementById("calls"), s.calls);
+
+      ["extract", "ask", "calls"].forEach((name) => {
+        document.getElementById("col-" + name).classList.toggle("focus", s.focus === name);
+      });
+
+      const whoRoot = document.getElementById("who");
+      const whoOn = s.who || [];
+      whoRoot.querySelectorAll(".role").forEach((el) => {
+        el.classList.toggle("on", whoOn.includes(el.dataset.who));
+      });
+      const wt = s.whoText || {};
+      if (wt.methodist) document.getElementById("who-m").textContent = wt.methodist;
+      if (wt.model) document.getElementById("who-llm").textContent = wt.model;
+      if (wt.code) document.getElementById("who-code").textContent = wt.code;
+
+      const hours = document.getElementById("hours");
+      hours.classList.toggle("done", !!s.hoursDone);
+      hours.classList.toggle("drift", !!s.hoursDrift);
+      document.getElementById("hnote").textContent = s.note || "";
+      ["h1", "h2", "h3"].forEach((id, idx) => {
+        const el = document.getElementById(id);
+        el.textContent = s.hours[idx];
+        const lit =
+          s.hoursDone ||
+          s.hoursDrift ||
+          (s.hours[idx] !== "—" && s.hours[idx] !== "?" && s.hours[idx] !== "…");
+        el.classList.toggle("on", lit || s.hours[idx] === "72");
+      });
+
+      const tokNow = Number(s.tok) || 0;
+      let tokSum = 0;
+      for (let k = 0; k <= i; k++) tokSum += Number(scenes[k].tok) || 0;
+      const tokBox = document.getElementById("tokens");
+      tokBox.classList.toggle("zero", tokNow === 0);
+      document.getElementById("tok-now").textContent = String(tokNow);
+      document.getElementById("tok-sum").textContent = String(tokSum);
+      document.getElementById("tok-cut").textContent = s.tokLabel ? "· " + s.tokLabel : "";
+
+      dots.querySelectorAll("i").forEach((d, idx) => d.classList.toggle("on", idx === i));
+      restartBar();
+    }
+
+    function restartBar() {
+      const bar = document.getElementById("bar");
+      bar.style.transition = "none";
+      bar.style.width = "0%";
+      if (!playing) return;
+      void bar.offsetWidth;
+      bar.style.transition = `width ${STEP_MS}ms linear`;
+      bar.style.width = "100%";
+    }
+
+    function go(n) {
+      i = (n + scenes.length) % scenes.length;
+      paint();
+    }
+
+    function startAuto() {
+      if (timer) clearInterval(timer);
+      playing = true;
+      document.getElementById("play").textContent = "⏸";
+      paint();
+      timer = setInterval(() => go(i + 1), STEP_MS);
+    }
+
+    function stopAuto() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      playing = false;
+      document.getElementById("play").textContent = "▶";
+    }
+
+    document.getElementById("prev").onclick = () => {
+      stopAuto();
+      go(i - 1);
+    };
+    document.getElementById("next").onclick = () => {
+      stopAuto();
+      go(i + 1);
+    };
+    document.getElementById("play").onclick = () => {
+      if (playing) stopAuto();
+      else startAuto();
+    };
+
+    startAuto();
+  </script>
+</body>
+</html>

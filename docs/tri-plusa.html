@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Not_Idea · три плюса</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #1c1614;
+      --ink-soft: #5c534c;
+      --paper: #f6f4f1;
+      --panel: #fff;
+      --line: #ddd6cf;
+      --accent: #6e2432;
+      --soft: #f0ebe6;
+      --time: #6e2432;
+      --eco: #2f6b4a;
+      --rel: #3d5a80;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(ellipse 70% 40% at 50% 0%, color-mix(in srgb, var(--accent) 7%, transparent), transparent),
+        var(--paper);
+      color: var(--ink);
+      font-family: "IBM Plex Sans", sans-serif;
+      padding: 2rem 1.25rem 2.5rem;
+    }
+    .wrap { max-width: 920px; margin: 0 auto; }
+
+    .brand {
+      font-family: Manrope, sans-serif;
+      font-size: 0.72rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      text-align: center;
+    }
+    h1 {
+      font-family: Manrope, sans-serif;
+      font-size: clamp(1.4rem, 3vw, 1.85rem);
+      font-weight: 700;
+      text-align: center;
+      margin: 0.4rem 0 0.35rem;
+      letter-spacing: -0.02em;
+      line-height: 1.25;
+    }
+    h1 em {
+      font-style: normal;
+      color: var(--accent);
+    }
+    .lead {
+      text-align: center;
+      color: var(--ink-soft);
+      font-size: 0.95rem;
+      max-width: 36rem;
+      margin: 0 auto 1.75rem;
+      line-height: 1.5;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.85rem;
+    }
+    @media (max-width: 720px) {
+      .cards { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 1.25rem 1.15rem 1.35rem;
+      display: flex;
+      flex-direction: column;
+      min-height: 100%;
+      box-shadow: 0 10px 28px color-mix(in srgb, var(--ink) 4%, transparent);
+      transition: transform 0.35s ease, border-color 0.35s ease;
+      animation: up 0.6s ease both;
+    }
+    .card:nth-child(2) { animation-delay: 0.12s; }
+    .card:nth-child(3) { animation-delay: 0.24s; }
+    .card:hover {
+      transform: translateY(-3px);
+      border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+    }
+    @keyframes up {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: none; }
+    }
+
+    .num {
+      font-family: Manrope, sans-serif;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 0.65rem;
+    }
+    .card.time .num { color: var(--time); }
+    .card.eco .num { color: var(--eco); }
+    .card.rel .num { color: var(--rel); }
+
+    .icon {
+      width: 2.6rem;
+      height: 2.6rem;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      font-size: 1.25rem;
+      margin-bottom: 0.85rem;
+    }
+    .card.time .icon { background: color-mix(in srgb, var(--time) 10%, #fff); }
+    .card.eco .icon { background: color-mix(in srgb, var(--eco) 12%, #fff); }
+    .card.rel .icon { background: color-mix(in srgb, var(--rel) 12%, #fff); }
+
+    .card h2 {
+      font-family: Manrope, sans-serif;
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin: 0 0 0.55rem;
+      letter-spacing: -0.01em;
+    }
+    .card.time h2 { color: var(--time); }
+    .card.eco h2 { color: var(--eco); }
+    .card.rel h2 { color: var(--rel); }
+
+    .card p {
+      margin: 0 0 0.85rem;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      color: var(--ink-soft);
+      flex: 1;
+    }
+
+    .card ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .card li {
+      position: relative;
+      padding: 0.35rem 0 0.35rem 1rem;
+      font-size: 0.82rem;
+      line-height: 1.4;
+      border-top: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+      color: var(--ink);
+    }
+    .card li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.7rem;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    .card.eco li::before { background: var(--eco); }
+    .card.rel li::before { background: var(--rel); }
+
+    .footer {
+      margin-top: 1.75rem;
+      text-align: center;
+      padding: 1rem 1.25rem;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+    }
+    .footer strong {
+      font-family: Manrope, sans-serif;
+      font-size: 1rem;
+      display: block;
+      margin-bottom: 0.35rem;
+    }
+    .footer span {
+      font-size: 0.85rem;
+      color: var(--ink-soft);
+      line-height: 1.45;
+    }
+
+    .strip {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+    .chip {
+      font-family: Manrope, sans-serif;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.35rem 0.7rem;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--soft);
+      color: var(--ink-soft);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">Not_Idea · хакатон · студия образовательных программ</div>
+    <h1>Чем мы <em>отличаемся</em></h1>
+    <p class="lead">Не «промпт → красивый текст», а продукт для методиста АЦР: быстрее собрать программу, экономно по токенам и надёжно — даже если шлюз молчит. Уже развёрнуто на сервере.</p>
+
+    <div class="cards">
+      <article class="card time">
+        <div class="num">01</div>
+        <div class="icon" aria-hidden="true">⏱</div>
+        <h2>Время</h2>
+        <p>Не генератор абзацев, а готовый путь методиста — меньше ручной сборки и поиска, где разъехались часы.</p>
+        <ul>
+          <li>Сначала скелет программы</li>
+          <li>Потом рабочие материалы курса</li>
+          <li>Потом проверка и файл — в одном месте</li>
+        </ul>
+      </article>
+
+      <article class="card eco">
+        <div class="num">02</div>
+        <div class="icon" aria-hidden="true">◇</div>
+        <h2>Экономичность</h2>
+        <p>Не жжём модель там, где достаточно правил в коде. Платим токенами только за нужный шаг.</p>
+        <ul>
+          <li>Неполный бриф — вопросы без LLM</li>
+          <li>В шлюз — один шаг, не весь курс</li>
+          <li>Материалы — только после утверждения структуры</li>
+        </ul>
+      </article>
+
+      <article class="card rel">
+        <div class="num">03</div>
+        <div class="icon" aria-hidden="true">⬡</div>
+        <h2>Надёжность</h2>
+        <p>Программу можно проверить и выгрузить. Студия не оставляет методиста с пустым экраном.</p>
+        <ul>
+          <li>Часы пересчитывает код</li>
+          <li>Источники и приказы не выдумываем</li>
+          <li>Проверка без модели; запас, если шлюз молчит</li>
+        </ul>
+      </article>
+    </div>
+
+    <div class="footer">
+      <strong>Модель пишет текст · код не отдаёт программу, пока часы и правила не сошлись</strong>
+      <span>Next.js — рабочее место · FastAPI — правила и выгрузки · PostgreSQL на сервере · Cloud.ru или GigaSchool</span>
+      <div class="strip">
+        <span class="chip">скелет → материалы</span>
+        <span class="chip">0 токенов на вопросы</span>
+        <span class="chip">аудит до DOCX</span>
+        <span class="chip">офлайн-пример</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

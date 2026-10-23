@@ -101,7 +101,7 @@ def missing_brief_lines(course: CourseDocument) -> list[str]:
         brief.program_kind == "unset" or brief.duration_hours <= 0
     ):
         missing.append("входной уровень слушателей")
-    if not brief.attestation_form.strip():
+    if brief.attestation_status == "unset":
         missing.append("форма итоговой аттестации")
     if brief.program_kind == "unset" or brief.duration_hours <= 0:
         missing.append("форма обучения")

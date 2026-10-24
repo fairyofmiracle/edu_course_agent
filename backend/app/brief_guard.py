@@ -601,13 +601,28 @@ def guard_brief(
         brief["attestationStatus"] = "none"
 
     else:
-        # Ищем форму итоговой аттестации в последнем сообщении.
+        # Сначала ищем форму в последнем сообщении.
         detected_form = None
 
         for pattern, att_form in ATTESTATION_MARKERS:
             if pattern.search(last_text):
                 detected_form = att_form
                 break
+
+        # Если форма ещё не определена, восстанавливаем её из истории.
+        # После явной отмены старую форму восстанавливать нельзя.
+        if not detected_form and current_status == "unset":
+            for previous_text in reversed(texts[:-1]):
+                if ATTESTATION_CANCEL.search(previous_text):
+                    break
+
+                for pattern, att_form in ATTESTATION_MARKERS:
+                    if pattern.search(previous_text):
+                        detected_form = att_form
+                        break
+
+                if detected_form:
+                    break
 
         explicit_hours = attestation_hours_from_text([last_text])
 
@@ -661,17 +676,19 @@ def guard_brief(
                 if fallback is not None:
                     brief["attestationHours"] = fallback
 
-        elif explicit_hours is not None and current_status == "specified":
-            # Методист изменил только часы — сохраняем текущую форму.
+        elif explicit_hours is not None:
+            # Методист явно указал часы аттестации.
+            # Сохраняем их, даже если форма пока неизвестна.
             brief["attestationHours"] = explicit_hours
-            brief["attestationForm"] = current["attestationForm"]
-            brief["attestationStatus"] = "specified"
 
-        elif current_status == "unset" and len(texts) >= 2:
-            # После двух сообщений аттестация не упомянута.
-            brief["attestationForm"] = ""
-            brief["attestationHours"] = 0
-            brief["attestationStatus"] = "none"
+            if current_status == "specified":
+                # Форма уже определена — сохраняем её.
+                brief["attestationForm"] = current["attestationForm"]
+                brief["attestationStatus"] = "specified"
+            else:
+                # Часы известны, но форму ещё нужно уточнить.
+                brief.pop("attestationForm", None)
+                brief["attestationStatus"] = "unset"
 
         else:
             # Нет нового указания — сохраняем текущее состояние.

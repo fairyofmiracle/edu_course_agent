@@ -8,6 +8,7 @@ from backend.app.brief_guard import (
     title_from_request,
     volume_from_text,
 )
+from backend.app.domain import balance_modules
 from backend.app.catalog import is_incomplete_brief, profile_name
 from backend.app.kit_content import is_intro_python, is_teacher_ai
 from backend.app.models import empty_course
@@ -348,7 +349,7 @@ def _update_attestation(course, texts):
     return apply_patch(course, output)
 
 
-def test_attestation_defaults_to_none_after_second_message() -> None:
+def test_attestation_remains_unset_without_explicit_answer() -> None:
     course = empty_course()
     texts = ["Нужен курс Python на 24 часа для сотрудников."]
 
@@ -361,11 +362,10 @@ def test_attestation_defaults_to_none_after_second_message() -> None:
     texts.append("Форма обучения очная.")
     course = _update_attestation(course, texts)
 
-    assert course.brief.attestation_status == "none"
+    assert course.brief.attestation_status == "unset"
     assert course.brief.attestation_form == ""
     assert course.brief.attestation_hours == 0
-    assert "форма итоговой аттестации" not in missing_brief_lines(course)
-
+    assert "форма итоговой аттестации" in missing_brief_lines(course)
 
 def test_attestation_can_be_added_changed_cancelled_and_restored() -> None:
     course = empty_course()
@@ -374,7 +374,7 @@ def test_attestation_can_be_added_changed_cancelled_and_restored() -> None:
         "Форма обучения очная.",
     ]
     course = _update_attestation(course, texts)
-    assert course.brief.attestation_status == "none"
+    assert course.brief.attestation_status == "unset"
 
     texts.append("Итоговая аттестация — защита проекта.")
     course = _update_attestation(course, texts)
@@ -521,3 +521,148 @@ def test_short_course_explicit_attestation_hours() -> None:
 
     assert course.brief.attestation_status == "specified"
     assert course.brief.attestation_hours == 3
+
+
+def test_duration_change_preserves_attestation_hours() -> None:
+    course = empty_course()
+
+    # Исходные данные: 24 часа, из них 3 часа — аттестация.
+    texts = [
+        "Нужен курс Python на 24 академических часа. "
+        "Итоговая аттестация — защита проекта, 3 часа."
+    ]
+
+    output = execute_tool(
+        "update_brief",
+        {
+            "durationHours": 24,
+            "attestationForm": "защита проекта",
+            "attestationHours": 3,
+        },
+        course,
+        texts,
+    )
+    course = apply_patch(course, output)
+
+    assert course.brief.duration_hours == 24
+    assert course.brief.attestation_hours == 3
+    assert course.brief.attestation_status == "specified"
+
+    # Методист изменяет только общую продолжительность.
+    texts.append("Измени продолжительность курса на 36 академических часов.")
+
+    output = execute_tool(
+        "update_brief",
+        {"durationHours": 36},
+        course,
+        texts,
+    )
+    course = apply_patch(course, output)
+
+    # Общая продолжительность изменилась.
+    assert course.brief.duration_hours == 36
+
+    # Аттестация осталась прежней.
+    assert course.brief.attestation_hours == 3
+    assert course.brief.attestation_form == "защита проекта"
+    assert course.brief.attestation_status == "specified"
+
+
+def test_modules_rebalance_when_duration_changes() -> None:
+    modules = [
+        {"id": "module-1", "title": "Введение", "hours": 10},
+        {"id": "module-2", "title": "Практика", "hours": 11},
+    ]
+
+    initial = balance_modules(
+        modules,
+        duration_hours=24,
+        attestation_hours=3,
+    )
+
+    assert sum(module["hours"] for module in initial) == 21
+
+    updated = balance_modules(
+        initial,
+        duration_hours=36,
+        attestation_hours=3,
+    )
+
+    assert sum(module["hours"] for module in updated) == 33
+
+
+def test_duration_change_rebalances_existing_course() -> None:
+    course = empty_course()
+
+    # Создаём бриф: 24 часа, включая 3 часа аттестации.
+    texts = [
+        "Нужен курс Python на 24 академических часа. "
+        "Итоговая аттестация — защита проекта, 3 часа."
+    ]
+
+    output = execute_tool(
+        "update_brief",
+        {
+            "durationHours": 24,
+            "attestationForm": "защита проекта",
+            "attestationHours": 3,
+        },
+        course,
+        texts,
+    )
+    course = apply_patch(course, output)
+
+    # Добавляем два учебных модуля.
+    course = apply_patch(
+        course,
+        {
+            "type": "set_structure",
+            "modules": [
+                {
+                    "id": "module-1",
+                    "title": "Введение",
+                    "hours": 10,
+                    "lectureHours": 6,
+                    "practiceHours": 4,
+                    "labHours": 0,
+                    "selfStudyHours": 0,
+                    "topics": ["Основы Python"],
+                    "learningOutcomes": ["Понимает основы Python"],
+                },
+                {
+                    "id": "module-2",
+                    "title": "Практика",
+                    "hours": 11,
+                    "lectureHours": 3,
+                    "practiceHours": 8,
+                    "labHours": 0,
+                    "selfStudyHours": 0,
+                    "topics": ["Практические задания"],
+                    "learningOutcomes": ["Решает задачи на Python"],
+                },
+            ],
+        },
+    )
+
+    assert len(course.modules) == 2
+    assert sum(module.hours for module in course.modules) == 21
+
+    # Методист меняет только общую продолжительность.
+    texts.append("Измени продолжительность курса на 36 академических часов.")
+
+    output = execute_tool(
+        "update_brief",
+        {"durationHours": 36},
+        course,
+        texts,
+    )
+    course = apply_patch(course, output)
+
+    # Проверяем результат.
+    assert course.brief.duration_hours == 36
+    assert course.brief.attestation_hours == 3
+    assert course.brief.attestation_form == "защита проекта"
+    assert course.brief.attestation_status == "specified"
+
+    assert len(course.modules) == 2
+    assert sum(module.hours for module in course.modules) == 33

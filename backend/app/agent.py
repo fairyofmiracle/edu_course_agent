@@ -38,6 +38,7 @@ from .planner import (
     content_missing,
     decide_mode,
     intake_questions,
+    is_duration_edit_request,
     is_framework_approved,
     kit_needed,
     kit_request_ready,
@@ -341,7 +342,18 @@ async def run_turn(
             if not assistant_text:
                 assistant_text = "Остановилась: лимит токенов на задачу."
             break
-        step = plan_step(mode, course, planned, len(user_texts))
+        if (
+            mode == "free"
+            and is_duration_edit_request(last_text)
+            and "update_brief" not in planned
+        ):
+            step = {
+                "kind": "tool",
+                "tool": "update_brief",
+                "task": "Измени общую продолжительность курса на явно указанное методистом значение.",
+            }
+        else:
+            step = plan_step(mode, course, planned, len(user_texts))
         key = (
             f"{step['tool']}:{step['moduleId']}"
             if step["kind"] == "tool" and step.get("moduleId")

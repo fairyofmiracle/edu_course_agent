@@ -131,6 +131,14 @@ def missing_brief_lines(course: CourseDocument) -> list[str]:
     return list(dict.fromkeys(missing))
 
 
+DURATION_EDIT_REQUEST = re.compile(
+    r"(?:измен|замен|увелич|уменьш|сократ|установ|постав|сделай)"
+    r".{0,80}?"
+    r"(?:продолжительност|длительност|объ[её]м|количеств\w*(?:\s+\w+){0,2}\s+час)",
+    re.IGNORECASE,
+)
+
+
 QUESTION_LABELS = {
     "тип программы": (
         "это общеразвивающая программа с сертификатом или повышение "

@@ -32,6 +32,16 @@ AUDIENCE_BARE = re.compile(
     r"((?:студенты|сотрудники|учителя|школьники|слушатели|методисты)\s+[^.,]{0,80})",
     re.IGNORECASE,
 )
+ATTESTATION_CANCEL = re.compile(
+    r"(?:"
+    r"(?:итогов\w*\s+)?аттестац\w*.{0,40}?"
+    r"(?:не\s+предусмотрен\w*|не\s+нужн\w*|не\s+будет|отмен\w*|убрат\w*)"
+    r"|"
+    r"(?:убери|убрать|отмени|отменить|без)\s+"
+    r"(?:итогов\w*\s+)?аттестац\w*"
+    r")",
+    re.IGNORECASE,
+)
 ATTESTATION_MARKERS = (
     (re.compile(r"защит\w+\s+отч[её]т", re.IGNORECASE), "защита отчёта о стажировке"),
     (re.compile(r"портфолио", re.IGNORECASE), "зачёт по портфолио"),
@@ -54,9 +64,9 @@ ATTESTATION_MARKERS = (
             r"(?:"
             r"(?:итогов\w*|финальн\w*|аттестац\w*|итогов\w*\s+контрол\w*)"
             r".{0,45}?"
-            r"(?:тест\w*|тестирован\w*)"
+            r"\bтест\w*"
             r"|"
-            r"(?:тест\w*|тестирован\w*)"
+            r"\bтест\w*"
             r".{0,45}?"
             r"(?:итогов\w*|финальн\w*|аттестац\w*)"
             r")",
@@ -258,22 +268,35 @@ ATTESTATION_HOURS_FLIP = re.compile(
 )
 
 
-def default_attestation_hours(form: str, named_hours: float, duration: float) -> float | None:
-    """2 часа из объёма, как в шаблоне повышения квалификации, если своё число не названо."""
-    if named_hours > 0 or not (form or "").strip() or duration < 24:
+def default_attestation_hours(
+    form: str,
+    named_hours: float | None,
+    duration: float,
+) -> float | None:
+    """Часы итоговой аттестации по умолчанию внутри общего объёма курса."""
+    if not (form or "").strip():
         return None
-    return 2.0
+
+    if named_hours is not None:
+        return None
+
+    if duration <= 0:
+        return None
+
+    return 1.0 if duration < 24 else 2.0
 
 
 def attestation_hours_from_text(texts: list[str]) -> float | None:
-    blob = " ".join(texts)
-    for pattern in (ATTESTATION_HOURS, ATTESTATION_HOURS_FLIP):
-        match = pattern.search(blob)
-        if not match:
-            continue
-        hours = int(match.group(1))
-        if 0 < hours <= 8:
-            return float(hours)
+    for text in reversed(texts):
+        for pattern in (ATTESTATION_HOURS, ATTESTATION_HOURS_FLIP):
+            match = pattern.search(text)
+            if not match:
+                continue
+
+            hours = int(match.group(1))
+            if 0 <= hours <= 8:
+                return float(hours)
+
     return None
 
 
@@ -325,6 +348,17 @@ def drop_empty_fields(patch: dict[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in patch.items():
         if value is None:
+            continue
+        if key == "attestationForm" and value == "":
+            result[key] = value
+            continue
+        if (
+            key == "attestationHours"
+            and isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and value == 0
+        ):
+            result[key] = value
             continue
         if isinstance(value, str) and (not value.strip() or value == "unset"):
             continue
@@ -549,24 +583,102 @@ def guard_brief(
     elif extracted_audience and not brief.get("audience"):
         if not current.get("audience", "").strip() or last_names_audience:
             brief["audience"] = extracted_audience
-    if not current.get("attestationForm", "").strip() and not brief.get("attestationForm", "").strip():
-        form_name = attestation_from_text(" ".join(texts))
-        if form_name:
-            brief["attestationForm"] = form_name
-    if not brief.get("attestationHours") and not current.get("attestationHours"):
-        att_hours = attestation_hours_from_text(texts)
-        if att_hours:
-            brief["attestationHours"] = att_hours
+
+    last_text = texts[-1] if texts else ""
+    current_status = current.get("attestationStatus", "unset")
+
+    if (
+        current_status == "unset"
+        and current.get("attestationForm", "").strip()
+    ):
+        # Старый бриф с заполненной формой уже содержит аттестацию.
+        current_status = "specified"
+
+    if ATTESTATION_CANCEL.search(last_text):
+        # Методист явно отменил аттестацию.
+        brief["attestationForm"] = ""
+        brief["attestationHours"] = 0
+        brief["attestationStatus"] = "none"
+
+    else:
+        # Ищем форму итоговой аттестации в последнем сообщении.
+        detected_form = None
+
+        for pattern, att_form in ATTESTATION_MARKERS:
+            if pattern.search(last_text):
+                detected_form = att_form
+                break
+
+        explicit_hours = attestation_hours_from_text([last_text])
+
+        patch_form = brief.get("attestationForm")
+
+        if isinstance(patch_form, str) and patch_form.strip():
+            candidate = patch_form.strip()
+            normalized_candidate = " ".join(candidate.casefold().split())
+            normalized_text = " ".join(last_text.casefold().split())
+
+            if re.search(
+                rf"(?<!\w){re.escape(normalized_candidate)}(?!\w)",
+                normalized_text,
+            ):
+                # Форма из patch прямо названа в последнем сообщении.
+                detected_form = candidate
+
+        if detected_form:
+            # Сохраняем подробную форму из patch.
+            # Маркер используем, если модель не извлекла форму.
+            patch_form = brief.get("attestationForm")
+            if not isinstance(patch_form, str) or not patch_form.strip():
+                brief["attestationForm"] = detected_form
+
+            brief["attestationStatus"] = "specified"
+
+            if explicit_hours is not None:
+                brief["attestationHours"] = explicit_hours
+
+            elif current.get("attestationHours", 0) > 0:
+                brief["attestationHours"] = current["attestationHours"]
+
+            else:
+                duration = float(
+                    brief.get("durationHours")
+                    or current.get("durationHours")
+                    or 0
+                )
+
+                form_name = str(
+                    brief.get("attestationForm")
+                    or detected_form
+                )
+
+                fallback = default_attestation_hours(
+                    form=form_name,
+                    named_hours=None,
+                    duration=duration,
+                )
+
+                if fallback is not None:
+                    brief["attestationHours"] = fallback
+
+        elif explicit_hours is not None and current_status == "specified":
+            # Методист изменил только часы — сохраняем текущую форму.
+            brief["attestationHours"] = explicit_hours
+            brief["attestationForm"] = current["attestationForm"]
+            brief["attestationStatus"] = "specified"
+
+        elif current_status == "unset" and len(texts) >= 2:
+            # После двух сообщений аттестация не упомянута.
+            brief["attestationForm"] = ""
+            brief["attestationHours"] = 0
+            brief["attestationStatus"] = "none"
+
         else:
-            form_name = str(
-                brief.get("attestationForm") or current.get("attestationForm") or ""
-            )
-            duration = float(
-                brief.get("durationHours") or current.get("durationHours") or 0
-            )
-            fallback = default_attestation_hours(form_name, 0, duration)
-            if fallback:
-                brief["attestationHours"] = fallback
+            # Нет нового указания — сохраняем текущее состояние.
+            brief.pop("attestationForm", None)
+            brief.pop("attestationHours", None)
+            brief.pop("attestationStatus", None)
+
     if not current.get("title", "").strip() and not brief.get("title", "").strip():
         first = next(
             (

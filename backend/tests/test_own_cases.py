@@ -342,3 +342,182 @@ def test_final_test_with_intermediate_tests() -> None:
 
     assert updated.brief.attestation_form == "тест"
     assert updated.brief.duration_hours == 20
+
+def _update_attestation(course, texts):
+    output = execute_tool("update_brief", {}, course, texts)
+    return apply_patch(course, output)
+
+
+def test_attestation_defaults_to_none_after_second_message() -> None:
+    course = empty_course()
+    texts = ["Нужен курс Python на 24 часа для сотрудников."]
+
+    course = _update_attestation(course, texts)
+
+    assert course.brief.attestation_status == "unset"
+    assert course.brief.attestation_form == ""
+    assert course.brief.attestation_hours == 0
+
+    texts.append("Форма обучения очная.")
+    course = _update_attestation(course, texts)
+
+    assert course.brief.attestation_status == "none"
+    assert course.brief.attestation_form == ""
+    assert course.brief.attestation_hours == 0
+    assert "форма итоговой аттестации" not in missing_brief_lines(course)
+
+
+def test_attestation_can_be_added_changed_cancelled_and_restored() -> None:
+    course = empty_course()
+    texts = [
+        "Нужен курс Python на 24 часа для сотрудников.",
+        "Форма обучения очная.",
+    ]
+    course = _update_attestation(course, texts)
+    assert course.brief.attestation_status == "none"
+
+    texts.append("Итоговая аттестация — защита проекта.")
+    course = _update_attestation(course, texts)
+
+    assert course.brief.attestation_status == "specified"
+    assert course.brief.attestation_form == "защита проекта"
+    assert course.brief.attestation_hours == 2
+
+    texts.append("На итоговую аттестацию выделить 3 часа.")
+    course = _update_attestation(course, texts)
+
+    assert course.brief.attestation_status == "specified"
+    assert course.brief.attestation_form == "защита проекта"
+    assert course.brief.attestation_hours == 3
+
+    texts.append("Убери итоговую аттестацию.")
+    course = _update_attestation(course, texts)
+
+    assert course.brief.attestation_status == "none"
+    assert course.brief.attestation_form == ""
+    assert course.brief.attestation_hours == 0
+
+    texts.append("Итоговая аттестация — тестирование.")
+    course = _update_attestation(course, texts)
+
+    assert course.brief.attestation_status == "specified"
+    assert course.brief.attestation_form == "тест"
+    assert course.brief.attestation_hours == 2
+
+
+def test_attestation_explicit_hours_survive_unrelated_message() -> None:
+    course = empty_course()
+    texts = [
+        "Курс Python на 24 часа. "
+        "Итоговая аттестация — защита проекта, 4 часа."
+    ]
+    course = _update_attestation(course, texts)
+
+    assert course.brief.attestation_status == "specified"
+    assert course.brief.attestation_hours == 4
+
+    texts.append("Слушатели — сотрудники бухгалтерии.")
+    course = _update_attestation(course, texts)
+
+    assert course.brief.attestation_status == "specified"
+    assert course.brief.attestation_form == "защита проекта"
+    assert course.brief.attestation_hours == 4
+
+
+def test_service_prompt_does_not_count_as_second_message() -> None:
+    course = empty_course()
+    texts = ["Нужен курс Python на 24 часа для сотрудников."]
+    course = _update_attestation(course, texts)
+
+    texts.append("Собери каркас")
+    course = _update_attestation(course, texts)
+
+    assert course.brief.attestation_status == "unset"
+    assert course.brief.attestation_form == ""
+    assert course.brief.attestation_hours == 0
+
+
+def test_legacy_attestation_survives_unrelated_message() -> None:
+    course = empty_course()
+    # Старый курс: форма и часы есть, новый статус ещё не заполнен.
+    course.brief.attestation_form = "Защита проекта"
+    course.brief.attestation_hours = 4
+
+    course = _update_attestation(
+        course,
+        [
+            "Нужен курс Python на 24 часа.",
+            "Слушатели — сотрудники бухгалтерии.",
+        ],
+    )
+
+    assert course.brief.attestation_form == "Защита проекта"
+    assert course.brief.attestation_hours == 4
+    assert "форма итоговой аттестации" not in missing_brief_lines(course)
+
+def test_custom_attestation_form_from_explicit_request() -> None:
+    course = empty_course()
+    texts = [
+        "Нужен курс Python на 24 часа.",
+        "Итоговая аттестация — устное собеседование.",
+    ]
+
+    output = execute_tool(
+        "update_brief",
+        {"attestationForm": "устное собеседование"},
+        course,
+        texts,
+    )
+    course = apply_patch(course, output)
+
+    assert course.brief.attestation_status == "specified"
+    assert course.brief.attestation_form == "устное собеседование"
+    assert course.brief.attestation_hours == 2
+
+
+def test_hours_change_ignores_unconfirmed_form_from_patch() -> None:
+    course = empty_course()
+    course.brief.attestation_form = "защита проекта"
+    course.brief.attestation_hours = 2
+    course.brief.attestation_status = "specified"
+
+    output = execute_tool(
+        "update_brief",
+        {"attestationForm": "тест", "attestationHours": 3},
+        course,
+        ["На итоговую аттестацию выделить 3 часа."],
+    )
+    course = apply_patch(course, output)
+
+    assert course.brief.attestation_status == "specified"
+    assert course.brief.attestation_form == "защита проекта"
+    assert course.brief.attestation_hours == 3
+
+def test_short_course_default_attestation_hours() -> None:
+    course = empty_course()
+
+    texts = [
+        "Нужен курс Python на 16 часов. "
+        "Итоговая аттестация — тестирование."
+    ]
+
+    course = _update_attestation(course, texts)
+
+    assert course.brief.attestation_status == "specified"
+    assert course.brief.attestation_form == "тест"
+    assert course.brief.attestation_hours == 1
+
+
+def test_short_course_explicit_attestation_hours() -> None:
+    course = empty_course()
+
+    texts = [
+        "Нужен курс Python на 16 часов. "
+        "На итоговую аттестацию выделить 3 часа. "
+        "Форма — тестирование."
+    ]
+
+    course = _update_attestation(course, texts)
+
+    assert course.brief.attestation_status == "specified"
+    assert course.brief.attestation_hours == 3

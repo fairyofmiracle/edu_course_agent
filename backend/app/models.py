@@ -50,6 +50,17 @@ class Brief(ApiModel):
         description="Часы аттестации внутри общего объёма. Шаг — 0,5.",
     )
     attestation_form: str = Field(default="", max_length=180, alias="attestationForm")
+
+    attestation_status: Literal["unset", "none", "specified"] = Field(
+        default="unset",
+        alias="attestationStatus",
+        description=(
+            "Статус итоговой аттестации: "
+            "unset — не определена, "
+            "none — не предусмотрена, "
+            "specified — предусмотрена."
+        ),
+    )
     goals: list[str] = Field(default_factory=list, max_length=12)
     constraints: list[str] = Field(default_factory=list, max_length=12)
     references: list[Reference] = Field(default_factory=list, max_length=20)

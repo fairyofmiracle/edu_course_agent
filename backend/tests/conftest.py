@@ -4,6 +4,7 @@ from pathlib import Path
 
 _db = Path(tempfile.gettempdir()) / "edu-course-agent-test.db"
 os.environ["DATABASE_URL"] = f"sqlite:///{_db.as_posix()}"
+os.environ["REDIS_URL"] = ""
 
 
 def pytest_sessionstart(session) -> None:

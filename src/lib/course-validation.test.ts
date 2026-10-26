@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { courseDocumentSchema, createEmptyCourse } from "./course-schema";
-import { validateCourseHours } from "./course-validation";
+import { briefGaps, moduleKindsGap, programBalanceNote, validateCourseHours } from "./course-validation";
 
 describe("Проверка учебных часов", () => {
   it("принимает правильную сумму часов", () => {
@@ -165,5 +165,33 @@ describe("Проверка учебных часов", () => {
     ];
     expect(validateCourseHours(course)).toEqual([]);
     expect(courseDocumentSchema.safeParse(course).success).toBe(true);
+  });
+
+  it("показывает, чего не хватает в брифе и в строке модуля", () => {
+    const course = createEmptyCourse();
+    expect(briefGaps(course)).toEqual(["аудитория", "часы", "шаблон"]);
+
+    course.brief.audience = "школьники";
+    course.brief.durationHours = 16;
+    course.brief.attestationHours = 2;
+    course.brief.programKind = "general";
+    course.modules = [
+      {
+        id: "module-1",
+        title: "Основы",
+        hours: 14,
+        lectureHours: 4,
+        practiceHours: 7.5,
+        labHours: 0,
+        selfStudyHours: 2,
+        topics: ["Введение"],
+        plan: [],
+        learningOutcomes: ["Пишет программу"],
+        competencyIds: [],
+      },
+    ];
+
+    expect(moduleKindsGap(course.modules[0])).toBe("лекции 4, практика 7,5: не хватает 0,5 ч");
+    expect(programBalanceNote(course)).toBeNull();
   });
 });

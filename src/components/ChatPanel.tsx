@@ -4,7 +4,7 @@ import { displayServicePrompt } from "@/lib/agent/service-prompts";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { RequestComposer } from "@/components/RequestComposer";
-import { chatWaitLabel, usageLine, workProgress } from "@/lib/job-status";
+import { chatWaitLabel, queueWaitLabel, usageLine, workProgress } from "@/lib/job-status";
 import { userFacingError } from "@/lib/user-error";
 import { useElapsed } from "@/lib/use-elapsed";
 import type { CourseBrief } from "@/lib/course-schema";
@@ -108,7 +108,16 @@ export function ChatPanel({
 }: ChatPanelProps) {
   const pending = status === "submitted" || status === "streaming";
   const elapsedMs = useElapsed(pending);
-  const waitLabel = chatWaitLabel(elapsedMs);
+  const queuePart = messages
+    .flatMap((message) => message.parts)
+    .findLast((part) => part.type === "data-queue");
+  const queueData =
+    queuePart && queuePart.type === "data-queue" && queuePart.data && typeof queuePart.data === "object"
+      ? (queuePart.data as { status?: string; position?: number })
+      : null;
+  const waitLabel =
+    (pending && queueData?.status ? queueWaitLabel(queueData.status, queueData.position ?? 0) : "") ||
+    chatWaitLabel(elapsedMs);
   const progress = pending ? workProgress(stage, elapsedMs) : null;
   const spent = [...messages]
     .reverse()
@@ -152,6 +161,7 @@ export function ChatPanel({
       ) : null}
       <header className="pane-head chat-head">
         <div>
+          <p className="pane-label">Запрос</p>
           <h2>Чат</h2>
           {progress ? <p className="work-caption">{progress.label}</p> : null}
         </div>
@@ -181,6 +191,7 @@ export function ChatPanel({
                   .filter((part) => part.state !== "output-error")
                   .map((part) => TOOL_LABELS[getToolName(part)] ?? getToolName(part));
             const failed = tools.filter((part) => part.state === "output-error");
+            if (texts.length === 0 && tools.length === 0 && failed.length === 0) return null;
             return (
               <article key={message.id} className={`turn ${message.role}`}>
                 {texts.length > 0 ? (

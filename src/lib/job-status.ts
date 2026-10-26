@@ -5,6 +5,17 @@ const EXPORT_NAMES: Record<string, string> = {
   zip: "ZIP",
 };
 
+export function queueWaitLabel(status: string, position = 0): string {
+  if (status === "queued") {
+    const place = position > 0 ? position : 1;
+    return place === 1
+      ? "В очереди, место 1. Сейчас ход уйдёт к модели."
+      : `В очереди, место ${place}.`;
+  }
+  if (status === "running") return "Модель пишет. Ход можно остановить.";
+  return "";
+}
+
 export function chatWaitLabel(elapsedMs: number): string {
   if (elapsedMs < 2500) return "Отправляю запрос…";
   if (elapsedMs < 20000) return "Модель думает…";

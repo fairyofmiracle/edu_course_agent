@@ -20,6 +20,87 @@ function pythonAgentUrl() {
   return process.env.PYTHON_AGENT_URL?.trim().replace(/\/$/, "") ?? "";
 }
 
+type ChatPayload = {
+  detail?: string;
+  jobId?: string;
+  status?: string;
+  position?: number;
+  error?: string;
+  result?: ChatPayload;
+  assistant?: string;
+  patches?: Array<{ type: string; [key: string]: unknown }>;
+  gatewayRetries?: number[];
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+    calls: number;
+  };
+};
+
+function agentHeaders() {
+  return {
+    "Content-Type": "application/json",
+    ...(process.env.STUDIO_API_TOKEN?.trim()
+      ? { Authorization: `Bearer ${process.env.STUDIO_API_TOKEN.trim()}` }
+      : {}),
+  };
+}
+
+function sleep(ms: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+async function cancelJob(baseUrl: string, jobId: string) {
+  await fetch(`${baseUrl}/api/chat/jobs/${encodeURIComponent(jobId)}/cancel`, {
+    method: "POST",
+    headers: agentHeaders(),
+  }).catch(() => undefined);
+}
+
+async function waitForJob(
+  baseUrl: string,
+  jobId: string,
+  signal: AbortSignal,
+  writeQueue: (status: string, position: number) => void,
+) {
+  const started = Date.now();
+  while (Date.now() - started < 280_000) {
+    if (signal.aborted) break;
+    const response = await fetch(`${baseUrl}/api/chat/jobs/${encodeURIComponent(jobId)}`, {
+      headers: agentHeaders(),
+      signal,
+    });
+    const job = (await response.json()) as ChatPayload;
+    if (!response.ok) {
+      throw new Error(job.detail || job.error || `Python backend: HTTP ${response.status}`);
+    }
+    writeQueue(job.status ?? "queued", job.position ?? 0);
+    if (job.status === "done") {
+      if (!job.result) throw new Error("Очередь закрыла ход без программы.");
+      return job.result;
+    }
+    if (job.status === "cancelled") throw new Error("Ход остановлен.");
+    if (job.status === "error") throw new Error(job.error || "Ход в очереди не собрался.");
+    await sleep(800, signal);
+  }
+  throw new Error("Шлюз не ответил за отведённое время. Каркас на месте, шаг можно повторить.");
+}
+
 async function pythonChatResponse(options: {
   baseUrl: string;
   messages: UIMessage[];
@@ -27,46 +108,46 @@ async function pythonChatResponse(options: {
   userTexts: string[];
   extraReferences?: string;
   formBrief?: Partial<CourseBrief>;
+  signal: AbortSignal;
 }) {
-  const response = await fetch(`${options.baseUrl}/api/chat/turn`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(process.env.STUDIO_API_TOKEN?.trim()
-        ? { Authorization: `Bearer ${process.env.STUDIO_API_TOKEN.trim()}` }
-        : {}),
-    },
-    body: JSON.stringify({
-      course: options.course,
-      userTexts: options.userTexts,
-      messages: options.messages
-        .filter((message) => message.role === "user" || message.role === "assistant")
-        .map((message) => ({ role: message.role, content: messageText(message) }))
-        .filter((message) => message.content.trim()),
-      extraReferences: options.extraReferences,
-      formBrief: options.formBrief,
-    }),
-    signal: AbortSignal.timeout(290_000),
-  });
-  const payload = (await response.json()) as {
-    detail?: string;
-    assistant?: string;
-    patches?: Array<{ type: string; [key: string]: unknown }>;
-    gatewayRetries?: number[];
-    usage?: {
-      prompt_tokens: number;
-      completion_tokens: number;
-      total_tokens: number;
-      calls: number;
-    };
-  };
-  if (!response.ok) {
-    throw new Error(payload.detail || `Python backend: HTTP ${response.status}`);
-  }
-
   const stream = createUIMessageStream({
     originalMessages: options.messages,
-    execute: ({ writer }) => {
+    execute: async ({ writer }) => {
+      const response = await fetch(`${options.baseUrl}/api/chat/turn`, {
+        method: "POST",
+        headers: agentHeaders(),
+        body: JSON.stringify({
+          course: options.course,
+          userTexts: options.userTexts,
+          messages: options.messages
+            .filter((message) => message.role === "user" || message.role === "assistant")
+            .map((message) => ({ role: message.role, content: messageText(message) }))
+            .filter((message) => message.content.trim()),
+          extraReferences: options.extraReferences,
+          formBrief: options.formBrief,
+        }),
+        signal: options.signal,
+      });
+      let payload = (await response.json()) as ChatPayload;
+      if (response.status === 202 && payload.jobId) {
+        const jobId = payload.jobId;
+        const writeQueue = (status: string, position: number) => {
+          writer.write({
+            type: "data-queue",
+            data: { status, position },
+          });
+        };
+        writeQueue(payload.status ?? "queued", payload.position ?? 1);
+        try {
+          payload = await waitForJob(options.baseUrl, jobId, options.signal, writeQueue);
+        } catch (error) {
+          await cancelJob(options.baseUrl, jobId);
+          throw error;
+        }
+      } else if (!response.ok) {
+        throw new Error(payload.detail || `Python backend: HTTP ${response.status}`);
+      }
+
       if (payload.usage) {
         writer.write({
           type: "message-metadata",
@@ -149,6 +230,10 @@ export async function POST(req: Request) {
   const formBrief = brief.success && Object.keys(brief.data).length > 0 ? brief.data : undefined;
   if (formBrief) course = applyPatch(course, { type: "update_brief", brief: formBrief });
   const userTexts = messages.filter((message) => message.role === "user").map(messageText);
+  const deadline = AbortSignal.timeout(290_000);
+  const signal = req.signal
+    ? AbortSignal.any([req.signal, deadline])
+    : deadline;
 
   try {
     return await pythonChatResponse({
@@ -158,6 +243,7 @@ export async function POST(req: Request) {
       userTexts,
       extraReferences: body.extraReferences,
       formBrief,
+      signal,
     });
   } catch (error) {
     console.error("[chat] ошибка маршрута:", error);

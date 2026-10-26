@@ -22,12 +22,17 @@ export function SiteFrame({
   children: ReactNode;
 }) {
   const [theme, setTheme] = useState<Theme>("light");
-  const [faqOpen, setFaqOpen] = useState(false);
+  const [panel, setPanel] = useState<"faq" | "account" | null>(null);
+  const [methodistName, setMethodistName] = useState(DEFAULT_METHODIST_NAME);
 
   useEffect(() => {
     const stored = readTheme(window.localStorage);
     applyTheme(stored);
-    const timer = window.setTimeout(() => setTheme(stored), 0);
+    const storedName = readMethodistName(window.localStorage);
+    const timer = window.setTimeout(() => {
+      setTheme(stored);
+      setMethodistName(storedName);
+    }, 0);
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -63,21 +68,44 @@ export function SiteFrame({
       <nav className="site-nav" aria-label="Меню студии">
         <div className="top-actions">
           {actions?.()}
-          <div className="nav-icons">
-            <ThemeButton theme={theme} onToggle={toggleTheme} />
-            <button
-              type="button"
-              className="faq-toggle"
-              aria-expanded={faqOpen}
-              aria-label="Вопросы"
-              title="Вопросы"
-              onClick={() => setFaqOpen((open) => !open)}
-            >
-              <FaqIcon />
-            </button>
+          <div className="nav-foot">
+            <p className="account-name">{methodistName.trim() || DEFAULT_METHODIST_NAME}</p>
+            <div className="nav-icons">
+              <ThemeButton theme={theme} onToggle={toggleTheme} />
+              <button
+                type="button"
+                className="faq-toggle"
+                aria-expanded={panel === "faq"}
+                aria-label="Инструкция"
+                title="Инструкция"
+                onClick={() => setPanel((current) => (current === "faq" ? null : "faq"))}
+              >
+                <FaqIcon />
+              </button>
+              <button
+                type="button"
+                className="account-toggle"
+                aria-expanded={panel === "account"}
+                aria-label="Настройки"
+                title="Настройки"
+                onClick={() => setPanel((current) => (current === "account" ? null : "account"))}
+              >
+                <SettingsIcon />
+              </button>
+            </div>
+            {panel === "faq" ? <FaqCard onClose={() => setPanel(null)} /> : null}
+            {panel === "account" ? (
+              <AccountCard
+                name={methodistName}
+                onName={(next) => {
+                  setMethodistName(next);
+                  storeMethodistName(window.localStorage, next);
+                }}
+                onClose={() => setPanel(null)}
+              />
+            ) : null}
           </div>
         </div>
-        {faqOpen ? <FaqCard onClose={() => setFaqOpen(false)} /> : null}
       </nav>
       <div className="studio-column">
         <div className="studio-main">{children}</div>
@@ -91,7 +119,7 @@ export function SiteFrame({
             </p>
           ) : null}
         </div>
-        {progress ?? <span>Запрос, каркас, комплект</span>}
+        {progress ?? <span />}
         <span>Next.js · FastAPI · Cloud.ru</span>
       </footer>
     </div>
@@ -104,6 +132,50 @@ function ThemeButton({ theme, onToggle }: { theme: Theme; onToggle: () => void }
     <button type="button" className="theme-toggle" aria-label={label} title={label} onClick={onToggle}>
       {theme === "dark" ? <SunIcon /> : <MoonIcon />}
     </button>
+  );
+}
+
+const DEFAULT_METHODIST_NAME = "Методист Методистов";
+const METHODIST_NAME_KEY = "edu-course-methodist-name";
+
+function readMethodistName(storage: Pick<Storage, "getItem">) {
+  const stored = storage.getItem(METHODIST_NAME_KEY)?.trim() ?? "";
+  return stored.slice(0, 80) || DEFAULT_METHODIST_NAME;
+}
+
+function storeMethodistName(storage: Pick<Storage, "setItem" | "removeItem">, name: string) {
+  const next = name.trim().slice(0, 80);
+  if (!next || next === DEFAULT_METHODIST_NAME) storage.removeItem(METHODIST_NAME_KEY);
+  else storage.setItem(METHODIST_NAME_KEY, next);
+}
+
+function AccountCard({
+  name,
+  onName,
+  onClose,
+}: {
+  name: string;
+  onName: (name: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="faq-card account-card" role="dialog" aria-label="Личный кабинет">
+      <h2>Личный кабинет</h2>
+      <label>
+        Имя
+        <input
+          value={name}
+          maxLength={80}
+          aria-label="Имя методиста"
+          onChange={(event) => onName(event.target.value)}
+        />
+      </label>
+      <p>Роль: методист</p>
+      <p>Имя хранится в этом браузере. Кабинет не открывает курсы и выгрузку.</p>
+      <button type="button" onClick={onClose}>
+        Закрыть
+      </button>
+    </div>
   );
 }
 
@@ -132,6 +204,21 @@ function FaqIcon() {
         strokeLinecap="round"
       />
       <path d="M11.7 16.8h.1" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SettingsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path
+        d="M12 3.4v2.1M12 18.5v2.1M3.4 12h2.1M18.5 12h2.1M6.1 6.1l1.5 1.5M16.4 16.4l1.5 1.5M17.9 6.1l-1.5 1.5M7.6 16.4l-1.5 1.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }

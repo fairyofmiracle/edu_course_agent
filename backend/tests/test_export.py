@@ -65,6 +65,67 @@ def test_export_saved_course_after_put() -> None:
     client.delete(f"/api/courses/{course['id']}")
 
 
+def _slide_text(payload: bytes) -> str:
+    from io import BytesIO
+    from zipfile import ZipFile
+
+    with ZipFile(BytesIO(payload)) as archive:
+        return " ".join(
+            archive.read(name).decode("utf-8")
+            for name in archive.namelist()
+            if name.startswith("ppt/slides/slide")
+        )
+
+
+def test_zip_puts_each_lecture_in_its_own_file() -> None:
+    from io import BytesIO
+    from zipfile import ZipFile
+
+    from backend.app.exports import build_zip
+
+    raw = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    raw["lectures"] = [
+        {
+            "moduleId": "M1",
+            "durationMin": 40,
+            "outline": ["Переменные"],
+            "slides": [{"title": "Что такое переменная", "bullets": ["Имя и значение"]}],
+        },
+        {
+            "moduleId": "M1",
+            "durationMin": 40,
+            "outline": ["Условия"],
+            "slides": [{"title": "Ветвление if", "bullets": ["Условие"]}],
+        },
+    ]
+    course = CourseDocument.model_validate(raw)
+    with ZipFile(BytesIO(build_zip(course))) as archive:
+        names = archive.namelist()
+        program = [name for name in names if name.startswith("основной документ/") and name.endswith(".docx")]
+        decks = [name for name in names if name.startswith("презентации/") and name.endswith(".pptx")]
+        lectures = [name for name in names if name.startswith("лекции/") and name.endswith(".docx")]
+        assert len(program) == 1
+        assert decks == [
+            "презентации/01-Базовый-синтаксис.pptx",
+            "презентации/02-Базовый-синтаксис.pptx",
+        ]
+        assert lectures == [
+            "лекции/01-Базовый-синтаксис.docx",
+            "лекции/02-Базовый-синтаксис.docx",
+        ]
+        assert not any("/" not in name and name.endswith((".pptx", ".docx")) for name in names)
+        first = _slide_text(archive.read(decks[0]))
+        second = _slide_text(archive.read(decks[1]))
+        assert "Что такое переменная" in first
+        assert "Ветвление if" not in first
+        assert "Ветвление if" in second
+        assert "Что такое переменная" not in second
+        with ZipFile(BytesIO(archive.read(lectures[0]))) as lecture:
+            text = lecture.read("word/document.xml").decode("utf-8")
+        assert "Переменные" in text
+        assert "Условия" not in text
+
+
 def test_build_artifact_rejects_unknown_kind() -> None:
     from backend.app.exports import build_artifact
 

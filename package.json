@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "backend": "python -m uvicorn backend.app.main:app --reload --port 8000",
+    "worker": "celery -A backend.app.gateway_queue.celery_app worker --loglevel=INFO --pool=solo",
     "backend:migrate": "python -m alembic upgrade head",
     "build": "next build",
     "start": "next start",

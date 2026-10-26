@@ -13,6 +13,7 @@ import {
 } from "@/lib/course-schema";
 
 import { FRAMEWORK_PROMPT, KIT_PROMPT } from "@/lib/agent/service-prompts";
+import { appendTranscript } from "@/lib/transcript";
 import { userFacingError } from "@/lib/user-error";
 
 type Mode = "free" | "template";
@@ -123,7 +124,12 @@ export function RequestComposer({
   const [showLink, setShowLink] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [formError, setFormError] = useState("");
+  const [recording, setRecording] = useState(false);
+  const [voiceNote, setVoiceNote] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const voiceTimer = useRef<number | null>(null);
   const fileElapsed = useElapsed(busyFile);
 
   const setField = <K extends keyof TemplateFields>(key: K, value: TemplateFields[K]) => {
@@ -141,6 +147,98 @@ export function RequestComposer({
       return "Чтение заняло слишком много времени. Возьмите файл меньше или повторите.";
     }
     return userFacingError(error) || fallback;
+  };
+
+  const stopTracks = () => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  };
+
+  useEffect(() => () => {
+    if (voiceTimer.current !== null) window.clearTimeout(voiceTimer.current);
+    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+    else streamRef.current?.getTracks().forEach((track) => track.stop());
+  }, []);
+
+  const putTranscript = (spoken: string) => {
+    setMode("free");
+    setInput((current) => appendTranscript(current, spoken));
+    setVoiceNote("Готово. Текст в поле, его можно поправить и отправить.");
+  };
+
+  const toggleVoice = async () => {
+    if (recording) {
+      recorderRef.current?.stop();
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setVoiceNote("Этот браузер не записывает звук.");
+      return;
+    }
+    setVoiceNote("");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((item) =>
+        MediaRecorder.isTypeSupported(item),
+      );
+      const media = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      media.ondataavailable = (event) => {
+        if (event.data.size) chunks.push(event.data);
+      };
+      media.onstop = () => {
+        if (voiceTimer.current !== null) window.clearTimeout(voiceTimer.current);
+        voiceTimer.current = null;
+        setRecording(false);
+        stopTracks();
+        const blob = new Blob(chunks, { type: media.mimeType || mime || "audio/webm" });
+        void sendRecording(blob);
+      };
+      recorderRef.current = media;
+      media.start();
+      setRecording(true);
+      setVoiceNote("Слушаю. Нажмите ещё раз, чтобы остановить. Не дольше 25 секунд.");
+      voiceTimer.current = window.setTimeout(() => {
+        if (media.state === "recording") media.stop();
+      }, 25_000);
+    } catch (error) {
+      stopTracks();
+      const name = error instanceof DOMException ? error.name : "";
+      setVoiceNote(
+        name === "NotAllowedError" || name === "SecurityError"
+          ? "Нет доступа к микрофону."
+          : "Не удалось начать запись.",
+      );
+    }
+  };
+
+  const sendRecording = async (blob: Blob) => {
+    if (!blob.size) {
+      setVoiceNote("Запись пустая.");
+      return;
+    }
+    setVoiceNote("Разбираю запись…");
+    try {
+      const form = new FormData();
+      form.set("file", blob, "speech.webm");
+      const response = await fetch("/api/transcribe", {
+        method: "POST",
+        body: form,
+        signal: AbortSignal.timeout(70_000),
+      });
+      const payload = (await response.json()) as { text?: string; error?: string };
+      if (!response.ok) throw new Error(payload.error || "Запись не разобралась.");
+      if (!payload.text?.trim()) throw new Error("В записи не слышно речи.");
+      putTranscript(payload.text);
+    } catch (error) {
+      const name = error instanceof Error ? error.name : "";
+      if (name === "TimeoutError" || name === "AbortError") {
+        setVoiceNote("Запись не успела разобраться. Повторите короче.");
+        return;
+      }
+      setVoiceNote(userFacingError(error) || "Запись не разобралась.");
+    }
   };
 
   const attachFile = async (file: File) => {
@@ -405,8 +503,11 @@ export function RequestComposer({
       {mode === "free" ? <p className="input-hint">Enter — отправить. Точные поля — во вкладке «По шаблону».</p> : null}
 
       <div className="composer-row">
-        <button type="button" onClick={() => fileRef.current?.click()} disabled={busyFile}>
+        <button type="button" onClick={() => fileRef.current?.click()} disabled={busyFile || recording}>
           {busyFile ? "Читаю…" : "Файл"}
+        </button>
+        <button type="button" onClick={() => void toggleVoice()} disabled={busyFile || pending}>
+          {recording ? "Стоп запись" : "Голос"}
         </button>
         <button type="button" onClick={() => setShowLink((value) => !value)} disabled={busyFile}>
           {showLink ? "Скрыть ссылку" : "Ссылка"}
@@ -426,6 +527,11 @@ export function RequestComposer({
           }}
         />
       </div>
+      {voiceNote ? (
+        <p className={`job-status ${voiceNote.startsWith("Готово") || voiceNote.startsWith("Слушаю") || voiceNote.startsWith("Разбираю") ? "" : "chat-error"}`} aria-live="polite">
+          {voiceNote}
+        </p>
+      ) : null}
       {busyFile || fileNote ? (
         <p
           className={`job-status ${fileNote && !busyFile && !fileNote.startsWith("Готово") ? "chat-error" : ""}`}
@@ -452,7 +558,7 @@ export function RequestComposer({
           <button
             type="submit"
             className="primary"
-            disabled={mode === "free" ? !input.trim() : !templateReady}
+            disabled={recording || (mode === "free" ? !input.trim() : !templateReady)}
           >
             {mode === "template" ? "Собрать по шаблону" : "Отправить"}
           </button>

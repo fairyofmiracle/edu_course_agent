@@ -1,0 +1,1 @@
+gigaam[torch] @ git+https://github.com/salute-developers/GigaAM.git

@@ -5,7 +5,7 @@ import time
 from typing import Any
 
 from .brief_guard import repair_typos
-from .cloud import CloudRuClient
+from .cloud import CloudRuClient, TurnStopped
 from .domain import apply_patch, framework_fingerprint, framework_items, rebalance_course
 from .catalog import (
     default_structure,
@@ -370,6 +370,8 @@ async def run_turn(
                         course,
                         user_texts,
                     )
+                except TurnStopped:
+                    raise
                 except (RuntimeError, ValueError, TypeError, KeyError, AttributeError):
                     arguments = {}
 
@@ -437,6 +439,8 @@ async def run_turn(
                 timeout=timeout,
                 attempts=attempts,
             )
+        except TurnStopped:
+            raise
         except Exception:
             if step.get("tool") in KIT_TOOLS:
                 output = execute_tool(

@@ -9,7 +9,7 @@ import { MermaidBlock } from "@/components/MermaidBlock";
 import { auditCourse, methodistNotes, type AuditSection, type AuditStatus } from "@/lib/course-audit";
 import { isHttpSource, sourceConfidence } from "@/lib/verbatim";
 import { exportAssessmentDocx, exportSeminarDocx } from "@/lib/export-docx";
-import { validateCourseHours } from "@/lib/course-validation";
+import { briefGaps, moduleKindsGap, programBalanceNote, validateCourseHours } from "@/lib/course-validation";
 import { moduleFlowChart } from "@/lib/presentation/course-to-presentation";
 import { calendarPace } from "@/lib/week-plan";
 import { contentGaps, frameworkItems, isFrameworkApproved, isKitComplete, outcomeGaps } from "@/lib/framework-check";
@@ -58,23 +58,20 @@ export function CourseTabs({
   approved: boolean;
   onTabChange: (tab: WorkspaceTab) => void;
 }) {
+  const tabs = WORKSPACE_TABS.filter((item) => approved || !CONTENT_TABS.includes(item.id));
   return (
     <nav className="journal-tabs" aria-label="Разделы курса">
-      {WORKSPACE_TABS.map((item) => {
-        const later = CONTENT_TABS.includes(item.id) && !approved;
-        return (
-          <button
-            key={item.id}
-            type="button"
-            className={["journal-tab", tab === item.id ? "active" : "", later ? "locked" : ""].filter(Boolean).join(" ")}
-            title={later ? "Раздел откроется после утверждения каркаса" : item.hint}
-            disabled={later}
-            onClick={() => onTabChange(item.id)}
-          >
-            <span>{item.label}</span>
-          </button>
-        );
-      })}
+      {tabs.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          className={["journal-tab", tab === item.id ? "active" : ""].filter(Boolean).join(" ")}
+          title={item.hint}
+          onClick={() => onTabChange(item.id)}
+        >
+          <span>{item.label}</span>
+        </button>
+      ))}
     </nav>
   );
 }
@@ -266,17 +263,20 @@ function ModuleBoard({ course }: { course: CourseDocument }) {
       <div className="module-rail" role="list">
         {course.modules.map((item, index) => {
           const kit = kitOf(course, item.id);
+          const gap = moduleKindsGap(item);
           return (
             <button
               key={item.id}
               type="button"
               role="listitem"
-              className={item.id === selected.id ? "active" : ""}
+              className={[item.id === selected.id ? "active" : "", gap ? "hours-bad" : ""].filter(Boolean).join(" ")}
+              title={gap ?? undefined}
               onClick={() => setModuleId(item.id)}
             >
               <span className="mono">{String(index + 1).padStart(2, "0")}</span>
               <strong>{item.title}</strong>
               <span className="hours">{item.hours} ч</span>
+              {gap ? <span className="hours-gap">{gap}</span> : null}
               <span className="kit-marks" aria-label="Комплект модуля">
                 <i className={kit.lecture ? "on" : ""}>Л</i>
                 <i className={kit.seminar ? "on" : ""}>З</i>
@@ -331,7 +331,11 @@ function Overview({ course, score }: { course: CourseDocument; score: number }) 
           <p className="kicker">Программа</p>
           <h2>{brief.title || "Новая образовательная программа"}</h2>
           {!brief.title && course.modules.length === 0 ? (
-            <p className="program-soon">скоро здесь будет программа</p>
+            <p className="program-soon">
+              {briefGaps(course).length
+                ? `Пока нет: ${briefGaps(course).join(", ")}.`
+                : "скоро здесь будет программа"}
+            </p>
           ) : null}
         </div>
         <p className="score">{Math.round(score * 100)}% заполнено</p>
@@ -390,16 +394,35 @@ function Overview({ course, score }: { course: CourseDocument; score: number }) 
             </tr>
           </thead>
           <tbody>
-            {course.modules.map((courseModule) => (
-              <tr key={courseModule.id}>
-                <td>{courseModule.title}</td>
-                <td>{courseModule.lectureHours}</td>
-                <td>{courseModule.practiceHours}</td>
-                <td>{courseModule.labHours}</td>
-                <td>{courseModule.selfStudyHours}</td>
-                <td>{courseModule.hours}</td>
-              </tr>
-            ))}
+            {course.modules.map((courseModule) => {
+              const gap = moduleKindsGap(courseModule);
+              return (
+                <tr key={courseModule.id} className={gap ? "hours-bad" : undefined}>
+                  <td>
+                    {courseModule.title}
+                    {gap ? <span className="hours-gap">{gap}</span> : null}
+                  </td>
+                  <td>{courseModule.lectureHours}</td>
+                  <td>{courseModule.practiceHours}</td>
+                  <td>{courseModule.labHours}</td>
+                  <td>{courseModule.selfStudyHours}</td>
+                  <td>{courseModule.hours}</td>
+                </tr>
+              );
+            })}
+            <tr className={programBalanceNote(course) ? "hours-bad" : undefined}>
+              <td>
+                Аттестация
+                {programBalanceNote(course) ? (
+                  <span className="hours-gap">{programBalanceNote(course)}</span>
+                ) : null}
+              </td>
+              <td />
+              <td />
+              <td />
+              <td />
+              <td>{course.brief.attestationHours}</td>
+            </tr>
           </tbody>
         </table>
         <p className="muted">

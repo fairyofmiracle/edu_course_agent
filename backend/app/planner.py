@@ -78,6 +78,18 @@ EDIT_REQUEST = re.compile(
 )
 
 
+DURATION_EDIT = re.compile(
+    r"(?:измен\w*|помен\w*|поправ\w*|перепиш\w*|сократ\w*|увелич\w*|уменьш\w*)"
+    r".{0,40}(?:продолжительн\w*|час\w*)",
+    re.IGNORECASE,
+)
+
+
+def is_duration_edit_request(text: str) -> bool:
+    """Методист просит сменить объём, а не другую часть программы."""
+    return bool(DURATION_EDIT.search(text or ""))
+
+
 def is_edit_request(text: str) -> bool:
     cleaned = (text or "").strip()
     if not cleaned or KIT_REQUEST.search(cleaned) or FRAMEWORK_REQUEST.search(cleaned):

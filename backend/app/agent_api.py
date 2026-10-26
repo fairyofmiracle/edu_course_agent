@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .agent import approve_framework, course_report, run_turn, strengthen_framework
+from .gateway_queue import cancel_queued_job, job_snapshot, submit_chat_job
 from .audit import audit_course_document
 from .catalog import is_incomplete_brief
 from .cloud import CloudRuClient
 from .models import CourseDocument, empty_course
 from .public_errors import public_error_text
+from .speech import MAX_AUDIO_BYTES, SpeechError, audio_kind, transcribe
 
 router = APIRouter(prefix="/api", tags=["agent"])
 
@@ -37,12 +41,36 @@ class ChatTurnRequest(BaseModel):
     formBrief: dict[str, Any] | None = None
 
 
+def _job_id(value: str) -> str:
+    try:
+        return str(UUID(value))
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail="Ход не найден.") from error
+
+
+@router.get("/chat/jobs/{job_id}", summary="Статус хода в очереди")
+def chat_job(job_id: str) -> dict[str, Any]:
+    job = job_snapshot(_job_id(job_id))
+    if job is None:
+        raise HTTPException(status_code=404, detail="Ход не найден.")
+    return job
+
+
+@router.post("/chat/jobs/{job_id}/cancel", summary="Остановить ход в очереди")
+def chat_job_cancel(job_id: str) -> dict[str, Any]:
+    job = cancel_queued_job(_job_id(job_id))
+    if job is None:
+        raise HTTPException(status_code=404, detail="Ход не найден.")
+    return job
+
+
 @router.post(
     "/chat/turn",
     summary="Один ход диалога с методистом",
     description=(
         "Принимает текущий курс и реплики. Cloud.ru может предложить правку, "
-        "но неподтверждённые часы и нормативные реквизиты отбрасывает код."
+        "но неподтверждённые часы и нормативные реквизиты отбрасывает код. "
+        "Если жива очередь Redis, ответ 202 и ход забирает воркер Celery."
     ),
     operation_id="chatTurn",
 )
@@ -50,6 +78,11 @@ async def chat_turn(request: ChatTurnRequest) -> dict[str, Any]:
     messages = list(request.messages)
     if not messages or messages[-1].get("role") != "user":
         messages.append({"role": "user", "content": request.userTexts[-1]})
+    payload = request.model_dump(mode="json", by_alias=True)
+    payload["messages"] = messages
+    queued = submit_chat_job(payload)
+    if queued is not None:
+        return JSONResponse(status_code=202, content=queued)
     try:
         result = await run_turn(
             request.course,
@@ -62,6 +95,32 @@ async def chat_turn(request: ChatTurnRequest) -> dict[str, Any]:
         raise HTTPException(status_code=502, detail=_error_detail(error)) from error
     result["course"] = result["course"].as_api()
     return result
+
+
+@router.post(
+    "/transcribe",
+    summary="Расшифровать короткую запись",
+    description=(
+        "Принимает запись методиста и возвращает текст. "
+        "Звук разбирает локальная GigaAM, не шлюз чата, и в студию не сохраняется."
+    ),
+)
+async def transcribe_speech(file: UploadFile = File(...)) -> dict[str, str]:
+    content_type = file.content_type or ""
+    if audio_kind(content_type) is None:
+        raise HTTPException(status_code=400, detail="Нужна запись webm, ogg, wav или mp3.")
+    raw = await file.read(MAX_AUDIO_BYTES + 1)
+    if len(raw) > MAX_AUDIO_BYTES:
+        raise HTTPException(status_code=400, detail="Запись больше 8 МБ.")
+    try:
+        text = await transcribe(raw, content_type)
+    except SpeechError as error:
+        raise HTTPException(status_code=error.status, detail=str(error)) from error
+    except RuntimeError as error:
+        raise HTTPException(status_code=502, detail=public_error_text(error)) from error
+    if not text:
+        raise HTTPException(status_code=422, detail="В записи не слышно речи.")
+    return {"text": text}
 
 
 @router.post(

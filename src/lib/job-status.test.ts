@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   chatWaitLabel,
+  queueWaitLabel,
   exportDoneLabel,
   exportKindName,
   exportWaitLabel,
@@ -10,6 +11,13 @@ import {
 } from "./job-status";
 
 describe("job status labels", () => {
+  it("очередь показывает место и ход модели", () => {
+    expect(queueWaitLabel("queued", 1)).toMatch(/место 1/);
+    expect(queueWaitLabel("queued", 3)).toMatch(/место 3/);
+    expect(queueWaitLabel("running")).toMatch(/остановить/);
+    expect(queueWaitLabel("done")).toBe("");
+  });
+
   it("чат идёт от отправки к повторам", () => {
     expect(chatWaitLabel(0)).toMatch(/Отправляю/);
     expect(chatWaitLabel(4000)).toMatch(/думает/);

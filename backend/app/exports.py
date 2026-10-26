@@ -36,13 +36,24 @@ def artifact_filename(course: CourseDocument, kind: str) -> str:
 #BytesIO() создаёт буфер в оперативной памяти
 #ZipFile() формирует архив
 # writestr() добавляет в него файлы.
+def _file_stem(value: str, fallback: str) -> str:
+    base = re.sub(r"[^\w\-]+", "-", (value or "").strip(), flags=re.UNICODE)
+    return base.strip("-")[:50] or fallback
+
+
 def build_zip(course: CourseDocument) -> bytes:
+    """Общая выгрузка: программа отдельно, каждая лекция своим файлом."""
     buffer = BytesIO()
+    title = _file_stem(course.brief.title, "programma")
+    module_titles = {module.id: module.title for module in course.modules}
 
     with ZipFile(buffer, "w", compression=ZIP_DEFLATED) as archive:
-        for kind in ("json", "docx", "pptx"):
-            payload, _, filename = build_artifact(kind, course)
-            archive.writestr(filename, payload)
+        archive.writestr(f"основной документ/{title}.docx", build_docx(course))
+        for index, lecture in enumerate(course.lectures, start=1):
+            module_title = module_titles.get(lecture.module_id, lecture.module_id)
+            stem = f"{index:02d}-{_file_stem(module_title, lecture.module_id)}"
+            archive.writestr(f"презентации/{stem}.pptx", build_lecture_pptx(course, lecture))
+            archive.writestr(f"лекции/{stem}.docx", build_lecture_docx(course, lecture))
 
     return buffer.getvalue()
 
@@ -302,15 +313,24 @@ def _add_bullets(slide: Any, items: list[str]) -> None:
         paragraph.font.name = "Calibri"
 
 
-def build_pptx(course: CourseDocument) -> bytes:
+def _new_presentation():
     from pptx import Presentation
     from pptx.util import Inches
 
     presentation = Presentation()
     presentation.slide_width = Inches(13.333)
     presentation.slide_height = Inches(7.5)
-    blank = presentation.slide_layouts[6]
-    cover = presentation.slides.add_slide(blank)
+    return presentation
+
+
+def _presentation_bytes(presentation) -> bytes:
+    buffer = BytesIO()
+    presentation.save(buffer)
+    return buffer.getvalue()
+
+
+def _add_course_cover(presentation, course: CourseDocument) -> None:
+    cover = presentation.slides.add_slide(presentation.slide_layouts[6])
     _paint(cover)
     _add_textbox(cover, 0.75, 1.35, 11.5, 0.35, "СТУДИЯ МЕТОДИСТА", 14, False, "6E2432", "Calibri")
     _add_textbox(
@@ -327,41 +347,91 @@ def build_pptx(course: CourseDocument) -> bytes:
     )
     _rule(cover, 0.75, 3.6, 2.4)
     audience = course.brief.audience.strip()
-    hours = course.brief.duration_hours
+    duration = course.brief.duration_hours
     subtitle = " · ".join(
         part
         for part in (
             audience,
-            f"{hours:g} ч" if hours else "",
+            f"{duration:g} ч" if duration else "",
             "Материалы лекций",
         )
         if part
     )
     _add_textbox(cover, 0.75, 3.85, 11.5, 0.6, subtitle, 18, False, "5C534C")
 
-    lectures = course.lectures
-    if not lectures:
+
+def _add_lecture_slides(presentation, lecture, module_title: str) -> None:
+    blank = presentation.slide_layouts[6]
+    opener = presentation.slides.add_slide(blank)
+    _paint(opener)
+    _add_textbox(opener, 0.75, 2.35, 11.5, 0.35, "ЛЕКЦИЯ", 14, False, "6E2432")
+    _add_textbox(opener, 0.75, 2.85, 11.5, 1.4, module_title, 36, False, "1C1614", "Georgia")
+    _rule(opener, 0.75, 4.45, 2.2)
+    if not lecture.slides:
         empty = presentation.slides.add_slide(blank)
         _paint(empty)
-        _add_textbox(empty, 0.8, 3.1, 11.7, 1, "Слайды появятся после утверждения каркаса.", 22, False, "5C534C", "Georgia")
+        _add_textbox(empty, 0.8, 3.1, 11.7, 1, "Слайды этой лекции ещё не заполнены.", 22, False, "5C534C", "Georgia")
+        return
+    for index, slide in enumerate(lecture.slides, start=1):
+        page = presentation.slides.add_slide(blank)
+        _paint(page)
+        _add_textbox(page, 0.75, 0.38, 10.4, 0.32, module_title, 13, False, "6E2432")
+        _add_textbox(page, 11.2, 0.38, 1.3, 0.32, f"{index} / {len(lecture.slides)}", 13, False, "5C534C")
+        _add_textbox(page, 0.75, 0.9, 11.7, 0.9, slide.title, 32, False, "1C1614", "Georgia")
+        _rule(page, 0.75, 1.9, 1.8)
+        _add_bullets(page, list(slide.bullets))
 
-    titles = {module.id: module.title for module in course.modules}
-    for lecture in lectures:
-        module_title = titles.get(lecture.module_id, lecture.module_id)
-        opener = presentation.slides.add_slide(blank)
-        _paint(opener)
-        _add_textbox(opener, 0.75, 2.35, 11.5, 0.35, "МОДУЛЬ", 14, False, "6E2432")
-        _add_textbox(opener, 0.75, 2.85, 11.5, 1.4, module_title, 36, False, "1C1614", "Georgia")
-        _rule(opener, 0.75, 4.45, 2.2)
-        for index, slide in enumerate(lecture.slides, start=1):
-            page = presentation.slides.add_slide(blank)
-            _paint(page)
-            _add_textbox(page, 0.75, 0.38, 10.4, 0.32, module_title, 13, False, "6E2432")
-            _add_textbox(page, 11.2, 0.38, 1.3, 0.32, f"{index} / {len(lecture.slides)}", 13, False, "5C534C")
-            _add_textbox(page, 0.75, 0.9, 11.7, 0.9, slide.title, 32, False, "1C1614", "Georgia")
-            _rule(page, 0.75, 1.9, 1.8)
-            _add_bullets(page, list(slide.bullets))
 
+def build_lecture_pptx(course: CourseDocument, lecture) -> bytes:
+    presentation = _new_presentation()
+    module_title = next(
+        (module.title for module in course.modules if module.id == lecture.module_id),
+        lecture.module_id,
+    )
+    _add_lecture_slides(presentation, lecture, module_title)
+    return _presentation_bytes(presentation)
+
+
+def build_lecture_docx(course: CourseDocument, lecture) -> bytes:
+    from docx import Document
+    from docx.shared import Pt
+
+    module_title = next(
+        (module.title for module in course.modules if module.id == lecture.module_id),
+        lecture.module_id,
+    )
+    doc = Document()
+    style = doc.styles["Normal"]
+    style.font.name = "Times New Roman"
+    style.font.size = Pt(12)
+    doc.add_heading(module_title, level=1)
+    doc.add_paragraph(f"Курс: {course.brief.title or 'Без названия'}")
+    doc.add_paragraph(f"Длительность: {hours(lecture.duration_min)} мин.")
+    doc.add_heading("План занятия", level=2)
+    for item in lecture.outline or ["План не заполнен."]:
+        doc.add_paragraph(item, style="List Bullet")
+    doc.add_heading("Ход лекции", level=2)
+    if not lecture.slides:
+        doc.add_paragraph("Слайды не заполнены.")
+    for index, slide in enumerate(lecture.slides, start=1):
+        doc.add_heading(f"{index}. {slide.title}", level=3)
+        for bullet in slide.bullets or ["—"]:
+            doc.add_paragraph(bullet, style="List Bullet")
+        if slide.speaker_notes:
+            doc.add_paragraph(f"Заметки преподавателя: {slide.speaker_notes}")
     buffer = BytesIO()
-    presentation.save(buffer)
+    doc.save(buffer)
     return buffer.getvalue()
+
+
+def build_pptx(course: CourseDocument) -> bytes:
+    presentation = _new_presentation()
+    _add_course_cover(presentation, course)
+    if not course.lectures:
+        empty = presentation.slides.add_slide(presentation.slide_layouts[6])
+        _paint(empty)
+        _add_textbox(empty, 0.8, 3.1, 11.7, 1, "Слайды появятся после утверждения каркаса.", 22, False, "5C534C", "Georgia")
+    titles = {module.id: module.title for module in course.modules}
+    for lecture in course.lectures:
+        _add_lecture_slides(presentation, lecture, titles.get(lecture.module_id, lecture.module_id))
+    return _presentation_bytes(presentation)

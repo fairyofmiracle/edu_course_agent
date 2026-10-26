@@ -328,6 +328,10 @@ def payload_has_control_tokens(payload: dict[str, Any]) -> bool:
     return bool(CONTROL_TOKEN.search(json.dumps(payload, ensure_ascii=False)))
 
 
+class TurnStopped(Exception):
+    """Методист остановил ход, пока он стоял в очереди или шёл в воркере."""
+
+
 class CloudRuClient:
     def __init__(self) -> None:
         self.api_key, base_url = resolve_llm_gateway()
@@ -346,6 +350,7 @@ class CloudRuClient:
             "calls": 0,
         }
         self.gateway_retries: list[int] = []
+        self.gate = None
 
     def add_usage(self, usage: dict[str, Any] | None) -> None:
         data = usage or {}
@@ -393,6 +398,28 @@ class CloudRuClient:
         )
         if payload_has_control_tokens(payload):
             raise RuntimeError("В запрос модели попали служебные токены. Запрос не отправлен.")
+        gate = self.gate
+        if gate is not None:
+            gate.enter()
+        try:
+            return await self._complete_request(
+                payload=payload,
+                timeout=timeout,
+                attempts=attempts,
+                gate=gate,
+            )
+        finally:
+            if gate is not None:
+                gate.leave()
+
+    async def _complete_request(
+        self,
+        *,
+        payload: dict[str, Any],
+        timeout: float,
+        attempts: int | None,
+        gate: Any,
+    ) -> dict[str, Any]:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -422,7 +449,13 @@ class CloudRuClient:
             if response.is_error:
                 raise RuntimeError(f"HTTP {status}")
             data = response.json()
-            self.add_usage(data.get("usage"))
+            usage = data.get("usage")
+            self.add_usage(usage)
+            if gate is not None:
+                prompt = int((usage or {}).get("prompt_tokens") or 0)
+                completion = int((usage or {}).get("completion_tokens") or 0)
+                total = int((usage or {}).get("total_tokens") or (prompt + completion))
+                gate.charge(total)
             choices = data.get("choices") or []
             if not choices:
                 raise RuntimeError("Шлюз вернул ответ без списка вариантов.")

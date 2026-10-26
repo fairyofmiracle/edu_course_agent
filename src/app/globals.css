@@ -388,16 +388,31 @@ button {
   font-weight: 400;
 }
 
+.nav-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.account-name {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
 .nav-icons {
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 8px;
-  margin-top: auto;
 }
 
 .site-nav .nav-icons .theme-toggle,
-.site-nav .nav-icons .faq-toggle {
+.site-nav .nav-icons .faq-toggle,
+.site-nav .nav-icons .account-toggle {
   width: 34px;
   height: 34px;
   min-height: 34px;
@@ -408,13 +423,15 @@ button {
   font-weight: 400;
 }
 
-.faq-toggle {
+.faq-toggle,
+.account-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
 .faq-toggle svg,
+.account-toggle svg,
 .theme-toggle svg {
   display: block;
   width: 16px;
@@ -439,11 +456,37 @@ button {
   margin: 0;
 }
 
+.faq-card h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
+}
+
 .faq-card button {
   align-self: flex-start;
   width: auto;
   color: var(--ink-soft);
   font-weight: 400;
+}
+
+.account-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.account-card input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 14px;
 }
 
 .top-actions a:hover,
@@ -470,13 +513,14 @@ button.primary {
 
 .stages {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0;
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 2px 0 12px;
   color: var(--ink-soft);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 400;
   letter-spacing: 0.04em;
 }
@@ -493,10 +537,26 @@ button.primary {
 
 .stages li + li::before {
   content: "";
-  width: 36px;
+  width: 22px;
   height: 1px;
   margin: 0 8px;
   background: var(--line);
+}
+
+.site-nav .top-actions button.text-action {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-soft);
+  font-weight: 400;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  white-space: normal;
+}
+
+.site-nav .top-actions button.text-action:hover {
+  border-color: transparent;
+  color: var(--ink);
 }
 
 .stages li.done,
@@ -1951,10 +2011,33 @@ button.primary {
   margin-top: 2px;
 }
 
-.export-menu .export-zip-button {
+.hours-table tr.hours-bad td {
+  background: color-mix(in srgb, #8a1f1f 10%, var(--panel));
+}
+
+html[data-theme="dark"] .hours-gap {
+  color: #f0b4b4;
+}
+
+html[data-theme="dark"] .hours-table tr.hours-bad td {
+  background: color-mix(in srgb, #f0b4b4 14%, var(--panel));
+}
+
+.hours-gap {
+  display: block;
+  margin-top: 4px;
+  color: #8a1f1f;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.module-rail button.hours-bad {
+  box-shadow: inset 2px 0 0 #8a1f1f;
+}
+
+.module-rail button .hours-gap {
   grid-column: 1 / -1;
-  width: 100%;
-  white-space: nowrap;
 }
 
 .pptx-preview {

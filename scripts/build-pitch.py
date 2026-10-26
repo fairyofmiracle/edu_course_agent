@@ -107,7 +107,7 @@ def build() -> None:
         card(slide, 0.6, top, 12.1, 1.5)
         textbox(slide, 0.9, top + 0.2, 2.4, 1.0, name, 22, True, GREEN)
         textbox(slide, 3.4, top + 0.28, 8.9, 1.0, body, 18)
-    textbox(slide, 0.6, 6.9, 12, 0.4, "Роадмап, не эта сборка: голосовое управление запроса, pgvector, объектное хранилище.", 14, False, MUTED)
+    textbox(slide, 0.6, 6.9, 12, 0.4, "Роадмап, не эта сборка: pgvector и объектное хранилище. Голос и очередь уже в студии.", 14, False, MUTED)
 
     slide = deck.slides.add_slide(blank)
     paint(slide)

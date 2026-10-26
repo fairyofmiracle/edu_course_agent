@@ -14,6 +14,15 @@ services:
       retries: 10
     restart: unless-stopped
 
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   api:
     build:
       context: .
@@ -28,10 +37,15 @@ services:
       CLOUDRU_API_KEY: ${CLOUDRU_API_KEY:-}
       CLOUDRU_MODEL: ${CLOUDRU_MODEL:-GigaChat/GigaChat-3-Pro}
       CLOUDRU_MODEL_WRITER: ${CLOUDRU_MODEL_WRITER:-GigaChat/GigaChat-3-Pro}
+      REDIS_URL: redis://redis:6379/0
+      GATEWAY_CONCURRENCY: ${GATEWAY_CONCURRENCY:-2}
+      LLM_TOKEN_BUDGET: ${LLM_TOKEN_BUDGET:-25000}
     expose:
       - "8000"
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test:
@@ -44,6 +58,34 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command:
+      [
+        "sh",
+        "-c",
+        "celery -A backend.app.gateway_queue.celery_app worker --loglevel=INFO --concurrency=$${GATEWAY_CONCURRENCY:-2}",
+      ]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-studio}:${POSTGRES_PASSWORD:-studio}@db:5432/${POSTGRES_DB:-studio}
+      GIGASCHOOL_BASE_URL: ${GIGASCHOOL_BASE_URL:-}
+      GIGASCHOOL_API_KEY: ${GIGASCHOOL_API_KEY:-}
+      CLOUDRU_BASE_URL: ${CLOUDRU_BASE_URL:-}
+      CLOUDRU_API_KEY: ${CLOUDRU_API_KEY:-}
+      CLOUDRU_MODEL: ${CLOUDRU_MODEL:-GigaChat/GigaChat-3-Pro}
+      CLOUDRU_MODEL_WRITER: ${CLOUDRU_MODEL_WRITER:-GigaChat/GigaChat-3-Pro}
+      REDIS_URL: redis://redis:6379/0
+      GATEWAY_CONCURRENCY: ${GATEWAY_CONCURRENCY:-2}
+      LLM_TOKEN_BUDGET: ${LLM_TOKEN_BUDGET:-25000}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   web:

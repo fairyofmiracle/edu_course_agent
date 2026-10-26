@@ -2330,6 +2330,44 @@ button.primary {
   border-left: 3px solid var(--line);
   background: var(--chat-soft);
   line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.audit-list a,
+.ref-list a {
+  display: block;
+  margin-top: 3px;
+  color: var(--shell-accent);
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.ref-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ref-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ref-list strong {
+  font-size: 14px;
+}
+
+.ref-list span {
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .audit-list li.pass {

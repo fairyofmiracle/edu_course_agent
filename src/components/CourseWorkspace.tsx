@@ -8,6 +8,7 @@ import { LectureDeck } from "@/components/LectureDeck";
 import { MermaidBlock } from "@/components/MermaidBlock";
 import { NavIcon } from "@/components/NavIcon";
 import { auditCourse, type AuditStatus } from "@/lib/course-audit";
+import { isOfficialPublication } from "@/lib/legal-basis";
 import { isHttpSource } from "@/lib/verbatim";
 import { exportAssessmentDocx, exportSeminarDocx } from "@/lib/export-docx";
 import { briefGaps, moduleKindsGap, programBalanceNote, validateCourseHours } from "@/lib/course-validation";
@@ -110,6 +111,51 @@ function LockedContentState() {
   );
 }
 
+function sourceStatus(source?: string) {
+  const value = source?.trim() ?? "";
+  if (!value) return "Источник не указан";
+  if (!isHttpSource(value)) return "Файл методиста";
+  if (isOfficialPublication(value)) return "Официальное опубликование";
+  return "Ссылка не подтверждена";
+}
+
+function ReferenceList({
+  references,
+  title,
+}: {
+  references: CourseDocument["brief"]["references"];
+  title: string;
+}) {
+  return (
+    <article>
+      <h3>{title}</h3>
+      {references.length === 0 ? (
+        <p className="muted">—</p>
+      ) : (
+        <ul className="ref-list">
+          {references.map((item, index) => {
+            const source = item.source?.trim() ?? "";
+            return (
+              <li key={`${item.title}-${source}-${index}`}>
+                <strong>{item.title}</strong>
+                <span>{sourceStatus(item.source)}</span>
+                {isHttpSource(source) ? (
+                  <a href={source} target="_blank" rel="noreferrer">
+                    {source}
+                  </a>
+                ) : source ? (
+                  <span>{source}</span>
+                ) : null}
+                {item.note ? <span>{item.note}</span> : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </article>
+  );
+}
+
 function AuditPanel({ course }: { course: CourseDocument }) {
   const report = auditCourse(course);
   const groups: { status: AuditStatus; title: string }[] = [
@@ -149,6 +195,7 @@ function AuditPanel({ course }: { course: CourseDocument }) {
             <p key={entry.id}>{entry.label}</p>
           ))}
       </details>
+      <ReferenceList references={course.brief.references} title="Источники" />
       <SourceChecks course={course} />
       <StackFreshnessPanel course={course} />
     </div>
@@ -393,26 +440,7 @@ function Overview({ course }: { course: CourseDocument }) {
         </article>
       </div>
       <FrameworkCheck course={course} />
-      <article>
-        <h3>Референсы</h3>
-        <ul>
-          {brief.references.length ? (
-            brief.references.map((item) => (
-              <li key={item.title}>
-                <strong>{item.title}</strong>
-                {item.source ? ` · ${item.source}` : ""}
-                {item.note ? ` — ${item.note}` : ""}
-                {" · "}
-                {item.source?.trim() && !isHttpSource(item.source)
-                  ? "файл методиста"
-                  : "не подтверждён"}
-              </li>
-            ))
-          ) : (
-            <li>—</li>
-          )}
-        </ul>
-      </article>
+      <ReferenceList references={brief.references} title="Референсы" />
     </div>
   );
 }

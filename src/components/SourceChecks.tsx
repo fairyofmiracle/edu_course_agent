@@ -120,9 +120,10 @@ export function SourceChecks({ course }: { course: CourseDocument }) {
                   {official && result.state === "reachable"
                     ? "Официальное опубликование"
                     : STATE_LABEL[result.state]}
-                  :
-                </strong>{" "}
-                {result.url}
+                </strong>
+                <a href={result.url} target="_blank" rel="noreferrer">
+                  {result.url}
+                </a>
                 <span>
                   {official && result.state === "reachable"
                     ? "Это ссылка из нашего списка. Текст приказа со страницы не забираем."

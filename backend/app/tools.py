@@ -276,7 +276,6 @@ def coerce_structure_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
                 "plan": raw.get("plan") or [],
             }
         )
-    _ensure_half_practice(coerced)
     return {"modules": coerced}
 
 

@@ -212,6 +212,42 @@ def rebalance_course(course: CourseDocument) -> CourseDocument:
     _keep_sixteen_hour_practice(value)
     return CourseDocument.model_validate(value)
 
+def _move_hours_to_practice(
+    module: dict[str, Any],
+    source_key: str,
+    requested_hours: float,
+) -> float:
+    """Переносит часы в практику внутри модуля и его тематического плана."""
+    remaining = academic_hours(requested_hours)
+    moved = 0.0
+
+    for row in module.get("plan") or []:
+        if remaining <= 0:
+            break
+
+        available = academic_hours(row.get(source_key))
+        take = min(available, remaining)
+
+        if take <= 0:
+            continue
+
+        row[source_key] = academic_hours(available - take)
+        row["practiceHours"] = academic_hours(
+            float(row.get("practiceHours") or 0) + take
+        )
+
+        moved = academic_hours(moved + take)
+        remaining = academic_hours(remaining - take)
+
+    if moved > 0:
+        module[source_key] = academic_hours(
+            float(module.get(source_key) or 0) - moved
+        )
+        module["practiceHours"] = academic_hours(
+            float(module.get("practiceHours") or 0) + moved
+        )
+
+    return moved
 
 def _keep_sixteen_hour_practice(value: dict[str, Any]) -> None:
     """Общеразвивающая программа на 16 часов оставляет практике не меньше 8.
@@ -230,13 +266,8 @@ def _keep_sixteen_hour_practice(value: dict[str, Any]) -> None:
         for module in modules:
             if need <= 0:
                 return
-            available = academic_hours(float(module.get(key) or 0))
-            take = min(available, need)
-            if take <= 0:
-                continue
-            module[key] = academic_hours(available - take)
-            module["practiceHours"] = academic_hours(float(module.get("practiceHours") or 0) + take)
-            need = academic_hours(need - take)
+            moved = _move_hours_to_practice(module, key, need)
+            need = academic_hours(need - moved)
 
 
 def _upsert(items: list[dict[str, Any]], value: dict[str, Any]) -> list[dict[str, Any]]:

@@ -97,10 +97,20 @@ export async function deleteCourseFromBackend(courseId: string) {
   return true;
 }
 
-export async function downloadCourseFromBackend(
-  course: CourseDocument,
-  kind: "json" | "docx" | "pptx" | "zip",
-) {
+export type ServerExportKind = "json" | "docx" | "pptx" | "zip" | "moodle" | "gift" | "csv" | "html";
+
+const FILE_EXT: Record<ServerExportKind, string> = {
+  json: "json",
+  docx: "docx",
+  pptx: "pptx",
+  zip: "zip",
+  moodle: "xml",
+  gift: "gift.txt",
+  csv: "csv",
+  html: "html",
+};
+
+export async function downloadCourseFromBackend(course: CourseDocument, kind: ServerExportKind) {
   if (!baseUrl()) return false;
   const response = await fetch(endpoint(`/api/export/${kind}`), {
     method: "POST",
@@ -116,7 +126,7 @@ export async function downloadCourseFromBackend(
     .replace(/[^\p{L}\p{N}]+/gu, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 60);
-  triggerBrowserDownload(`${slug}.${kind}`, blob);
+  triggerBrowserDownload(`${slug}.${FILE_EXT[kind]}`, blob);
   return true;
 }
 

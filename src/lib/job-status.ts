@@ -3,6 +3,10 @@ const EXPORT_NAMES: Record<string, string> = {
   docx: "DOCX",
   pptx: "PPTX",
   zip: "ZIP",
+  moodle: "Moodle",
+  gift: "GIFT",
+  csv: "CSV",
+  html: "слайды",
 };
 
 export function queueWaitLabel(status: string, position = 0): string {

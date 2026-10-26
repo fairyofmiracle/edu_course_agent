@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from .verbatim import stored_source_status
 from .database import (
     ChatMessageRecord,
+    CourseArtifact,
     CourseRecord,
     CourseVersion,
     SourceRecord,
@@ -39,7 +40,7 @@ class AddMessageRequest(BaseModel):
 
 
 def _copy_title(title: str) -> str:
-    base = title.strip() or "Новая образовательная программа"
+    base = title.strip() or "Без названия"
     return f"{base} — копия"[:180]
 
 
@@ -245,12 +246,26 @@ def list_versions(
         .where(CourseVersion.course_id == course_id)
         .order_by(CourseVersion.version.desc())
     ).all()
+    artifacts = {
+        (item.version, item.kind): item
+        for item in session.scalars(
+            select(CourseArtifact).where(CourseArtifact.course_id == course_id)
+        ).all()
+    }
     return {
         "versions": [
             {
                 "version": version.version,
                 "reason": version.reason,
                 "createdAt": version.created_at.isoformat(),
+                **(
+                    {
+                        "archive": artifacts[(version.version, "zip")].filename,
+                        "sha256": artifacts[(version.version, "zip")].sha256,
+                    }
+                    if (version.version, "zip") in artifacts
+                    else {}
+                ),
             }
             for version in versions
         ]

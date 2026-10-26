@@ -196,7 +196,7 @@ export function CourseCatalog() {
 
   return (
     <SiteFrame
-      actions={() => <Link href="/">К программе</Link>}
+      actions={() => <Link href="/?new=1">Новый курс</Link>}
     >
       <section className="catalog-page">
         <p className="pane-label">Библиотека</p>
@@ -233,7 +233,7 @@ export function CourseCatalog() {
                     }}
                   >
                     <strong className="catalog-theme">
-                      {item.title.trim() || "Новая образовательная программа"}
+                      {item.title.trim() || "Без названия"}
                     </strong>
                     <span className="catalog-hours">
                       {item.durationHours ? `${item.durationHours} ч` : "Часы не заданы"}

@@ -35,7 +35,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function copyTitle(title: string) {
-  const base = title.trim() || "Новая образовательная программа";
+  const base = title.trim() || "Без названия";
   return `${base} — копия`.slice(0, 180);
 }
 

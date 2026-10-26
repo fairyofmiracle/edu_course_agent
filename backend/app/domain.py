@@ -209,7 +209,34 @@ def rebalance_course(course: CourseDocument) -> CourseDocument:
         value["brief"]["durationHours"],
         value["brief"]["attestationHours"],
     )
+    _keep_sixteen_hour_practice(value)
     return CourseDocument.model_validate(value)
+
+
+def _keep_sixteen_hour_practice(value: dict[str, Any]) -> None:
+    """Общеразвивающая программа на 16 часов оставляет практике не меньше 8.
+
+    Пересчёт забирает часть практики в лабораторные. Для школьного объёма
+    эти часы возвращаются, пока практика снова не дотягивает до 8.
+    """
+    brief = value.get("brief") or {}
+    if brief.get("programKind") != "general" or brief.get("durationHours") != 16:
+        return
+    modules = value.get("modules") or []
+    need = academic_hours(8 - sum(float(module.get("practiceHours") or 0) for module in modules))
+    if need <= 0:
+        return
+    for key in ("labHours", "selfStudyHours"):
+        for module in modules:
+            if need <= 0:
+                return
+            available = academic_hours(float(module.get(key) or 0))
+            take = min(available, need)
+            if take <= 0:
+                continue
+            module[key] = academic_hours(available - take)
+            module["practiceHours"] = academic_hours(float(module.get("practiceHours") or 0) + take)
+            need = academic_hours(need - take)
 
 
 def _upsert(items: list[dict[str, Any]], value: dict[str, Any]) -> list[dict[str, Any]]:

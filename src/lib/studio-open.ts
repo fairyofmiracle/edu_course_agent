@@ -14,9 +14,18 @@ export type StudioOpen = {
 
 /** Что открыть по адресу. Пример и неизвестный id не подменяют курс в браузере. */
 export function resolveStudioOpen(
-  query: { courseId?: string; sample?: boolean },
+  query: { courseId?: string; sample?: boolean; fresh?: boolean },
   storage: Pick<Storage, "getItem">,
 ): StudioOpen {
+  if (query.fresh) {
+    return {
+      course: createEmptyCourse(),
+      messages: [],
+      persist: true,
+      rotateSession: true,
+      notice: "",
+    };
+  }
   const courseId = query.courseId?.trim() || "";
   if (query.sample && !courseId) {
     return {

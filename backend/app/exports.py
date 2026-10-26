@@ -20,6 +20,10 @@ KIND_MEDIA = {
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     "zip": "application/zip",
+    "moodle": "application/xml",
+    "gift": "text/plain; charset=utf-8",
+    "csv": "text/csv; charset=utf-8",
+    "html": "text/html; charset=utf-8",
 }
 
 
@@ -30,6 +34,14 @@ def hours(value: float) -> str:
 def artifact_filename(course: CourseDocument, kind: str) -> str:
     base = re.sub(r"[^\w\-]+", "-", (course.brief.title or "course").strip(), flags=re.UNICODE)
     base = base.strip("-")[:60] or "course"
+    if kind == "moodle":
+        return f"{base}-moodle.xml"
+    if kind == "gift":
+        return f"{base}.gift.txt"
+    if kind == "csv":
+        return f"{base}-tests.csv"
+    if kind == "html":
+        return f"{base}-slides.html"
     return f"{base}.{kind}"
 
 
@@ -42,7 +54,9 @@ def _file_stem(value: str, fallback: str) -> str:
 
 
 def build_zip(course: CourseDocument) -> bytes:
-    """Общая выгрузка: программа отдельно, каждая лекция своим файлом."""
+    """Общая выгрузка: программа, лекции, тесты и слайды из одного JSON."""
+    from .lms_export import course_csv, course_gift, course_moodle_xml, course_slides_html
+
     buffer = BytesIO()
     title = _file_stem(course.brief.title, "programma")
     module_titles = {module.id: module.title for module in course.modules}
@@ -54,6 +68,10 @@ def build_zip(course: CourseDocument) -> bytes:
             stem = f"{index:02d}-{_file_stem(module_title, lecture.module_id)}"
             archive.writestr(f"презентации/{stem}.pptx", build_lecture_pptx(course, lecture))
             archive.writestr(f"лекции/{stem}.docx", build_lecture_docx(course, lecture))
+        archive.writestr(f"тесты/{title}.gift.txt", course_gift(course).encode("utf-8"))
+        archive.writestr(f"тесты/{title}-moodle.xml", course_moodle_xml(course).encode("utf-8"))
+        archive.writestr(f"тесты/{title}.csv", course_csv(course).encode("utf-8"))
+        archive.writestr(f"слайды/{title}.html", course_slides_html(course).encode("utf-8"))
 
     return buffer.getvalue()
 
@@ -62,7 +80,9 @@ def build_artifact(kind: str, course: CourseDocument) -> tuple[bytes, str, str]:
     fmt = kind.lower().strip()
 
     if fmt not in KIND_MEDIA:
-        raise ValueError("Доступны форматы json, docx, pptx и zip")
+        raise ValueError("Доступны форматы json, docx, pptx, zip, moodle, gift, csv и html")
+
+    from .lms_export import course_csv, course_gift, course_moodle_xml, course_slides_html
 
     if fmt == "json":
         payload = json.dumps(course.as_api(), ensure_ascii=False, indent=2).encode("utf-8")
@@ -70,8 +90,16 @@ def build_artifact(kind: str, course: CourseDocument) -> tuple[bytes, str, str]:
         payload = build_docx(course)
     elif fmt == "pptx":
         payload = build_pptx(course)
-    else:
+    elif fmt == "zip":
         payload = build_zip(course)
+    elif fmt == "moodle":
+        payload = course_moodle_xml(course).encode("utf-8")
+    elif fmt == "gift":
+        payload = course_gift(course).encode("utf-8")
+    elif fmt == "csv":
+        payload = course_csv(course).encode("utf-8")
+    else:
+        payload = course_slides_html(course).encode("utf-8")
 
     return payload, KIND_MEDIA[fmt], artifact_filename(course, fmt)
 

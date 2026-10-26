@@ -31,6 +31,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="ru"
       className={`${sans.variable} ${display.variable} ${mono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
       <body className="h-full">
         <script

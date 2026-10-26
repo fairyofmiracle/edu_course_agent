@@ -75,7 +75,7 @@ export function SiteFrame({
               <button
                 type="button"
                 className="faq-toggle"
-                aria-expanded={panel === "faq"}
+                aria-pressed={panel === "faq"}
                 aria-label="Инструкция"
                 title="Инструкция"
                 onClick={() => setPanel((current) => (current === "faq" ? null : "faq"))}
@@ -85,7 +85,7 @@ export function SiteFrame({
               <button
                 type="button"
                 className="account-toggle"
-                aria-expanded={panel === "account"}
+                aria-pressed={panel === "account"}
                 aria-label="Настройки"
                 title="Настройки"
                 onClick={() => setPanel((current) => (current === "account" ? null : "account"))}
@@ -93,22 +93,25 @@ export function SiteFrame({
                 <SettingsIcon />
               </button>
             </div>
-            {panel === "faq" ? <FaqCard onClose={() => setPanel(null)} /> : null}
-            {panel === "account" ? (
-              <AccountCard
-                name={methodistName}
-                onName={(next) => {
-                  setMethodistName(next);
-                  storeMethodistName(window.localStorage, next);
-                }}
-                onClose={() => setPanel(null)}
-              />
-            ) : null}
           </div>
         </div>
       </nav>
       <div className="studio-column">
-        <div className="studio-main">{children}</div>
+        <div className="studio-main">
+          {panel ? (
+            <SideTab
+              panel={panel}
+              name={methodistName}
+              onPanel={setPanel}
+              onName={(next) => {
+                setMethodistName(next);
+                storeMethodistName(window.localStorage, next);
+              }}
+            />
+          ) : (
+            children
+          )}
+        </div>
       </div>
       <footer className="site-footer">
         <div className="footer-note">
@@ -149,46 +152,59 @@ function storeMethodistName(storage: Pick<Storage, "setItem" | "removeItem">, na
   else storage.setItem(METHODIST_NAME_KEY, next);
 }
 
-function AccountCard({
+function SideTab({
+  panel,
   name,
+  onPanel,
   onName,
-  onClose,
 }: {
+  panel: "faq" | "account";
   name: string;
+  onPanel: (panel: "faq" | "account") => void;
   onName: (name: string) => void;
-  onClose: () => void;
 }) {
   return (
-    <div className="faq-card account-card" role="dialog" aria-label="Личный кабинет">
-      <h2>Личный кабинет</h2>
-      <label>
-        Имя
-        <input
-          value={name}
-          maxLength={80}
-          aria-label="Имя методиста"
-          onChange={(event) => onName(event.target.value)}
-        />
-      </label>
-      <p>Роль: методист</p>
-      <p>Имя хранится в этом браузере. Кабинет не открывает курсы и выгрузку.</p>
-      <button type="button" onClick={onClose}>
-        Закрыть
-      </button>
-    </div>
-  );
-}
-
-function FaqCard({ onClose }: { onClose: () => void }) {
-  return (
-    <div className="faq-card" role="dialog" aria-label="Вопросы">
-      <p>Напишите в чате, для кого программа и сколько в ней часов.</p>
-      <p>Лекции, семинары и тесты открываются после «Утвердить каркас».</p>
-      <p>Офлайн-пример показывает готовую программу без модели.</p>
-      <button type="button" onClick={onClose}>
-        Закрыть
-      </button>
-    </div>
+    <section className="side-tab">
+      <nav className="journal-tabs" aria-label="Инструкция и настройки">
+        <button
+          type="button"
+          className={panel === "faq" ? "journal-tab active" : "journal-tab"}
+          onClick={() => onPanel("faq")}
+        >
+          Инструкция
+        </button>
+        <button
+          type="button"
+          className={panel === "account" ? "journal-tab active" : "journal-tab"}
+          onClick={() => onPanel("account")}
+        >
+          Настройки
+        </button>
+      </nav>
+      {panel === "faq" ? (
+        <div className="side-tab-body">
+          <h2>Инструкция</h2>
+          <p>Напишите в чате, для кого программа и сколько в ней часов.</p>
+          <p>Лекции, семинары и тесты открываются после «Утвердить каркас».</p>
+          <p>Офлайн-пример показывает готовую программу без модели.</p>
+        </div>
+      ) : (
+        <div className="side-tab-body">
+          <h2>Личный кабинет</h2>
+          <label>
+            Имя
+            <input
+              value={name}
+              maxLength={80}
+              aria-label="Имя методиста"
+              onChange={(event) => onName(event.target.value)}
+            />
+          </label>
+          <p>Роль: методист</p>
+          <p>Имя хранится в этом браузере. Кабинет не открывает курсы и выгрузку.</p>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -211,13 +227,13 @@ function FaqIcon() {
 function SettingsIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" strokeWidth="1.6" />
       <path
-        d="M12 3.4v2.1M12 18.5v2.1M3.4 12h2.1M18.5 12h2.1M6.1 6.1l1.5 1.5M16.4 16.4l1.5 1.5M17.9 6.1l-1.5 1.5M7.6 16.4l-1.5 1.5"
+        d="M9.3 3.1h5.4l.5 2.3 2.1.8 2-1.2 2 3.6-1.5 1.8.2 2.2 1.5 1.8-2 3.6-2-1.2-2.1.8-.5 2.3H9.3l-.5-2.3-2.1-.8-2 1.2-2-3.6 1.5-1.8-.2-2.2L2.5 8.6l2-3.6 2 1.2 2.1-.8.5-2.3Z"
         fill="none"
         stroke="currentColor"
         strokeWidth="1.6"
-        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );

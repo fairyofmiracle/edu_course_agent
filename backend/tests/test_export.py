@@ -113,6 +113,10 @@ def test_zip_puts_each_lecture_in_its_own_file() -> None:
             "лекции/01-Базовый-синтаксис.docx",
             "лекции/02-Базовый-синтаксис.docx",
         ]
+        assert "тесты/Основы-Python.gift.txt" in names
+        assert "тесты/Основы-Python-moodle.xml" in names
+        assert "тесты/Основы-Python.csv" in names
+        assert "слайды/Основы-Python.html" in names
         assert not any("/" not in name and name.endswith((".pptx", ".docx")) for name in names)
         first = _slide_text(archive.read(decks[0]))
         second = _slide_text(archive.read(decks[1]))
@@ -124,6 +128,22 @@ def test_zip_puts_each_lecture_in_its_own_file() -> None:
             text = lecture.read("word/document.xml").decode("utf-8")
         assert "Переменные" in text
         assert "Условия" not in text
+
+
+def test_saved_zip_stores_checksum() -> None:
+    course = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    course["id"] = "artifact-export-test"
+    client = TestClient(app)
+    saved = client.put("/api/courses/artifact-export-test", json={"course": course, "messages": []})
+    assert saved.status_code == 200
+    exported = client.post("/api/export/zip", json=course)
+    assert exported.status_code == 200
+    digest = exported.headers.get("x-studio-sha256")
+    assert digest and len(digest) == 64
+    versions = client.get("/api/courses/artifact-export-test/versions")
+    assert versions.status_code == 200
+    assert versions.json()["versions"][0]["sha256"] == digest
+    client.delete("/api/courses/artifact-export-test")
 
 
 def test_build_artifact_rejects_unknown_kind() -> None:

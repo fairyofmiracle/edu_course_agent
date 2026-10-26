@@ -438,55 +438,60 @@ button {
   height: 16px;
 }
 
-.faq-card {
+.site-nav .nav-icons .faq-toggle[aria-pressed="true"],
+.site-nav .nav-icons .account-toggle[aria-pressed="true"] {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.side-tab {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  background: var(--paper);
-  color: var(--ink-soft);
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 1.4;
+  min-height: 100%;
+  padding: 12px 18px 28px;
+  background: var(--panel);
 }
 
-.faq-card p {
-  margin: 0;
-}
-
-.faq-card h2 {
-  margin: 0;
+.side-tab-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 640px;
+  padding: 22px 0 0;
   color: var(--ink);
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.side-tab-body h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 28px;
   font-weight: 500;
 }
 
-.faq-card button {
-  align-self: flex-start;
-  width: auto;
-  color: var(--ink-soft);
-  font-weight: 400;
+.side-tab-body p {
+  margin: 0;
 }
 
-.account-card label {
+.side-tab-body label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  color: var(--ink);
+  gap: 6px;
+  max-width: 360px;
+  color: var(--ink-soft);
   font-size: 12px;
 }
 
-.account-card input {
+.side-tab-body input {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid var(--line);
-  background: var(--panel);
+  background: var(--paper);
   color: var(--ink);
-  padding: 6px 8px;
+  padding: 8px 10px;
   font: inherit;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .top-actions a:hover,

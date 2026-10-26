@@ -55,6 +55,22 @@ describe("resolveStudioOpen", () => {
     expect(storage.getItem("edu-course-agent:course")).toContain("Текущий");
   });
 
+  it("новый курс открывает пустую программу, а не ту, что уже на экране", () => {
+    const storage = memory();
+    const open = createEmptyCourse();
+    open.id = "текущий";
+    open.brief = { ...open.brief, title: "Уже открытая" };
+    storage.setItem("edu-course-agent:course", JSON.stringify(open));
+
+    const resolved = resolveStudioOpen({ fresh: true }, storage);
+    expect(resolved.course.brief.title).toBe("");
+    expect(resolved.course.id).not.toBe("текущий");
+    expect(resolved.messages).toEqual([]);
+    expect(resolved.persist).toBe(true);
+    expect(resolved.rotateSession).toBe(true);
+    expect(storage.getItem("edu-course-agent:course")).toContain("Уже открытая");
+  });
+
   it("без ссылки открывает программу, которая уже лежит в браузере", () => {
     const storage = memory();
     const open = createEmptyCourse();

@@ -9,6 +9,7 @@ import { SiteFrame } from "@/components/SiteFrame";
 import {
   CourseConflictError,
   downloadCourseFromBackend,
+  type ServerExportKind,
   hasBackendStorage,
   loadCourseFromBackend,
   saveCourseToBackend,
@@ -81,12 +82,20 @@ function courseStep(
   return kitComplete ? 4 : 3;
 }
 
-export function Studio({ courseId, sample }: { courseId?: string; sample?: boolean }) {
+export function Studio({
+  courseId,
+  sample,
+  fresh,
+}: {
+  courseId?: string;
+  sample?: boolean;
+  fresh?: boolean;
+}) {
   const isClient = useIsClient();
   if (!isClient) {
     return <div className="boot">Открываю студию…</div>;
   }
-  const open = resolveStudioOpen({ courseId, sample }, window.localStorage);
+  const open = resolveStudioOpen({ courseId, sample, fresh }, window.localStorage);
   return (
     <StudioSession
       initialCourse={open.course}
@@ -121,7 +130,7 @@ function StudioSession({
     "local" | "saving" | "synced" | "offline" | "conflict"
   >(hasBackendStorage() ? "saving" : "local");
   const [exportJob, setExportJob] = useState<{
-    kind: "json" | "docx" | "pptx" | "zip";
+    kind: ServerExportKind;
     phase: "work" | "done" | "error";
     place?: "сервере" | "браузере";
   } | null>(
@@ -185,7 +194,7 @@ function StudioSession({
   }, [frameworkApproved, tab]);
 
   const exportFromServer = async (
-    kind: "json" | "docx" | "pptx" | "zip",
+    kind: ServerExportKind,
     fallback?: () => void | Promise<void>,
   ) => {
     setExportJob({ kind, phase: "work", place: "сервере" });
@@ -435,7 +444,10 @@ function StudioSession({
 
   return (
     <SiteFrame
-      title={course.brief.title || "Новая образовательная программа"}
+      title={
+        course.brief.title.trim() ||
+        (course.modules.length === 0 ? "Новая образовательная программа" : "")
+      }
       chatOpen={chatOpen}
       activity={activity}
       note={
@@ -572,7 +584,12 @@ function StudioSession({
                   <button type="button" title="Программа Word" disabled={isCourseEmpty(course) || exportJob?.phase === "work"} onClick={() => void exportFromServer("docx", () => exportCourseDocx(course))}>
                     Программа
                   </button>
-                  <button type="button" title="Слайды в браузере" disabled={course.lectures.length === 0} onClick={() => exportLectureHtml(course)}>
+                  <button
+                    type="button"
+                    title="Слайды"
+                    disabled={course.lectures.length === 0 || exportJob?.phase === "work"}
+                    onClick={() => void exportFromServer("html", () => exportLectureHtml(course))}
+                  >
                     Слайды
                   </button>
                   <button
@@ -588,24 +605,24 @@ function StudioSession({
                     <button
                       type="button"
                       title="Moodle XML"
-                      disabled={course.assessments.every((assessment) => assessment.questions.length === 0)}
-                      onClick={() => exportCourseMoodle(course)}
+                      disabled={course.assessments.every((assessment) => assessment.questions.length === 0) || exportJob?.phase === "work"}
+                      onClick={() => void exportFromServer("moodle", () => exportCourseMoodle(course))}
                     >
                       Moodle
                     </button>
                     <button
                       type="button"
                       title="Формат GIFT"
-                      disabled={course.assessments.every((assessment) => assessment.questions.length === 0)}
-                      onClick={() => exportCourseGift(course)}
+                      disabled={course.assessments.every((assessment) => assessment.questions.length === 0) || exportJob?.phase === "work"}
+                      onClick={() => void exportFromServer("gift", () => exportCourseGift(course))}
                     >
                       GIFT
                     </button>
                     <button
                       type="button"
                       title="Таблица CSV"
-                      disabled={course.assessments.every((assessment) => assessment.questions.length === 0)}
-                      onClick={() => exportCourseCsv(course)}
+                      disabled={course.assessments.every((assessment) => assessment.questions.length === 0) || exportJob?.phase === "work"}
+                      onClick={() => void exportFromServer("csv", () => exportCourseCsv(course))}
                     >
                       CSV
                     </button>

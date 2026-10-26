@@ -73,6 +73,25 @@ class ChatMessageRecord(Base):
     course: Mapped[CourseRecord] = relationship(back_populates="messages")
 
 
+class CourseArtifact(Base):
+    """Готовый архив версии. Файл лежит на диске, в базе имя, путь и сумма."""
+
+    __tablename__ = "course_artifacts"
+    __table_args__ = (UniqueConstraint("course_id", "version", "kind", name="course_artifact_uniq"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    course_id: Mapped[str] = mapped_column(
+        ForeignKey("courses.id", ondelete="CASCADE"), index=True
+    )
+    version: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(20))
+    filename: Mapped[str] = mapped_column(String(180))
+    sha256: Mapped[str] = mapped_column(String(64))
+    path: Mapped[str] = mapped_column(String(500))
+    byte_size: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class SourceRecord(Base):
     __tablename__ = "sources"
 

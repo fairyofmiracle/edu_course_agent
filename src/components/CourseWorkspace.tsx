@@ -329,7 +329,10 @@ function Overview({ course, score }: { course: CourseDocument; score: number }) 
       <header className="overview-head">
         <div>
           <p className="kicker">Программа</p>
-          <h2>{brief.title || "Новая образовательная программа"}</h2>
+          <h2>
+            {brief.title.trim() ||
+              (course.modules.length === 0 ? "Новая образовательная программа" : "Без названия")}
+          </h2>
           {!brief.title && course.modules.length === 0 ? (
             <p className="program-soon">
               {briefGaps(course).length

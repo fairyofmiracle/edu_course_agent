@@ -15,6 +15,7 @@ import {
   type Seminar,
 } from "@/lib/course-schema";
 import {
+  academicHours,
   attachCompetencyIds,
   balanceModules,
   flattenInternshipHours,
@@ -271,5 +272,24 @@ export function foldCourseFromMessages(
 /** Если объём появился после плана, или модель вызвала tools не по порядку — выровнять часы. */
 export function rebalanceCourse(course: CourseDocument): CourseDocument {
   if (course.modules.length === 0 || course.brief.durationHours <= 0) return course;
-  return withBalancedModules(course);
+  return keepSixteenHourPractice(withBalancedModules(course));
+}
+
+function keepSixteenHourPractice(course: CourseDocument): CourseDocument {
+  if (course.brief.programKind !== "general" || course.brief.durationHours !== 16) return course;
+  let need = academicHours(8 - course.modules.reduce((sum, module) => sum + module.practiceHours, 0));
+  if (need <= 0) return course;
+  const modules = course.modules.map((module) => ({ ...module }));
+  for (const key of ["labHours", "selfStudyHours"] as const) {
+    for (const module of modules) {
+      if (need <= 0) break;
+      const available = academicHours(module[key]);
+      const take = Math.min(available, need);
+      if (take <= 0) continue;
+      module[key] = academicHours(available - take);
+      module.practiceHours = academicHours(module.practiceHours + take);
+      need = academicHours(need - take);
+    }
+  }
+  return { ...course, modules };
 }

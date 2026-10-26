@@ -5,6 +5,7 @@ import { useChat } from "@ai-sdk/react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ChatPanel } from "@/components/ChatPanel";
 import { CourseTabs, CourseWorkspace, type WorkspaceTab } from "@/components/CourseWorkspace";
+import { NavIcon } from "@/components/NavIcon";
 import { SiteFrame } from "@/components/SiteFrame";
 import {
   CourseConflictError,
@@ -20,10 +21,10 @@ import { applyPatch, foldCourseFromMessages } from "@/lib/course-patches";
 import {
   frameworkFingerprint,
   frameworkItems,
+  hasBuiltMaterials,
   isFrameworkApproved,
   isKitComplete,
 } from "@/lib/framework-check";
-import { briefGaps } from "@/lib/course-validation";
 import { userFacingError } from "@/lib/user-error";
 import {
   createEmptyCourse,
@@ -62,24 +63,6 @@ function useIsClient() {
     () => true,
     () => false,
   );
-}
-
-const COURSE_STEPS = [
-  { id: "ask", label: "Запрос" },
-  { id: "framework", label: "Каркас" },
-  { id: "approve", label: "Утверждение" },
-  { id: "kit", label: "Комплект" },
-  { id: "check", label: "Проверка" },
-] as const;
-
-function courseStep(
-  stage: "ask" | "framework" | "kit",
-  frameworkReady: boolean,
-  kitComplete: boolean,
-) {
-  if (stage === "ask") return 0;
-  if (stage === "framework") return frameworkReady ? 2 : 1;
-  return kitComplete ? 4 : 3;
 }
 
 export function Studio({
@@ -161,6 +144,7 @@ function StudioSession({
   const checks = frameworkItems(course);
   const frameworkReady = checks.every((item) => item.ok);
   const frameworkApproved = isFrameworkApproved(course);
+  const contentOpen = frameworkApproved || hasBuiltMaterials(course);
   const kitComplete = isKitComplete(course);
   const sourceLine = (() => {
     const text = [...messages]
@@ -177,8 +161,6 @@ function StudioSession({
     return "Комплект написала модель.";
   })();
   const stage = frameworkApproved ? "kit" : course.modules.length ? "framework" : "ask";
-  const step = courseStep(stage, frameworkReady, kitComplete);
-  const gaps = briefGaps(course);
   const showDocument = Boolean(
     course.brief.title.trim() || course.modules.length || messages.length > 0,
   );
@@ -188,10 +170,10 @@ function StudioSession({
   const missingChecks = checks.filter((item) => !item.ok).map((item) => item.label);
 
   useEffect(() => {
-    if (!frameworkApproved && (tab === "lectures" || tab === "seminars" || tab === "tests")) {
+    if (!contentOpen && (tab === "lectures" || tab === "seminars" || tab === "tests")) {
       setTab("overview");
     }
-  }, [frameworkApproved, tab]);
+  }, [contentOpen, tab]);
 
   const exportFromServer = async (
     kind: ServerExportKind,
@@ -446,10 +428,75 @@ function StudioSession({
     <SiteFrame
       title={
         course.brief.title.trim() ||
-        (course.modules.length === 0 ? "Новая образовательная программа" : "")
+        (course.modules.length === 0 ? "Новая образовательная программа" : "Без названия")
       }
+      subtitle={course.brief.goals.find((goal) => goal.trim())?.trim() || ""}
       chatOpen={chatOpen}
       activity={activity}
+      tools={
+        <>
+          <details className="export-menu">
+            <summary>
+              {exportJob?.phase === "work" ? "Собираю…" : "Выгрузка"}
+            </summary>
+            <div>
+              <button
+                type="button"
+                disabled={isCourseEmpty(course) || exportJob?.phase === "work"}
+                onClick={() => void exportFromServer("zip")}
+              >
+                {exportJob?.phase === "work" && exportJob.kind === "zip" ? "Собираю архив…" : "Архив"}
+              </button>
+              <button type="button" disabled={isCourseEmpty(course) || exportJob?.phase === "work"} onClick={() => void exportFromServer("docx", () => exportCourseDocx(course))}>
+                Программа
+              </button>
+              <button type="button" disabled={course.lectures.length === 0 || exportJob?.phase === "work"} onClick={() => void exportFromServer("pptx", () => exportCoursePptx(course))}>
+                Презентация
+              </button>
+              <button type="button" disabled={course.lectures.length === 0 || exportJob?.phase === "work"} onClick={() => void exportFromServer("html", () => exportLectureHtml(course))}>
+                Слайды
+              </button>
+              <button type="button" disabled={isCourseEmpty(course) || exportJob?.phase === "work"} onClick={() => void exportFromServer("json", () => exportCourseJson(course))}>
+                Данные
+              </button>
+              <button type="button" disabled={isCourseEmpty(course)} onClick={() => exportCourseMarkdown(course)}>
+                Текст
+              </button>
+              <button type="button" disabled={isCourseEmpty(course)} onClick={() => exportCourseAudit(course)}>
+                Отчёт
+              </button>
+              <button type="button" disabled={course.assessments.every((assessment) => assessment.questions.length === 0) || exportJob?.phase === "work"} onClick={() => void exportFromServer("moodle", () => exportCourseMoodle(course))}>
+                Moodle
+              </button>
+              <button type="button" disabled={course.assessments.every((assessment) => assessment.questions.length === 0) || exportJob?.phase === "work"} onClick={() => void exportFromServer("gift", () => exportCourseGift(course))}>
+                GIFT
+              </button>
+              <button type="button" disabled={course.assessments.every((assessment) => assessment.questions.length === 0) || exportJob?.phase === "work"} onClick={() => void exportFromServer("csv", () => exportCourseCsv(course))}>
+                CSV
+              </button>
+            </div>
+          </details>
+          {frameworkApproved ? (
+            <button type="button" onClick={revokeFramework}>
+              Снять утверждение
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="primary"
+              disabled={!frameworkReady}
+              title={
+                frameworkReady
+                  ? "Каркас готов к утверждению"
+                  : `Сначала исправьте: ${missingChecks.slice(0, 3).join("; ")}`
+              }
+              onClick={approveFramework}
+            >
+              Утвердить каркас
+            </button>
+          )}
+        </>
+      }
       note={
         exportJob?.phase === "work"
           ? exportWaitLabel(exportJob.kind, exportElapsed, exportJob.place)
@@ -473,33 +520,28 @@ function StudioSession({
       }
       actions={() => (
         <>
-          <a href="/courses">Мои курсы</a>
+          <a href="/courses">
+            <NavIcon name="courses" />
+            Мои курсы
+          </a>
           <button type="button" onClick={reset}>
+            <NavIcon name="plus" />
             Новый курс
           </button>
-          <button
-            type="button"
-            className="text-action"
-            title="Готовая программа без модели. В проход проверяющего не входит."
-            onClick={loadSample}
-          >
-            Показать пример без модели
-          </button>
+          <CourseTabs tab={tab} approved={contentOpen} onTabChange={setTab} />
         </>
       )}
+      sample={
+        <button
+          type="button"
+          className="footer-sample"
+          title="Готовая программа без модели. В проход проверяющего не входит."
+          onClick={loadSample}
+        >
+          Пример без модели
+        </button>
+      }
     >
-      <div className="topbar">
-        <ol className="stages" aria-label="Шаги">
-          {COURSE_STEPS.map((item, index) => (
-            <li key={item.id} className={index < step ? "done" : index === step ? "current" : ""}>
-              {item.label}
-            </li>
-          ))}
-        </ol>
-        <div className="topbar-tools">
-          <CourseTabs tab={tab} approved={frameworkApproved} onTabChange={setTab} />
-        </div>
-      </div>
       <div
         className={`studio-body${showDocument ? "" : " chat-only"}${
           showDocument && !chatOpen ? " chat-away" : ""
@@ -513,123 +555,30 @@ function StudioSession({
           frameworkApproved={frameworkApproved}
           kitComplete={kitComplete}
           stage={stage}
-          missingChecks={missingChecks}
           onReferencesChange={setExtraReferences}
           onReferenceAdd={addReference}
           onSend={send}
           onStop={() => stop()}
           onClose={() => setChatOpen(false)}
         />
+        {showDocument && !chatOpen ? (
+          <button
+            type="button"
+            className="chat-edge chat-edge-open"
+            aria-label="Открыть чат"
+            title="Открыть чат"
+            onClick={() => setChatOpen(true)}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        ) : null}
         {showDocument ? (
         <div className="pane pane-doc">
           <header className="pane-head">
             <p className="pane-label">Документ</p>
             <h2>Документ программы</h2>
-            <p className="kicker">
-              {frameworkApproved
-                ? kitComplete
-                  ? "Комплект собран. Смотрите программу и выгружайте файлы."
-                  : "Каркас утверждён. Соберите содержание или выгрузите программу."
-                : frameworkReady
-                  ? "Часы и связи сходятся. Утвердите каркас, чтобы открыть лекции, задания и тесты."
-                    : stage === "ask" && gaps.length
-                    ? `Пока нет: ${gaps.join(", ")}.`
-                    : stage === "ask"
-                      ? "Скоро здесь будет программа."
-                      : `Пока рано утверждать: ${missingChecks.slice(0, 2).join("; ")}.`}
-            </p>
-            <div className="pane-actions">
-              {frameworkApproved ? (
-                <button type="button" onClick={revokeFramework}>
-                  Снять утверждение
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="primary"
-                  disabled={!frameworkReady}
-                  title={
-                    frameworkReady
-                      ? "Каркас готов к утверждению"
-                      : `Сначала исправьте: ${missingChecks.slice(0, 3).join("; ")}`
-                  }
-                  onClick={approveFramework}
-                >
-                  Утвердить каркас
-                </button>
-              )}
-              <button
-                type="button"
-                className="primary"
-                title="Программа, отдельный документ каждой лекции и отдельная презентация каждого занятия"
-                disabled={isCourseEmpty(course) || exportJob?.phase === "work"}
-                onClick={() => void exportFromServer("zip")}
-              >
-                {exportJob?.phase === "work" && exportJob.kind === "zip" ? "Собираю архив…" : "Архив по лекциям"}
-              </button>
-              <details className="export-menu">
-                <summary>
-                  {exportJob?.phase === "work" && exportJob.kind !== "zip" ? "Собираю файл…" : "Ещё"}
-                </summary>
-                <div>
-                  <button type="button" title="Данные программы" disabled={isCourseEmpty(course) || exportJob?.phase === "work"} onClick={() => void exportFromServer("json", () => exportCourseJson(course))}>
-                    Данные
-                  </button>
-                  <button type="button" title="Программа обычным текстом" disabled={isCourseEmpty(course)} onClick={() => exportCourseMarkdown(course)}>
-                    Текст
-                  </button>
-                  <button type="button" title="Отчёт проверки" disabled={isCourseEmpty(course)} onClick={() => exportCourseAudit(course)}>
-                    Отчёт
-                  </button>
-                  <button type="button" title="Программа Word" disabled={isCourseEmpty(course) || exportJob?.phase === "work"} onClick={() => void exportFromServer("docx", () => exportCourseDocx(course))}>
-                    Программа
-                  </button>
-                  <button
-                    type="button"
-                    title="Слайды"
-                    disabled={course.lectures.length === 0 || exportJob?.phase === "work"}
-                    onClick={() => void exportFromServer("html", () => exportLectureHtml(course))}
-                  >
-                    Слайды
-                  </button>
-                  <button
-                    type="button"
-                    title="Слайды PowerPoint"
-                    disabled={course.lectures.length === 0 || exportJob?.phase === "work"}
-                    onClick={() => void exportFromServer("pptx", () => exportCoursePptx(course))}
-                  >
-                    Презентация
-                  </button>
-                  <div className="export-tests">
-                    <span>Тесты</span>
-                    <button
-                      type="button"
-                      title="Moodle XML"
-                      disabled={course.assessments.every((assessment) => assessment.questions.length === 0) || exportJob?.phase === "work"}
-                      onClick={() => void exportFromServer("moodle", () => exportCourseMoodle(course))}
-                    >
-                      Moodle
-                    </button>
-                    <button
-                      type="button"
-                      title="Формат GIFT"
-                      disabled={course.assessments.every((assessment) => assessment.questions.length === 0) || exportJob?.phase === "work"}
-                      onClick={() => void exportFromServer("gift", () => exportCourseGift(course))}
-                    >
-                      GIFT
-                    </button>
-                    <button
-                      type="button"
-                      title="Таблица CSV"
-                      disabled={course.assessments.every((assessment) => assessment.questions.length === 0) || exportJob?.phase === "work"}
-                      onClick={() => void exportFromServer("csv", () => exportCourseCsv(course))}
-                    >
-                      CSV
-                    </button>
-                  </div>
-                </div>
-              </details>
-            </div>
           </header>
           <CourseWorkspace course={course} tab={tab} />
         </div>

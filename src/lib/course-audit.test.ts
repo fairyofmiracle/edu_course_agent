@@ -64,7 +64,8 @@ describe("auditCourse", () => {
     const linked = copy();
     const pending = auditCourse(linked).items.find((item) => item.id === "sources.unconfirmed");
     expect(pending?.status).toBe("warning");
-    expect(pending?.details).toContain("Приказ Минпросвещения");
+    expect(pending?.details).toContain("Минтруда");
+    expect(pending?.details).not.toContain("Минпросвещения");
 
     const copied = copy();
     const fragment =

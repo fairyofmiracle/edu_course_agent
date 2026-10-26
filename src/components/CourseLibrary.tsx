@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { SiteFrame } from "@/components/SiteFrame";
+import { NavIcon } from "@/components/NavIcon";
 import {
   deleteCourseFromBackend,
   hasBackendStorage,
@@ -196,11 +197,15 @@ export function CourseCatalog() {
 
   return (
     <SiteFrame
-      actions={() => <Link href="/?new=1">Новый курс</Link>}
+      title="Мои курсы"
+      actions={() => (
+        <Link href="/?new=1">
+          <NavIcon name="plus" />
+          Добавить курс
+        </Link>
+      )}
     >
       <section className="catalog-page">
-        <p className="pane-label">Библиотека</p>
-        <h1>Мои курсы</h1>
         <p className="kicker">{note}</p>
         <input
           className="catalog-search"
@@ -221,146 +226,152 @@ export function CourseCatalog() {
             <h2>{group.label}</h2>
           <ul className="catalog-list">
             {group.courses.map((item) => {
+              const flipped = draft.id === item.id || pendingDelete === item.id;
               return (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    className="catalog-open"
-                    disabled={busy || draft.id === item.id || pendingDelete === item.id}
-                    onClick={() => {
-                      setBusy(true);
-                      void openCourse(item.id).finally(() => setBusy(false));
-                    }}
-                  >
-                    <strong className="catalog-theme">
-                      {item.title.trim() || "Без названия"}
-                    </strong>
-                    <span className="catalog-hours">
-                      {item.durationHours ? `${item.durationHours} ч` : "Часы не заданы"}
-                    </span>
-                    <span className="catalog-audience">
-                      {item.audience.trim() || "Аудитория не указана"}
-                    </span>
-                  </button>
-                  {draft.id === item.id || pendingDelete === item.id ? null : (
-                    <span className="library-actions catalog-tools">
+                <li key={item.id} className={flipped ? "is-flipped" : undefined}>
+                  <div className="card-flip">
+                    <div className="card-face card-front" inert={flipped || undefined} aria-hidden={flipped}>
                       <button
                         type="button"
-                        aria-label="Копия"
-                        title="Копия"
+                        className="catalog-open"
                         disabled={busy}
                         onClick={() => {
-                          setPendingDelete("");
-                          setDraft({
-                            id: item.id,
-                            audience: item.audience,
-                            duration: item.durationHours ? String(item.durationHours).replace(".", ",") : "",
-                            attestation: String(item.attestationHours ?? 0).replace(".", ","),
-                            error: "",
-                          });
-                        }}
-                      >
-                        <CopyIcon />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="Удалить"
-                        title="Удалить"
-                        disabled={busy}
-                        onClick={() => {
-                          setDraft({ id: "", audience: "", duration: "", attestation: "", error: "" });
-                          setPendingDelete(item.id);
-                        }}
-                      >
-                        <TrashIcon />
-                      </button>
-                    </span>
-                  )}
-                    {draft.id === item.id ? (
-                      <form
-                        className="copy-form"
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          const durationHours = Number(draft.duration.trim().replace(",", "."));
-                          const attestationHours = Number(draft.attestation.trim().replace(",", "."));
                           setBusy(true);
-                          void copyCourse(item.id, {
-                            audience: draft.audience,
-                            durationHours,
-                            attestationHours,
-                          })
-                            .then((error) => {
-                              if (error) setDraft((current) => ({ ...current, error }));
-                              else setDraft({ id: "", audience: "", duration: "", attestation: "", error: "" });
-                            })
-                            .finally(() => setBusy(false));
+                          void openCourse(item.id).finally(() => setBusy(false));
                         }}
                       >
-                        <label>
-                          Новая аудитория
-                          <input
-                            value={draft.audience}
-                            onChange={(event) =>
-                              setDraft((current) => ({ ...current, audience: event.target.value, error: "" }))
-                            }
-                          />
-                        </label>
-                        <label>
-                          Новый объём, ч
-                          <input
-                            inputMode="decimal"
-                            value={draft.duration}
-                            onChange={(event) =>
-                              setDraft((current) => ({ ...current, duration: event.target.value, error: "" }))
-                            }
-                          />
-                        </label>
-                        <label>
-                          Аттестация, ч
-                          <input
-                            inputMode="decimal"
-                            value={draft.attestation}
-                            onChange={(event) =>
-                              setDraft((current) => ({ ...current, attestation: event.target.value, error: "" }))
-                            }
-                          />
-                        </label>
-                        {draft.error ? <p>{draft.error}</p> : null}
-                        <span className="library-actions">
-                          <button type="submit" className="primary" disabled={busy}>
-                            Создать копию
-                          </button>
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => setDraft({ id: "", audience: "", duration: "", attestation: "", error: "" })}
-                          >
-                            Отмена
-                          </button>
+                        <strong className="catalog-theme">
+                          {item.title.trim() || "Без названия"}
+                        </strong>
+                        <span className="catalog-hours">
+                          {item.durationHours ? `${item.durationHours} ч` : "Часы не заданы"}
                         </span>
-                      </form>
-                    ) : null}
-                    {pendingDelete === item.id ? (
-                      <div className="copy-form">
-                        <p>Курс пропадёт из списка. Вернуть его нельзя.</p>
-                        <span className="library-actions">
-                          <button
-                            type="button"
-                            className="primary"
-                            disabled={busy}
-                            onClick={() => {
-                              setBusy(true);
-                              void removeCourse(item.id).finally(() => setBusy(false));
-                            }}
-                          >
-                            Удалить
-                          </button>
-                          <button type="button" disabled={busy} onClick={() => setPendingDelete("")}>
-                            Отмена
-                          </button>
+                        <span className="catalog-audience">
+                          {item.audience.trim() || "Аудитория не указана"}
                         </span>
-                      </div>
-                    ) : null}
+                      </button>
+                      <span className="library-actions catalog-tools">
+                        <button
+                          type="button"
+                          aria-label="Копия"
+                          title="Копия"
+                          disabled={busy}
+                          onClick={() => {
+                            setPendingDelete("");
+                            setDraft({
+                              id: item.id,
+                              audience: item.audience,
+                              duration: item.durationHours ? String(item.durationHours).replace(".", ",") : "",
+                              attestation: String(item.attestationHours ?? 0).replace(".", ","),
+                              error: "",
+                            });
+                          }}
+                        >
+                          <CopyIcon />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Удалить"
+                          title="Удалить"
+                          disabled={busy}
+                          onClick={() => {
+                            setDraft({ id: "", audience: "", duration: "", attestation: "", error: "" });
+                            setPendingDelete(item.id);
+                          }}
+                        >
+                          <TrashIcon />
+                        </button>
+                      </span>
+                    </div>
+                    <div className="card-face card-back" inert={!flipped || undefined} aria-hidden={!flipped}>
+                      {draft.id === item.id ? (
+                        <form
+                          className="copy-form"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            const durationHours = Number(draft.duration.trim().replace(",", "."));
+                            const attestationHours = Number(draft.attestation.trim().replace(",", "."));
+                            setBusy(true);
+                            void copyCourse(item.id, {
+                              audience: draft.audience,
+                              durationHours,
+                              attestationHours,
+                            })
+                              .then((error) => {
+                                if (error) setDraft((current) => ({ ...current, error }));
+                                else setDraft({ id: "", audience: "", duration: "", attestation: "", error: "" });
+                              })
+                              .finally(() => setBusy(false));
+                          }}
+                        >
+                          <p className="card-back-title">Копия</p>
+                          <label>
+                            Новая аудитория
+                            <input
+                              value={draft.audience}
+                              onChange={(event) =>
+                                setDraft((current) => ({ ...current, audience: event.target.value, error: "" }))
+                              }
+                            />
+                          </label>
+                          <label>
+                            Новый объём, ч
+                            <input
+                              inputMode="decimal"
+                              value={draft.duration}
+                              onChange={(event) =>
+                                setDraft((current) => ({ ...current, duration: event.target.value, error: "" }))
+                              }
+                            />
+                          </label>
+                          <label>
+                            Аттестация, ч
+                            <input
+                              inputMode="decimal"
+                              value={draft.attestation}
+                              onChange={(event) =>
+                                setDraft((current) => ({ ...current, attestation: event.target.value, error: "" }))
+                              }
+                            />
+                          </label>
+                          {draft.error ? <p>{draft.error}</p> : null}
+                          <span className="library-actions">
+                            <button type="submit" className="primary" disabled={busy}>
+                              Создать
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => setDraft({ id: "", audience: "", duration: "", attestation: "", error: "" })}
+                            >
+                              Отмена
+                            </button>
+                          </span>
+                        </form>
+                      ) : (
+                        <div className="copy-form">
+                          <p className="card-back-title">Удалить</p>
+                          <p>Курс пропадёт из списка. Вернуть его нельзя.</p>
+                          <span className="library-actions">
+                            <button
+                              type="button"
+                              className="primary"
+                              disabled={busy}
+                              onClick={() => {
+                                setBusy(true);
+                                void removeCourse(item.id).finally(() => setBusy(false));
+                              }}
+                            >
+                              Удалить
+                            </button>
+                            <button type="button" disabled={busy} onClick={() => setPendingDelete("")}>
+                              Отмена
+                            </button>
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </li>
               );
             })}

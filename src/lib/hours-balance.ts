@@ -245,6 +245,25 @@ function cleanLines(values: string[], fallback: string) {
   return next.length > 0 ? next : [fallback];
 }
 
+export function syncTopicPlan(module: CourseModule): CourseModule {
+  const titles = cleanLines(
+    module.plan.map((row) => row.title).filter(Boolean).length > 0
+      ? module.plan.map((row) => row.title)
+      : module.topics,
+    module.title.trim() || "Модуль",
+  );
+  return {
+    ...module,
+    plan: placeKindsOnTopics(titles, {
+      hours: module.hours,
+      lectureHours: module.lectureHours,
+      practiceHours: module.practiceHours,
+      labHours: module.labHours,
+      selfStudyHours: module.selfStudyHours,
+    }),
+  };
+}
+
 export function fillModulePlan(module: CourseModule): CourseModule {
   const title = module.title.trim() || "Модуль";
   const titles = cleanLines(

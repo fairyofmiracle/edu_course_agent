@@ -20,6 +20,7 @@ import {
   balanceModules,
   flattenInternshipHours,
   linkCompetencies,
+  syncTopicPlan,
 } from "@/lib/hours-balance";
 import { mergeLegalBasis } from "@/lib/legal-basis";
 
@@ -280,6 +281,7 @@ function keepSixteenHourPractice(course: CourseDocument): CourseDocument {
   let need = academicHours(8 - course.modules.reduce((sum, module) => sum + module.practiceHours, 0));
   if (need <= 0) return course;
   const modules = course.modules.map((module) => ({ ...module }));
+  const touched = new Set<string>();
   for (const key of ["labHours", "selfStudyHours"] as const) {
     for (const module of modules) {
       if (need <= 0) break;
@@ -289,7 +291,11 @@ function keepSixteenHourPractice(course: CourseDocument): CourseDocument {
       module[key] = academicHours(available - take);
       module.practiceHours = academicHours(module.practiceHours + take);
       need = academicHours(need - take);
+      touched.add(module.id);
     }
   }
-  return { ...course, modules };
+  return {
+    ...course,
+    modules: modules.map((module) => (touched.has(module.id) ? syncTopicPlan(module) : module)),
+  };
 }

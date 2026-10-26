@@ -1,7 +1,7 @@
 import { inventedRequisites, laborCodes } from "@/lib/claims";
 import type { CourseDocument } from "@/lib/course-schema";
 import { frameworkItems } from "@/lib/framework-check";
-import { ORDER_266, citesRepealedOrder499, missingLegalBasis } from "@/lib/legal-basis";
+import { ORDER_266, citesRepealedOrder499, isOfficialPublication, missingLegalBasis } from "@/lib/legal-basis";
 import { moduleRationales } from "@/lib/module-rationale";
 import { findOutdated } from "@/lib/outdated";
 import { referenceNotes, verbatimSpans } from "@/lib/verbatim";
@@ -60,17 +60,21 @@ function warning(id: string, label: string, section: AuditSection, details?: str
 
 function unconfirmedItem(course: CourseDocument): AuditItem | null {
   const pending = course.brief.references
-    .filter((reference) => !reference.source?.trim() || /^https?:\/\//i.test(reference.source.trim()))
+    .filter((reference) => {
+      const source = reference.source?.trim() ?? "";
+      if (!source) return true;
+      return /^https?:\/\//i.test(source) && !isOfficialPublication(source);
+    })
     .map((reference) => reference.title);
   if (course.brief.references.length === 0) return null;
   if (pending.length === 0) {
-    return item("sources.unconfirmed", "У каждого источника есть файл методиста", true, "sources");
+    return item("sources.unconfirmed", "Официальные публикации и файлы на месте", true, "sources");
   }
   return warning(
     "sources.unconfirmed",
     `Не подтверждено источников: ${pending.length}`,
     "sources",
-    `Ссылка не подтверждает документ, пока проверка страницы не найдёт номер. ${pending.join("; ")}`,
+    `Чужая ссылка не подтверждает документ, пока на странице не найден номер. ${pending.join("; ")}`,
   );
 }
 

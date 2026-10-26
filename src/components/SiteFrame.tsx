@@ -3,22 +3,28 @@
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { applyTheme, readTheme, storeTheme, type Theme } from "@/lib/theme";
+import { NavIcon } from "@/components/NavIcon";
+import { LAW_273, ORDER_266, ORDER_499, ORDER_629 } from "@/lib/legal-basis";
 
 export function SiteFrame({
   actions,
   title,
-  progress,
+  subtitle,
+  sample,
   note,
   chatOpen = true,
   activity = null,
+  tools = null,
   children,
 }: {
   actions?: () => ReactNode;
   title?: string;
-  progress?: ReactNode;
+  subtitle?: string;
+  sample?: ReactNode;
   note?: string;
   chatOpen?: boolean;
   activity?: { ratio: number; label: string } | null;
+  tools?: ReactNode;
   children: ReactNode;
 }) {
   const [theme, setTheme] = useState<Theme>("light");
@@ -47,11 +53,14 @@ export function SiteFrame({
     <div className="studio" data-chat={chatOpen ? "open" : "closed"}>
       <header className="site-header">
         <div className="site-brand">
-          <Link className="site-mark" href="/">
-            Студия методиста
-          </Link>
-          {title ? <h1 className="site-title">{title}</h1> : null}
+          {title ? (
+            <div className="site-heading">
+              <h1 className="site-title">{title}</h1>
+              {subtitle ? <p className="site-subtitle">{subtitle}</p> : null}
+            </div>
+          ) : null}
         </div>
+        {tools ? <div className="site-tools">{tools}</div> : null}
         {activity ? (
           <div
             className="work-line"
@@ -66,22 +75,39 @@ export function SiteFrame({
         ) : null}
       </header>
       <nav className="site-nav" aria-label="Меню студии">
-        <div className="top-actions">
-          {actions?.()}
-          <div className="nav-foot">
-            <p className="account-name">{methodistName.trim() || DEFAULT_METHODIST_NAME}</p>
+        <Link className="nav-brand" href="/">
+          <span className="nav-brand-text">
+            <strong>Методий</strong>
+            <small>студия методиста</small>
+          </span>
+        </Link>
+        <div className="top-actions">{actions?.()}</div>
+        <div className="nav-foot">
+          {sample}
+          {note ? (
+            <p className="nav-note" aria-live="polite">
+              {note}
+            </p>
+          ) : null}
+          <button
+            type="button"
+            className="nav-help"
+            aria-pressed={panel === "faq"}
+            onClick={() => setPanel((current) => (current === "faq" ? null : "faq"))}
+          >
+            <NavIcon name="help" />
+            Инструкция
+          </button>
+          <div className="nav-user">
+            <span className="nav-avatar" aria-hidden="true">
+              {initials(methodistName)}
+            </span>
+            <span className="nav-user-text">
+              <strong>{methodistName.trim() || DEFAULT_METHODIST_NAME}</strong>
+              <small>Методист</small>
+            </span>
             <div className="nav-icons">
               <ThemeButton theme={theme} onToggle={toggleTheme} />
-              <button
-                type="button"
-                className="faq-toggle"
-                aria-pressed={panel === "faq"}
-                aria-label="Инструкция"
-                title="Инструкция"
-                onClick={() => setPanel((current) => (current === "faq" ? null : "faq"))}
-              >
-                <FaqIcon />
-              </button>
               <button
                 type="button"
                 className="account-toggle"
@@ -113,18 +139,6 @@ export function SiteFrame({
           )}
         </div>
       </div>
-      <footer className="site-footer">
-        <div className="footer-note">
-          <span>Команда not_idea</span>
-          {note ? (
-            <p className="save-state" aria-live="polite">
-              {note}
-            </p>
-          ) : null}
-        </div>
-        {progress ?? <span />}
-        <span>Next.js · FastAPI · Cloud.ru</span>
-      </footer>
     </div>
   );
 }
@@ -136,6 +150,12 @@ function ThemeButton({ theme, onToggle }: { theme: Theme; onToggle: () => void }
       {theme === "dark" ? <SunIcon /> : <MoonIcon />}
     </button>
   );
+}
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean).slice(0, 2);
+  const letters = parts.map((part) => part[0] ?? "").join("");
+  return letters.toUpperCase() || "М";
 }
 
 const DEFAULT_METHODIST_NAME = "Методист Методистов";
@@ -187,6 +207,19 @@ function SideTab({
           <p>Напишите в чате, для кого программа и сколько в ней часов.</p>
           <p>Лекции, семинары и тесты открываются после «Утвердить каркас».</p>
           <p>Офлайн-пример показывает готовую программу без модели.</p>
+          <h3>С чем сверяем</h3>
+          <p>Общеразвивающая программа опирается на приказ № 629. Повышение квалификации — на 273-ФЗ и приказ № 266.</p>
+          <ul className="order-list">
+            {[ORDER_629, LAW_273, ORDER_266, ORDER_499].map((document) => (
+              <li key={document.id}>
+                <strong>{document.title}</strong>
+                <span>{document.note}</span>
+                <a href={document.source} target="_blank" rel="noreferrer">
+                  Источник
+                </a>
+              </li>
+            ))}
+          </ul>
         </div>
       ) : (
         <div className="side-tab-body">
@@ -205,22 +238,6 @@ function SideTab({
         </div>
       )}
     </section>
-  );
-}
-
-function FaqIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <path
-        d="M9.6 9.3a2.4 2.4 0 1 1 3.2 2.3c-.7.3-1.1.8-1.1 1.5V14"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-      <path d="M11.7 16.8h.1" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
   );
 }
 

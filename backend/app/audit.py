@@ -5,7 +5,7 @@ from typing import Any
 
 from .claims import invented_requisites, labor_codes
 from .domain import framework_items
-from .legal_basis import legal_basis_items
+from .legal_basis import is_official_publication, legal_basis_items
 from .models import CourseDocument
 from .outdated import find_outdated
 from .rationale import module_rationales
@@ -291,7 +291,10 @@ def audit_course(course: dict[str, Any]) -> dict[str, Any]:
         if isinstance(reference, dict)
         and (
             not str(reference.get("source") or "").strip()
-            or str(reference.get("source") or "").strip().lower().startswith(("http://", "https://"))
+            or (
+                str(reference.get("source") or "").strip().lower().startswith(("http://", "https://"))
+                and not is_official_publication(str(reference.get("source") or ""))
+            )
         )
     ]
     if references:
@@ -301,12 +304,12 @@ def audit_course(course: dict[str, Any]) -> dict[str, Any]:
                 "label": (
                     f"Не подтверждено источников: {len(http_titles)}"
                     if http_titles
-                    else "У каждого источника есть файл методиста"
+                    else "У каждого источника есть файл или официальная публикация"
                 ),
                 "status": "warning" if http_titles else "pass",
                 "section": "sources",
                 "details": (
-                    "Ссылка не подтверждает документ, пока проверка страницы не найдёт номер. "
+                    "Чужая ссылка не подтверждает документ, пока на странице не найден номер. "
                     + "; ".join(http_titles)
                     if http_titles
                     else "Пустых ссылок нет."

@@ -351,48 +351,7 @@ export function RequestComposer({
 
   return (
     <form className="composer" onSubmit={submit}>
-      <div className="mode-switch" role="tablist" aria-label="Тип запроса">
-        <button
-          type="button"
-          role="tab"
-          className={mode === "free" ? "active" : undefined}
-          aria-selected={mode === "free"}
-          onClick={() => setMode("free")}
-        >
-          Свободный
-        </button>
-        <button
-          type="button"
-          role="tab"
-          className={mode === "template" ? "active" : undefined}
-          aria-selected={mode === "template"}
-          onClick={() => setMode("template")}
-        >
-          По шаблону
-        </button>
-      </div>
-
-      {mode === "free" ? (
-        <>
-          <p className="composer-hint">
-            Свободный текст — как от заказчика. Можно сразу заполнить поля во вкладке «По
-            шаблону».
-          </p>
-          <textarea
-            id="course-request"
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            placeholder="Например: нужен курс по кибербезопасности для студентов колледжа…"
-            rows={3}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                sendFree();
-              }
-            }}
-          />
-        </>
-      ) : (
+      {mode === "template" ? (
         <div className="template-grid">
           <label>
             Шаблон АЦР
@@ -497,36 +456,126 @@ export function RequestComposer({
             />
           </label>
         </div>
-      )}
+      ) : null}
 
       {formError && mode === "template" ? <p className="chat-error">{formError}</p> : null}
-      {mode === "free" ? <p className="input-hint">Enter — отправить. Точные поля — во вкладке «По шаблону».</p> : null}
 
-      <div className="composer-row">
-        <button type="button" onClick={() => fileRef.current?.click()} disabled={busyFile || recording}>
-          {busyFile ? "Читаю…" : "Файл"}
-        </button>
-        <button type="button" onClick={() => void toggleVoice()} disabled={busyFile || pending}>
-          {recording ? "Стоп запись" : "Голос"}
-        </button>
-        <button type="button" onClick={() => setShowLink((value) => !value)} disabled={busyFile}>
-          {showLink ? "Скрыть ссылку" : "Ссылка"}
-        </button>
-        <button type="button" onClick={() => setShowRefs((value) => !value)}>
-          {showRefs ? "Скрыть материал" : extraReferences ? "Материал приложен" : "Материал"}
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          hidden
-          accept=".txt,.md,.pdf,.docx,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) void attachFile(file);
-            event.target.value = "";
-          }}
-        />
+      <div className="chat-dock">
+        {mode === "free" ? (
+          <textarea
+            id="course-request"
+            className="chat-field"
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            placeholder="Сообщение"
+            rows={2}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                sendFree();
+              }
+            }}
+          />
+        ) : null}
+        <div className="chat-dock-bar">
+          <button
+            type="button"
+            className="dock-icon"
+            title={busyFile ? "Читаю файл" : "Файл"}
+            aria-label={busyFile ? "Читаю файл" : "Файл"}
+            onClick={() => fileRef.current?.click()}
+            disabled={busyFile || recording}
+          >
+            <FileIcon />
+          </button>
+          <button
+            type="button"
+            className="dock-icon"
+            title={recording ? "Стоп запись" : "Голос"}
+            aria-label={recording ? "Стоп запись" : "Голос"}
+            aria-pressed={recording}
+            onClick={() => void toggleVoice()}
+            disabled={busyFile || pending}
+          >
+            <MicIcon />
+          </button>
+          <button
+            type="button"
+            className="dock-icon"
+            title="Ссылка"
+            aria-label="Ссылка"
+            aria-pressed={showLink}
+            onClick={() => setShowLink((value) => !value)}
+            disabled={busyFile}
+          >
+            <LinkIcon />
+          </button>
+          <button
+            type="button"
+            className="dock-icon"
+            title={extraReferences ? "Материал приложен" : "Материал"}
+            aria-label={extraReferences ? "Материал приложен" : "Материал"}
+            aria-pressed={showRefs}
+            onClick={() => setShowRefs((value) => !value)}
+          >
+            <NoteIcon />
+          </button>
+          <button
+            type="button"
+            className="dock-icon"
+            title={mode === "template" ? "Свободный запрос" : "По шаблону"}
+            aria-label={mode === "template" ? "Свободный запрос" : "По шаблону"}
+            aria-pressed={mode === "template"}
+            onClick={() => setMode((value) => (value === "free" ? "template" : "free"))}
+          >
+            <TemplateIcon />
+          </button>
+          <span className="dock-spacer" />
+          {pending ? (
+            <button type="button" className="dock-send" aria-label="Стоп" title="Стоп" onClick={onStop}>
+              <StopIcon />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              className="dock-send"
+              aria-label={mode === "template" ? "Собрать по шаблону" : "Отправить"}
+              title={mode === "template" ? "Собрать по шаблону" : "Отправить"}
+              disabled={recording || (mode === "free" ? !input.trim() : !templateReady)}
+            >
+              <SendIcon />
+            </button>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            hidden
+            accept=".txt,.md,.pdf,.docx,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void attachFile(file);
+              event.target.value = "";
+            }}
+          />
+        </div>
       </div>
+
+      {stage === "framework" || (stage === "kit" && !kitComplete) ? (
+        <button
+          type="button"
+          className="dock-quiet"
+          disabled={pending}
+          title={
+            stage === "kit"
+              ? "Добавить тесты, задания и лекции к утверждённому каркасу"
+              : "Заполнить недостающие части каркаса"
+          }
+          onClick={() => onSend(frameworkApproved ? KIT_PROMPT : FRAMEWORK_PROMPT)}
+        >
+          {stage === "kit" ? "Собрать комплект" : "Дособрать каркас"}
+        </button>
+      ) : null}
+
       {voiceNote ? (
         <p className={`job-status ${voiceNote.startsWith("Готово") || voiceNote.startsWith("Слушаю") || voiceNote.startsWith("Разбираю") ? "" : "chat-error"}`} aria-live="polite">
           {voiceNote}
@@ -549,36 +598,6 @@ export function RequestComposer({
           rows={3}
         />
       ) : null}
-      <div className="composer-row send-row">
-        {pending ? (
-          <button type="button" onClick={onStop}>
-            Стоп
-          </button>
-        ) : (
-          <button
-            type="submit"
-            className="primary"
-            disabled={recording || (mode === "free" ? !input.trim() : !templateReady)}
-          >
-            {mode === "template" ? "Собрать по шаблону" : "Отправить"}
-          </button>
-        )}
-        {stage === "framework" || (stage === "kit" && !kitComplete) ? (
-          <button
-            type="button"
-            className={stage === "kit" ? "primary" : undefined}
-            disabled={pending}
-            title={
-              stage === "kit"
-                ? "Добавить тесты, задания и лекции к утверждённому каркасу"
-                : "Заполнить недостающие части каркаса"
-            }
-            onClick={() => onSend(frameworkApproved ? KIT_PROMPT : FRAMEWORK_PROMPT)}
-          >
-            {stage === "kit" ? "Собрать комплект" : "Дособрать каркас"}
-          </button>
-        ) : null}
-      </div>
       {showLink ? (
         <div className="composer-row link-row">
           <input
@@ -594,5 +613,67 @@ export function RequestComposer({
         </div>
       ) : null}
     </form>
+  );
+}
+
+function MicIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="9" y="3.5" width="6" height="10" rx="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M12 17v3M9 20h6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function FileIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7 4.5h7l4 4V19a1.5 1.5 0 0 1-1.5 1.5h-9.5A1.5 1.5 0 0 1 5.5 19V6A1.5 1.5 0 0 1 7 4.5z" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M14 4.5V9h4.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
+function LinkIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M10 13.5l4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M8.5 15.5l-1.2 1.2a3.2 3.2 0 0 1-4.5-4.5l2.4-2.4a3.2 3.2 0 0 1 4.5 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M15.5 8.5l1.2-1.2a3.2 3.2 0 0 1 4.5 4.5l-2.4 2.4a3.2 3.2 0 0 1-4.5 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function NoteIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7 5.5h10a1.5 1.5 0 0 1 1.5 1.5v8.2L14.2 19.5H7A1.5 1.5 0 0 1 5.5 18V7A1.5 1.5 0 0 1 7 5.5z" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M14 19.2V15h4.2M8.5 9.5h6M8.5 12.5h4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function TemplateIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6 6.5h12M6 12h12M6 17.5h7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SendIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 17V7M8 10.5L12 6.5l4 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function StopIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="8" y="8" width="8" height="8" rx="1.5" fill="currentColor" />
+    </svg>
   );
 }

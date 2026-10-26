@@ -1,4 +1,5 @@
 import type { CourseDocument } from "@/lib/course-schema";
+import { isOfficialPublication } from "@/lib/legal-basis";
 
 const WORD = /[a-zа-яё0-9]+/gi;
 const SPAN = 12;
@@ -66,7 +67,11 @@ export function isHttpSource(source?: string) {
 
 export function unconfirmedReferenceTitles(course: CourseDocument) {
   return course.brief.references
-    .filter((reference) => !reference.source?.trim() || isHttpSource(reference.source))
+    .filter((reference) => {
+      const source = reference.source?.trim() ?? "";
+      if (!source) return true;
+      return isHttpSource(source) && !isOfficialPublication(source);
+    })
     .map((reference) => reference.title);
 }
 

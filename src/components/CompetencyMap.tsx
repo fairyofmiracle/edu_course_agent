@@ -17,11 +17,7 @@ function linkedModules(course: CourseDocument, node: CompetencyNode) {
 export function CompetencyMap({ course }: CompetencyMapProps) {
   const { nodes } = course.competencies;
   if (nodes.length === 0) {
-    return (
-      <p className="empty-hint">
-        Знания, умения и навыки появятся, когда агент соберёт компетенции, или загрузите пример.
-      </p>
-    );
+    return null;
   }
 
   return (
@@ -29,7 +25,6 @@ export function CompetencyMap({ course }: CompetencyMapProps) {
       <div className="balance-head">
         <p className="kicker">Чему научатся</p>
         <h3>Знания, умения и навыки</h3>
-        <p className="muted">По каждой компетенции: что узнают, что смогут сделать и какой навык закрепят.</p>
       </div>
       <div className="zun-grid">
         {nodes.map((node) => {

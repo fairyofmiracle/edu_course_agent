@@ -33,15 +33,11 @@ export function StackFreshnessPanel({ course }: { course: CourseDocument }) {
     };
   }, [key]);
 
+  if (texts.length === 0 || report.state === "empty") return null;
+
   return (
     <article>
       <h3>Сроки поддержки инструментов</h3>
-      {report.state === "empty" ? (
-        <p className="muted">
-          В темах нет номера версии Python, Java, Node.js и других продуктов из каталога endoflife.date.
-          Без номера версию не объявляем устаревшей.
-        </p>
-      ) : null}
       {report.state === "disabled" ? (
         <p className="muted">Проверка сроков выключена: не задан адрес Python API.</p>
       ) : null}

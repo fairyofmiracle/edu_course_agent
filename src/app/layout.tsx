@@ -1,17 +1,11 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, IBM_Plex_Sans, Manrope } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 
-const sans = IBM_Plex_Sans({
+const sans = Inter({
   subsets: ["latin", "cyrillic"],
   weight: ["400", "500", "600"],
-  variable: "--font-ibm-sans",
-});
-
-const display = Manrope({
-  subsets: ["latin", "cyrillic"],
-  weight: ["500", "600"],
-  variable: "--font-manrope",
+  variable: "--font-inter",
 });
 
 const mono = IBM_Plex_Mono({
@@ -21,7 +15,7 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Студия образовательных программ",
+  title: "Методий",
   description:
     "ИИ-агент собирает программу обучения: структуру, компетенции, тесты, семинары и лекции.",
 };
@@ -30,7 +24,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="ru"
-      className={`${sans.variable} ${display.variable} ${mono.variable} h-full antialiased`}
+      className={`${sans.variable} ${mono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="h-full">

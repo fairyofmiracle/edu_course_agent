@@ -152,9 +152,14 @@ def balance_modules(
     target = academic_hours(max(0, duration_hours - attestation_hours))
     if target <= 0:
         return filled
+    weights = [
+        float(m.get("workloadWeight") or m.get("hours") or 1)
+        for m in filled
+    ]
+
     hours = allocate_integer(
         target,
-        [float(module.get("hours") or 0) for module in filled],
+        weights,
         keep_zero=False,
     )
     return [_fill_plan({**module, "hours": hours[index]}) for index, module in enumerate(filled)]
@@ -359,10 +364,28 @@ def _merge_modules(existing: list[Any], incoming: list[Any]) -> list[Any]:
             novel.append(item)
     if not replacements:
         return [*existing, *incoming]
-    merged = [
-        replacements.get(str(item.get("id")), item) if isinstance(item, dict) else item
-        for item in existing
-    ]
+    merged = []
+
+    for item in existing:
+        if not isinstance(item, dict):
+            merged.append(item)
+            continue
+
+        module_id = str(item.get("id"))
+        replacement = replacements.get(module_id)
+
+        if replacement is None:
+            merged.append(item)
+            continue
+
+        updated = dict(replacement)
+
+        # Если новый вес не указан, сохраняем предыдущий.
+        if updated.get("workloadWeight") is None:
+            updated["workloadWeight"] = item.get("workloadWeight")
+
+        merged.append(updated)
+
     return [*merged, *novel]
 
 
@@ -385,6 +408,37 @@ def apply_patches(course: CourseDocument, patches: list[dict[str, Any]]) -> Cour
     return next_course
 
 
+def _merge_hour_constraints(
+    existing: list[dict[str, Any]],
+    incoming: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Объединяет ограничения часов, сохраняя существующие."""
+
+    merged = [dict(item) for item in existing]
+
+    for new_item in incoming:
+        key = (
+            new_item.get("field"),
+            new_item.get("operator"),
+            new_item.get("source"),
+        )
+
+        for index, old_item in enumerate(merged):
+            old_key = (
+                old_item.get("field"),
+                old_item.get("operator"),
+                old_item.get("source"),
+            )
+
+            if old_key == key:
+                merged[index] = dict(new_item)
+                break
+        else:
+            merged.append(dict(new_item))
+
+    return merged
+
+
 def apply_patch(course: CourseDocument, patch: dict[str, Any]) -> CourseDocument:
     if patch.get("type") not in PATCH_TYPES:
         return course
@@ -392,7 +446,14 @@ def apply_patch(course: CourseDocument, patch: dict[str, Any]) -> CourseDocument
     patch_type = patch["type"]
     try:
         if patch_type == "update_brief":
-            value["brief"].update(patch.get("brief") or {})
+            brief_update = dict(patch.get("brief") or {})
+
+            if "hourConstraints" in brief_update:
+                brief_update["hourConstraints"] = _merge_hour_constraints(
+                    value["brief"].get("hourConstraints") or [],
+                    brief_update["hourConstraints"] or [],
+                )
+            value["brief"].update(brief_update)
         elif patch_type == "set_competency_map":
             value["competencies"] = patch["competencies"]
         elif patch_type == "set_structure":

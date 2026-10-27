@@ -521,22 +521,13 @@ function Overview({ course }: { course: CourseDocument }) {
           </div>
           <div>
             <dt>Шаблон</dt>
-            <dd>{PROGRAM_KIND_LABELS[brief.programKind]}</dd>
-          </div>
-          <div>
-            <dt>Аттестация</dt>
             <dd>
-              {brief.attestationHours ? `${brief.attestationHours} ч` : "0 ч"}
-              {brief.attestationForm ? ` · ${brief.attestationForm}` : ""}
+              {PROGRAM_KIND_LABELS[brief.programKind]}
+              <span className="meta-sub">
+                Аттестация: {brief.attestationHours ? `${brief.attestationHours} ч` : "0 ч"}
+                {brief.attestationForm ? ` · ${brief.attestationForm}` : ""}
+              </span>
             </dd>
-          </div>
-          <div>
-            <dt>Формат</dt>
-            <dd>{FORMAT_LABELS[brief.format]}</dd>
-          </div>
-          <div>
-            <dt>Уровень</dt>
-            <dd>{LEVEL_LABELS[brief.level]}</dd>
           </div>
         </dl>
       </section>

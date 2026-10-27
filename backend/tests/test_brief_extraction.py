@@ -298,12 +298,48 @@ def test_completed_brief_allows_duration_change():
         )
     )
 
-    assert client.brief_calls == 1
+    assert client.brief_calls == 0
     assert result["course"].brief.duration_hours == 36
+    assert "36" in result["assistant"]
     assert result["course"].brief.title == "Основы Python"
     assert result["course"].brief.audience == "Начинающие разработчики"
     assert result["course"].brief.program_kind == "general"
     assert result["course"].brief.attestation_form == "Защита проекта"
+
+
+def test_duration_above_1024_is_saved_and_asks():
+    import asyncio
+
+    course = empty_course()
+    course.brief.title = "Длинная программа"
+    course.brief.audience = "Преподаватели"
+    course.brief.duration_hours = 72
+    course.brief.program_kind = "general"
+    course.brief.attestation_form = "Экзамен"
+
+    class SilentClient:
+        api_key = "test-key"
+        brief_calls = 0
+
+        async def complete(self, **kwargs):
+            self.brief_calls += 1
+            raise RuntimeError("шлюз молчит")
+
+    client = SilentClient()
+    text = "Измени продолжительность на 1100 академических часов"
+    result = asyncio.run(
+        run_turn(
+            course,
+            user_texts=[text],
+            model_messages=[{"role": "user", "content": text}],
+            client=client,
+        )
+    )
+
+    assert client.brief_calls == 0
+    assert result["course"].brief.duration_hours == 1100
+    assert result["course"].brief.title == "Длинная программа"
+    assert "Подтвердите" in result["assistant"]
 
 @pytest.mark.anyio
 async def test_multiturn_brief_preserves_context():
@@ -553,4 +589,4 @@ async def test_full_course_dialogue():
     assert course.competencies.nodes
     assert course.modules
 
-    assert client.brief_calls == 4
+    assert client.brief_calls == 3

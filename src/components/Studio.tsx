@@ -5,7 +5,6 @@ import { useChat } from "@ai-sdk/react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ChatPanel } from "@/components/ChatPanel";
 import { CourseTabs, CourseWorkspace, type WorkspaceTab } from "@/components/CourseWorkspace";
-import { NavIcon } from "@/components/NavIcon";
 import { SiteFrame } from "@/components/SiteFrame";
 import {
   CourseConflictError,
@@ -25,6 +24,8 @@ import {
   isFrameworkApproved,
   isKitComplete,
 } from "@/lib/framework-check";
+import { FRAMEWORK_PROMPT } from "@/lib/agent/service-prompts";
+import { briefGaps } from "@/lib/course-validation";
 import { userFacingError } from "@/lib/user-error";
 import {
   createEmptyCourse,
@@ -187,6 +188,7 @@ function StudioSession({
   );
   const checks = frameworkItems(course);
   const frameworkReady = checks.every((item) => item.ok);
+  const briefReady = briefGaps(course).length === 0;
   const frameworkApproved = isFrameworkApproved(course);
   const contentOpen = frameworkApproved || hasBuiltMaterials(course);
   const kitComplete = isKitComplete(course);
@@ -528,6 +530,16 @@ function StudioSession({
             <button type="button" className="primary framework-action" title="Каркас готов к утверждению" onClick={approveFramework}>
               Утвердить каркас
             </button>
+          ) : briefReady ? (
+            <button
+              type="button"
+              className="primary framework-action"
+              title="Бриф уже полный: собрать модули и компетенции"
+              disabled={chatPending}
+              onClick={() => send(FRAMEWORK_PROMPT)}
+            >
+              Собрать каркас
+            </button>
           ) : null}
         </>
       }
@@ -554,12 +566,8 @@ function StudioSession({
       }
       actions={() => (
         <>
-          <a href="/courses">
-            <NavIcon name="courses" />
-            Мои курсы
-          </a>
+          <a href="/courses">Мои курсы</a>
           <button type="button" onClick={reset}>
-            <NavIcon name="plus" />
             Новый курс
           </button>
           <CourseTabs tab={tab} approved={contentOpen} onTabChange={setTab} />
@@ -586,17 +594,18 @@ function StudioSession({
           onStop={() => stop()}
           onClose={() => setChatOpen(false)}
         />
-        {showDocument && !chatOpen ? (
+        {showDocument ? (
           <button
             type="button"
             className="chat-edge chat-edge-open"
-            aria-label="Открыть чат"
-            title="Открыть чат"
-            onClick={() => setChatOpen(true)}
+            aria-label={chatOpen ? "Скрыть ассистента" : "Открыть ассистента"}
+            title={chatOpen ? "Скрыть ассистента" : "Открыть ассистента"}
+            onClick={() => setChatOpen((open) => !open)}
           >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
+            <svg className="chat-edge-chevron" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
+            <span className="chat-edge-mark" style={{ ["--glyph" as string]: "url(/icons/chat.png)" }} aria-hidden="true" />
           </button>
         ) : null}
         {showDocument ? (

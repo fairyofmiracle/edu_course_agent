@@ -317,6 +317,7 @@ async def run_turn(
     if is_framework_approved(course) and kit_needed(course):
         mode = "kit"
     planned: list[str] = []
+    hours_before = course.brief.duration_hours
     patches: list[dict[str, Any]] = []
     calls: list[dict[str, Any]] = []
     assistant_text = ""
@@ -361,13 +362,10 @@ async def run_turn(
         )
         planned.append(key)
         if step.get("tool") == "update_brief":
-            local_hours = (
-                volume_from_text([last_text])
-                if is_duration_edit_request(last_text)
-                else None
-            )
-            if local_hours:
-                arguments = {"durationHours": local_hours}
+            local_hours = None
+            if is_duration_edit_request(last_text):
+                local_hours = volume_from_text([last_text])
+                arguments = {"durationHours": local_hours} if local_hours else {}
             elif skip_brief_extraction:
                 arguments = {}
             else:
@@ -398,10 +396,7 @@ async def run_turn(
             if references:
                 course = apply_reference_hints(course, references, user_texts)
             if local_hours and any(item.get("type") != "tool_error" for item in patches):
-                assistant_text = (
-                    f"Объём программы теперь {local_hours} академических часов. "
-                    "Проверьте, что сумма модулей сходится с этим объёмом."
-                )
+                assistant_text = duration_reply(local_hours)
                 break
             continue
         if step.get("kind") == "reply":
@@ -619,6 +614,13 @@ async def run_turn(
     if mode == "free" and not patches and "не изменил" not in assistant_text.casefold():
         notice = "Документ не изменился."
         assistant_text = f"{assistant_text}\n\n{notice}".strip() if assistant_text else notice
+    hours_now = course.brief.duration_hours
+    if hours_now > LARGE_DURATION_HOURS and hours_now != hours_before and "больше 1024" not in assistant_text:
+        note = (
+            f"Объём {hours_now:g} академических часов больше {LARGE_DURATION_HOURS}. "
+            "Подтвердите, что вам нужен курс такого объёма."
+        )
+        assistant_text = f"{assistant_text}\n\n{note}".strip() if assistant_text else note
 
     return {
         "course": course,
@@ -631,6 +633,19 @@ async def run_turn(
         "usage": getattr(client, "usage", None),
         "gatewayRetries": list(getattr(client, "gateway_retries", []) or []),
     }
+
+
+LARGE_DURATION_HOURS = 1024
+
+
+def duration_reply(hours: float) -> str:
+    line = f"Объём программы теперь {hours:g} академических часов."
+    if hours > LARGE_DURATION_HOURS:
+        return (
+            f"{line} Это больше {LARGE_DURATION_HOURS} часов. "
+            "Подтвердите, что вам нужен курс такого объёма."
+        )
+    return f"{line} Проверьте, что сумма модулей сходится с этим объёмом."
 
 
 def strengthen_framework(course: CourseDocument) -> CourseDocument:

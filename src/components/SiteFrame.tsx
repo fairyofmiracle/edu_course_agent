@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { applyTheme, readTheme, storeTheme, type Theme } from "@/lib/theme";
-import { NavIcon } from "@/components/NavIcon";
 import { LAW_273, ORDER_266, ORDER_499, ORDER_629 } from "@/lib/legal-basis";
 
 export function SiteFrame({
@@ -70,7 +69,9 @@ export function SiteFrame({
               setMenuOpen((open) => !open);
             }}
           >
-            <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/burger.png)" }} />
+            <span />
+            <span />
+            <span />
           </button>
         ) : null}
         <div className="site-brand">
@@ -116,6 +117,7 @@ export function SiteFrame({
           </div>
         ) : null}
       </header>
+      <div className="studio-stage">
       {menuOpen ? (
         <button type="button" className="nav-scrim" aria-label="Закрыть меню" onClick={() => setMenuOpen(false)} />
       ) : null}
@@ -148,7 +150,6 @@ export function SiteFrame({
             aria-pressed={panel === "faq"}
             onClick={() => setPanel((current) => (current === "faq" ? null : "faq"))}
           >
-            <NavIcon name="help" />
             Инструкция
           </button>
           <div className="nav-user">
@@ -192,6 +193,7 @@ export function SiteFrame({
             children
           )}
         </div>
+      </div>
       </div>
     </div>
   );

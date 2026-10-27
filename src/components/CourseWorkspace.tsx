@@ -6,7 +6,6 @@ import { SourceChecks } from "@/components/SourceChecks";
 import { StackFreshnessPanel } from "@/components/StackFreshness";
 import { LectureDeck } from "@/components/LectureDeck";
 import { MermaidBlock } from "@/components/MermaidBlock";
-import { NavIcon } from "@/components/NavIcon";
 import { auditCourse, type AuditStatus } from "@/lib/course-audit";
 import { isOfficialPublication } from "@/lib/legal-basis";
 import { isHttpSource } from "@/lib/verbatim";
@@ -35,14 +34,14 @@ export type WorkspaceTab =
 
 const CONTENT_TABS: WorkspaceTab[] = ["lectures", "seminars", "tests"];
 
-const WORKSPACE_TABS: { id: WorkspaceTab; label: string; hint: string; icon: "overview" | "plan" | "competencies" | "lectures" | "seminars" | "tests" | "checks" }[] = [
-  { id: "overview", label: "Обзор", hint: "Шаблон, аудитория и проверка часов. Каркас утверждают здесь.", icon: "overview" },
-  { id: "structure", label: "План", hint: "Модули и разбивка часов по неделям. Календарные даты сюда не ставятся.", icon: "plan" },
-  { id: "competencies", label: "Компетенции", hint: "Чему научатся: знания, умения и навыки по каждой компетенции.", icon: "competencies" },
-  { id: "lectures", label: "Лекции", hint: "Черновик модели. Штамп паспорта от формулировок слайдов не зависит.", icon: "lectures" },
-  { id: "seminars", label: "Семинары", hint: "Файлы заданий: открыть просмотр или скачать.", icon: "seminars" },
-  { id: "tests", label: "Тесты", hint: "Файлы проверки: открыть просмотр или скачать.", icon: "tests" },
-  { id: "checks", label: "Проверка", hint: "Часы, связи, комплект, источники и оценивание каждого результата.", icon: "checks" },
+const WORKSPACE_TABS: { id: WorkspaceTab; label: string; hint: string }[] = [
+  { id: "overview", label: "Обзор", hint: "Шаблон, аудитория и проверка часов. Каркас утверждают здесь." },
+  { id: "structure", label: "План", hint: "Модули и разбивка часов по неделям. Календарные даты сюда не ставятся." },
+  { id: "competencies", label: "Компетенции", hint: "Чему научатся: знания, умения и навыки по каждой компетенции." },
+  { id: "lectures", label: "Лекции", hint: "Черновик модели. Штамп паспорта от формулировок слайдов не зависит." },
+  { id: "seminars", label: "Семинары", hint: "Файлы заданий: открыть просмотр или скачать." },
+  { id: "tests", label: "Тесты", hint: "Файлы проверки: открыть просмотр или скачать." },
+  { id: "checks", label: "Проверка", hint: "Часы, связи, комплект, источники и оценивание каждого результата." },
 ];
 
 type CourseWorkspaceProps = {
@@ -70,7 +69,6 @@ export function CourseTabs({
           title={item.hint}
           onClick={() => onTabChange(item.id)}
         >
-          <NavIcon name={item.icon} />
           <span>{item.label}</span>
         </button>
       ))}

@@ -190,10 +190,7 @@ export function CourseCatalog() {
       title="Мои курсы"
       menu={false}
       actions={() => (
-        <Link href="/?new=1">
-          <NavIcon name="plus" />
-          Добавить курс
-        </Link>
+        <Link href="/?new=1">Добавить курс</Link>
       )}
     >
       <section className="catalog-page">

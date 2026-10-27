@@ -3296,13 +3296,14 @@ html[data-theme="light"] .hours-gap {
     left: 0;
     grid-column: auto;
     grid-row: auto;
-    width: min(300px, calc(100% - 48px));
+    width: min(280px, 86vw);
     max-height: none;
     margin: 0;
-    padding: 16px 12px;
+    padding: 8px 0 12px;
     overflow: auto;
     border-right: 1px solid var(--shell-line);
-    border-radius: 0 20px 20px 0;
+    border-radius: 0;
+    background-image: none;
     transform: translateX(-100%);
     transition: transform 0.22s ease;
   }
@@ -3370,10 +3371,38 @@ html[data-theme="light"] .hours-gap {
     font-size: 12px;
   }
 
-  .framework-action {
-    min-height: 32px;
-    padding: 6px 8px;
+  .site-tools-header .export-menu summary,
+  .site-tools-header .framework-action {
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--shell-accent);
     font-size: 13px;
+    font-weight: 600;
+  }
+
+  .site-tools-nav {
+    display: none;
+  }
+
+  .site-nav .top-actions > a,
+  .site-nav .top-actions > button,
+  .site-nav .nav-sections .journal-tab,
+  .nav-help {
+    margin: 0;
+    min-height: 40px;
+    padding: 8px 16px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .site-nav .top-actions > a:hover,
+  .site-nav .top-actions > button:hover,
+  .site-nav .nav-sections .journal-tab.active {
+    border-radius: 0;
   }
 
   .nav-brand,
@@ -3384,8 +3413,9 @@ html[data-theme="light"] .hours-gap {
 
   .studio-body > .pane-doc,
   .studio[data-chat="closed"] .studio-body > .pane-doc {
-    margin: 12px 12px 84px;
-    border-radius: 20px;
+    margin: 0 0 72px;
+    border: 0;
+    border-radius: 0;
   }
 
   .studio-body > .pane-write {
@@ -3398,7 +3428,7 @@ html[data-theme="light"] .hours-gap {
     width: auto;
     max-width: calc(100vw - 24px);
     height: min(72dvh, 640px);
-    border-radius: 20px;
+    border-radius: 0;
   }
 
   .studio[data-chat="closed"] .studio-body > .pane-write {
@@ -3452,19 +3482,8 @@ html[data-theme="light"] .hours-gap {
     display: none;
   }
 
-  .site-tools-header .export-menu {
-    display: none;
-  }
-
-  .site-tools-nav {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .site-tools-nav .export-menu[open] > div {
-    position: static;
-    width: auto;
+  .site-tools-header .export-menu[open] > div {
+    width: min(280px, calc(100vw - 16px));
   }
 
   .site-nav {

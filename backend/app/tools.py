@@ -14,7 +14,6 @@ from .kit_content import (
     is_stub_competency_node,
     lecture_for_module,
     project_seminar,
-    chart_slide,
     slides_for_topic,
 )
 from .models import CourseDocument
@@ -280,22 +279,36 @@ def coerce_structure_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def _ensure_half_practice(modules: list[dict[str, Any]]) -> None:
+    """Практике нужна половина часов. Лекцию забираем по кругу, не обнуляя первые модули."""
     total = sum(_number(module.get("hours")) for module in modules)
     practice = sum(_number(module.get("practiceHours")) for module in modules)
-    need = total / 2
-    leftover = need - practice
-    if leftover <= 0 or total <= 0:
+    leftover = total / 2 - practice
+    if leftover <= 0.001 or total <= 0:
         return
-    for module in modules:
-        if leftover <= 0:
-            break
-        lecture = _number(module.get("lectureHours"))
-        take = min(lecture, leftover)
-        if take <= 0:
-            continue
-        module["lectureHours"] = lecture - take
-        module["practiceHours"] = _number(module.get("practiceHours")) + take
-        leftover -= take
+
+    def draw(reserve: float) -> None:
+        nonlocal leftover
+        for _ in range(400):
+            if leftover <= 0.001:
+                return
+            moved = False
+            for module in modules:
+                if leftover <= 0.001:
+                    return
+                lecture = _number(module.get("lectureHours"))
+                room = lecture - reserve
+                if room <= 0.001:
+                    continue
+                take = min(0.5, room, leftover)
+                module["lectureHours"] = lecture - take
+                module["practiceHours"] = _number(module.get("practiceHours")) + take
+                leftover -= take
+                moved = True
+            if not moved:
+                return
+
+    draw(0.5)
+    draw(0)
 
 
 def _module_by_id(course: CourseDocument, module_id: str | None) -> Any:
@@ -412,8 +425,6 @@ def coerce_lecture_arguments(
         cleaned_slides = [
             item for item in cleaned_slides if item.get("title") != "Часы модуля" and not item.get("table")
         ]
-        if not any(item.get("mermaid") for item in cleaned_slides):
-            cleaned_slides.append(chart_slide(module))
         if len(cleaned_slides) > 12:
             visuals = [item for item in cleaned_slides if item.get("mermaid")]
             body = [item for item in cleaned_slides if item not in visuals]

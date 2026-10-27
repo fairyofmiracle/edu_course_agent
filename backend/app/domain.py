@@ -267,7 +267,42 @@ def _keep_sixteen_hour_practice(value: dict[str, Any]) -> None:
             if need <= 0:
                 return
             moved = _move_hours_to_practice(module, key, need)
+            if moved <= 0:
+                available = academic_hours(float(module.get(key) or 0))
+                take = min(available, need)
+                if take > 0:
+                    module[key] = academic_hours(available - take)
+                    module["practiceHours"] = academic_hours(float(module.get("practiceHours") or 0) + take)
+                    _sync_topic_plan(module)
+                    moved = take
             need = academic_hours(need - moved)
+
+
+def _sync_topic_plan(module: dict[str, Any]) -> None:
+    """План тем повторяет лекции, практику, лабораторные и самостоятельную работу."""
+    topics = [
+        str(row.get("title") or "").strip()
+        for row in module.get("plan") or []
+        if isinstance(row, dict) and str(row.get("title") or "").strip()
+    ]
+    if not topics:
+        topics = [
+            str(value).strip()
+            for value in module.get("topics") or []
+            if str(value).strip()
+        ]
+    if not topics:
+        topics = [str(module.get("title") or "").strip() or "Модуль"]
+    rows = [{"title": topic, **{key: 0 for key in KIND_KEYS}} for topic in topics]
+    for key in KIND_KEYS:
+        allocation = allocate_integer(
+            academic_hours(module.get(key)),
+            [1] * len(rows),
+            keep_zero=False,
+        )
+        for index, value in enumerate(allocation):
+            rows[index][key] = value
+    module["plan"] = rows
 
 
 def _upsert(items: list[dict[str, Any]], value: dict[str, Any]) -> list[dict[str, Any]]:

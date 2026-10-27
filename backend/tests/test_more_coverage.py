@@ -272,7 +272,7 @@ def test_catalog_kit_is_marked() -> None:
         module_id="M1",
     )
     assert mixed["origin"] == "mixed"
-    assert any(slide.get("mermaid") for slide in mixed["lecture"]["slides"])
+    assert all(slide.get("title") != "Ход занятия" for slide in mixed["lecture"]["slides"])
     seminar = execute_tool(
         "set_seminar",
         {

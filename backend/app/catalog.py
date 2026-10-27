@@ -44,10 +44,24 @@ def is_incomplete_brief(course: CourseDocument) -> bool:
     return brief.program_kind == "unset" or brief.duration_hours <= 0
 
 
+def _brief_profile_text(course: CourseDocument) -> str:
+    """Только бриф: заголовки модулей от модели не должны менять профиль."""
+    brief = course.brief
+    parts = [
+        brief.title,
+        brief.audience,
+        brief.attestation_form,
+        *brief.goals,
+        *brief.constraints,
+        *(ref.title for ref in brief.references),
+    ]
+    return " ".join(part for part in parts if part).lower()
+
+
 def is_data_analysis(course: CourseDocument) -> bool:
     if is_teacher_ai(course):
         return False
-    text = course_text(course)
+    text = _brief_profile_text(course)
     topic = any(token in text for token in ("pandas", "анализ данных", "sql", "статистик"))
     workplace = any(
         token in text and f"без {token}" not in text for token in ("excel", "банк")

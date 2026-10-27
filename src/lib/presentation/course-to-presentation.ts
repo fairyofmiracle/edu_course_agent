@@ -216,17 +216,6 @@ export function courseToPresentation(
       visualPrompt: text(slide.visualPrompt),
       speakerNotes: text(slide.speakerNotes),
     }));
-    if (courseModule && !sources.some((slide) => slide.mermaid)) {
-      sources.push({
-        kicker,
-        title: "Ход занятия",
-        bullets: [
-          "Занятие идёт по этим темам по порядку.",
-          "Каждая следующая тема опирается на предыдущую.",
-        ],
-        mermaid: moduleFlowChart(courseModule),
-      });
-    }
     deck.push(...sources);
   }
 

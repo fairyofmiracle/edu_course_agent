@@ -16,23 +16,23 @@ describe("theme", () => {
     vi.unstubAllGlobals();
   });
 
-  it("по умолчанию светлая, тёмная читается из хранилища", () => {
+  it("по умолчанию тёмная, светлая читается из хранилища", () => {
     const storage = memory();
-    expect(readTheme(storage)).toBe("light");
-    storeTheme(storage, "dark");
-    expect(storage.getItem(THEME_KEY)).toBe("dark");
     expect(readTheme(storage)).toBe("dark");
     storeTheme(storage, "light");
+    expect(storage.getItem(THEME_KEY)).toBe("light");
     expect(readTheme(storage)).toBe("light");
-    applyTheme("dark");
+    storeTheme(storage, "dark");
+    expect(readTheme(storage)).toBe("dark");
+    applyTheme("light");
   });
 
   it("ставит и снимает data-theme на документе", () => {
     const root = { dataset: {} as Record<string, string> };
     vi.stubGlobal("document", { documentElement: root });
-    applyTheme("dark");
-    expect(root.dataset.theme).toBe("dark");
     applyTheme("light");
+    expect(root.dataset.theme).toBe("light");
+    applyTheme("dark");
     expect(root.dataset.theme).toBeUndefined();
   });
 });

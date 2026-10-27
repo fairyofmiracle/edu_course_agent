@@ -13,6 +13,7 @@ from .agent_api import router as agent_router
 from .export_api import router as export_router
 from .identity import router as identity_router
 from .audit import audit_course
+from .legal_basis import is_official_publication
 from .contracts import (
     AuditCourse,
     AuditReport,
@@ -207,11 +208,14 @@ def check_regulatory_sources(
             }
         )
         site_ok = probe["state"] == "reachable"
+        official = is_official_publication(str(claim.source or ""))
         filled = bool(claim.number and claim.date)
         requisites = probe.get("requisites")
         number_on_page = requisites == "found"
-        source_attached = site_ok and filled and number_on_page
-        if site_ok and filled and requisites == "missing":
+        source_attached = site_ok and ((official) or (filled and number_on_page))
+        if official and site_ok:
+            message = "Официальное опубликование ответило. Текст приказа со страницы не забираем."
+        elif site_ok and filled and requisites == "missing":
             message = "Сайт ответил, но номер документа на странице не найден. Источник не подтверждён."
         elif source_attached:
             message = "Сайт ответил, номер документа на странице есть. Действующим приказ признаёт методист."

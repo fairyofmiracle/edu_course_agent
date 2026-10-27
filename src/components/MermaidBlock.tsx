@@ -20,7 +20,7 @@ export function MermaidBlock({ chart, className }: MermaidBlockProps) {
         mermaid.initialize({
           startOnLoad: false,
           theme: "neutral",
-          securityLevel: "loose",
+          securityLevel: "strict",
           fontFamily: "IBM Plex Sans, sans-serif",
         });
         const id = `mmd-${Math.random().toString(36).slice(2)}`;

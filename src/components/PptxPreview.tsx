@@ -186,7 +186,7 @@ export function PptxPreview({
           disabled={status !== "ready" || index >= count - 1}
           onClick={() => go(index + 1)}
         >
-          Дальше
+          Вперёд
         </button>
       </div>
     </div>

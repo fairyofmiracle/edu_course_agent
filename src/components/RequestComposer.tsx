@@ -12,12 +12,13 @@ import {
   type CourseLevel,
 } from "@/lib/course-schema";
 
-import { FRAMEWORK_PROMPT, KIT_PROMPT } from "@/lib/agent/service-prompts";
+import { KIT_PROMPT } from "@/lib/agent/service-prompts";
 import { appendTranscript } from "@/lib/transcript";
 import { userFacingError } from "@/lib/user-error";
 
 type Mode = "free" | "template";
 type ProgramKind = "general" | "qualification";
+type Material = { label: string; body: string };
 
 type TemplateFields = {
   programKind: ProgramKind;
@@ -121,12 +122,25 @@ export function RequestComposer({
   const [busyFile, setBusyFile] = useState(false);
   const [fileNote, setFileNote] = useState("");
   const [showRefs, setShowRefs] = useState(false);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [materialNote, setMaterialNote] = useState("");
   const [showLink, setShowLink] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [formError, setFormError] = useState("");
   const [recording, setRecording] = useState(false);
   const [voiceNote, setVoiceNote] = useState("");
+  const fieldRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const growField = (element: HTMLTextAreaElement | null) => {
+    if (!element) return;
+    element.style.height = "auto";
+    element.style.height = `${element.scrollHeight}px`;
+  };
+
+  useEffect(() => {
+    growField(fieldRef.current);
+  }, [input]);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const voiceTimer = useRef<number | null>(null);
@@ -141,6 +155,17 @@ export function RequestComposer({
     const timer = window.setTimeout(() => setFileNote(""), 3000);
     return () => window.clearTimeout(timer);
   }, [fileNote]);
+
+  const publishMaterials = (next: Material[], note: string) => {
+    const chunks = [...next.map((item) => item.body), note.trim()].filter(Boolean);
+    onReferencesChange(chunks.join("\n\n"));
+  };
+
+  useEffect(() => {
+    if (extraReferences) return;
+    setMaterials((current) => (current.length === 0 ? current : []));
+    setMaterialNote((current) => (current ? "" : current));
+  }, [extraReferences]);
 
   const readFailure = (error: unknown, fallback: string) => {
     if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
@@ -268,15 +293,18 @@ export function RequestComposer({
       });
       const payload = (await response.json()) as { text?: string; title?: string; error?: string };
       if (!response.ok) throw new Error(payload.error || "Не удалось прочитать файл");
-      const chunk = `[${payload.title}]\n${payload.text ?? ""}`;
-      onReferencesChange(extraReferences ? `${extraReferences}\n\n${chunk}` : chunk);
+      const label = file.name;
+      const body = `[${payload.title || file.name}]\n${payload.text ?? ""}`;
+      const next = [...materials, { label, body }];
+      setMaterials(next);
+      publishMaterials(next, materialNote);
       onReferenceAdd({
         title: payload.title || file.name,
         source: file.name,
         note: "Файл загружен методистом",
       });
       setShowRefs(true);
-      setFileNote(`Готово: ${payload.title || file.name}`);
+      setFileNote(`Готово: ${label}`);
     } catch (err) {
       setFileNote(readFailure(err, "Файл не разобрался."));
     } finally {
@@ -298,10 +326,13 @@ export function RequestComposer({
       });
       const payload = (await response.json()) as { text?: string; title?: string; error?: string };
       if (!response.ok) throw new Error(payload.error || "Не удалось скачать страницу");
-      const chunk = `[${payload.title} | ${url}]\n${payload.text ?? ""}`;
-      onReferencesChange(extraReferences ? `${extraReferences}\n\n${chunk}` : chunk);
+      const label = payload.title?.trim() || url;
+      const body = `[${label} | ${url}]\n${payload.text ?? ""}`;
+      const next = [...materials, { label, body }];
+      setMaterials(next);
+      publishMaterials(next, materialNote);
       onReferenceAdd({
-        title: payload.title || url,
+        title: label,
         source: url,
         note: "Ссылка добавлена методистом",
       });
@@ -351,48 +382,7 @@ export function RequestComposer({
 
   return (
     <form className="composer" onSubmit={submit}>
-      <div className="mode-switch" role="tablist" aria-label="Тип запроса">
-        <button
-          type="button"
-          role="tab"
-          className={mode === "free" ? "active" : undefined}
-          aria-selected={mode === "free"}
-          onClick={() => setMode("free")}
-        >
-          Свободный
-        </button>
-        <button
-          type="button"
-          role="tab"
-          className={mode === "template" ? "active" : undefined}
-          aria-selected={mode === "template"}
-          onClick={() => setMode("template")}
-        >
-          По шаблону
-        </button>
-      </div>
-
-      {mode === "free" ? (
-        <>
-          <p className="composer-hint">
-            Свободный текст — как от заказчика. Можно сразу заполнить поля во вкладке «По
-            шаблону».
-          </p>
-          <textarea
-            id="course-request"
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            placeholder="Например: нужен курс по кибербезопасности для студентов колледжа…"
-            rows={3}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                sendFree();
-              }
-            }}
-          />
-        </>
-      ) : (
+      {mode === "template" ? (
         <div className="template-grid">
           <label>
             Шаблон АЦР
@@ -497,36 +487,155 @@ export function RequestComposer({
             />
           </label>
         </div>
-      )}
+      ) : null}
 
       {formError && mode === "template" ? <p className="chat-error">{formError}</p> : null}
-      {mode === "free" ? <p className="input-hint">Enter — отправить. Точные поля — во вкладке «По шаблону».</p> : null}
 
-      <div className="composer-row">
-        <button type="button" onClick={() => fileRef.current?.click()} disabled={busyFile || recording}>
-          {busyFile ? "Читаю…" : "Файл"}
-        </button>
-        <button type="button" onClick={() => void toggleVoice()} disabled={busyFile || pending}>
-          {recording ? "Стоп запись" : "Голос"}
-        </button>
-        <button type="button" onClick={() => setShowLink((value) => !value)} disabled={busyFile}>
-          {showLink ? "Скрыть ссылку" : "Ссылка"}
-        </button>
-        <button type="button" onClick={() => setShowRefs((value) => !value)}>
-          {showRefs ? "Скрыть материал" : extraReferences ? "Материал приложен" : "Материал"}
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          hidden
-          accept=".txt,.md,.pdf,.docx,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) void attachFile(file);
-            event.target.value = "";
-          }}
-        />
+      <div className="chat-dock">
+        {mode === "free" ? (
+          <div className="chat-compose">
+            {recording ? (
+              <span className="voice-wave" aria-hidden="true">
+                {Array.from({ length: 28 }, (_, index) => (
+                  <i key={index} style={{ animationDelay: `${(index % 7) * 0.08}s` }} />
+                ))}
+              </span>
+            ) : null}
+            <textarea
+              id="course-request"
+              ref={fieldRef}
+              className="chat-field"
+              hidden={recording}
+              value={input}
+              onChange={(event) => {
+                setInput(event.target.value);
+                growField(event.currentTarget);
+              }}
+              placeholder="Сообщение"
+              rows={1}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  sendFree();
+                }
+              }}
+            />
+            <div className="chat-compose-actions">
+              <button
+                type="button"
+                className="dock-icon"
+                title={recording ? "Стоп запись" : "Голос"}
+                aria-label={recording ? "Стоп запись" : "Голос"}
+                aria-pressed={recording}
+                onClick={() => void toggleVoice()}
+                disabled={busyFile || pending}
+              >
+                <MicIcon />
+              </button>
+              {pending ? (
+                <button type="button" className="dock-send" aria-label="Стоп" title="Стоп" onClick={onStop}>
+                  <StopIcon />
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  className="dock-send"
+                  aria-label="Отправить"
+                  title="Отправить"
+                  disabled={recording || !input.trim()}
+                >
+                  <SendIcon />
+                </button>
+              )}
+            </div>
+          </div>
+        ) : null}
+        <div className="chat-dock-bar">
+          <button
+            type="button"
+            className="dock-icon"
+            title={busyFile ? "Читаю файл" : "Файл"}
+            aria-label={busyFile ? "Читаю файл" : "Файл"}
+            onClick={() => fileRef.current?.click()}
+            disabled={busyFile || recording}
+          >
+            <FileIcon />
+          </button>
+          <button
+            type="button"
+            className="dock-icon"
+            title="Ссылка"
+            aria-label="Ссылка"
+            aria-pressed={showLink}
+            onClick={() => setShowLink((value) => !value)}
+            disabled={busyFile}
+          >
+            <LinkIcon />
+          </button>
+          <button
+            type="button"
+            className="dock-icon"
+            title={extraReferences ? "Материал приложен" : "Материал"}
+            aria-label={extraReferences ? "Материал приложен" : "Материал"}
+            aria-pressed={showRefs}
+            onClick={() => setShowRefs((value) => !value)}
+          >
+            <NoteIcon />
+          </button>
+          <button
+            type="button"
+            className="dock-icon"
+            title={mode === "template" ? "Свободный запрос" : "По шаблону"}
+            aria-label={mode === "template" ? "Свободный запрос" : "По шаблону"}
+            aria-pressed={mode === "template"}
+            onClick={() => setMode((value) => (value === "free" ? "template" : "free"))}
+          >
+            <TemplateIcon />
+          </button>
+          <span className="dock-spacer" />
+          {mode === "template" ? (
+            pending ? (
+              <button type="button" className="dock-send" aria-label="Стоп" title="Стоп" onClick={onStop}>
+                <StopIcon />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                className="dock-send"
+                aria-label="Собрать по шаблону"
+                title="Собрать по шаблону"
+                disabled={!templateReady}
+              >
+                <SendIcon />
+              </button>
+            )
+          ) : null}
+          <input
+            ref={fileRef}
+            type="file"
+            hidden
+            accept=".txt,.md,.pdf,.docx,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void attachFile(file);
+              event.target.value = "";
+            }}
+          />
+        </div>
       </div>
+
+      {frameworkApproved && !kitComplete ? (
+        <button
+          type="button"
+          className="dock-accent"
+          disabled={pending}
+          title="Добавить тесты, задания и лекции к утверждённому каркасу"
+          onClick={() => onSend(KIT_PROMPT)}
+        >
+          Собрать комплект
+        </button>
+      ) : null}
+
       {voiceNote ? (
         <p className={`job-status ${voiceNote.startsWith("Готово") || voiceNote.startsWith("Слушаю") || voiceNote.startsWith("Разбираю") ? "" : "chat-error"}`} aria-live="polite">
           {voiceNote}
@@ -541,44 +650,41 @@ export function RequestComposer({
         </p>
       ) : null}
       {showRefs ? (
-        <textarea
-          className="refs-box"
-          value={extraReferences}
-          onChange={(event) => onReferencesChange(event.target.value)}
-          placeholder="Текст бланка, профстандарта или старой программы"
-          rows={3}
-        />
+        <div className="material-list">
+          {materials.length === 0 ? (
+            <p className="muted">Файлов пока нет.</p>
+          ) : (
+            <ul>
+              {materials.map((item, index) => (
+                <li key={`${item.label}-${index}`}>
+                  <span>{item.label}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = materials.filter((_, itemIndex) => itemIndex !== index);
+                      setMaterials(next);
+                      publishMaterials(next, materialNote);
+                    }}
+                  >
+                    Убрать
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <textarea
+            className="refs-box"
+            value={materialNote}
+            onChange={(event) => {
+              const note = event.target.value;
+              setMaterialNote(note);
+              publishMaterials(materials, note);
+            }}
+            placeholder="Короткая пометка, если нужна"
+            rows={2}
+          />
+        </div>
       ) : null}
-      <div className="composer-row send-row">
-        {pending ? (
-          <button type="button" onClick={onStop}>
-            Стоп
-          </button>
-        ) : (
-          <button
-            type="submit"
-            className="primary"
-            disabled={recording || (mode === "free" ? !input.trim() : !templateReady)}
-          >
-            {mode === "template" ? "Собрать по шаблону" : "Отправить"}
-          </button>
-        )}
-        {stage === "framework" || (stage === "kit" && !kitComplete) ? (
-          <button
-            type="button"
-            className={stage === "kit" ? "primary" : undefined}
-            disabled={pending}
-            title={
-              stage === "kit"
-                ? "Добавить тесты, задания и лекции к утверждённому каркасу"
-                : "Заполнить недостающие части каркаса"
-            }
-            onClick={() => onSend(frameworkApproved ? KIT_PROMPT : FRAMEWORK_PROMPT)}
-          >
-            {stage === "kit" ? "Собрать комплект" : "Дособрать каркас"}
-          </button>
-        ) : null}
-      </div>
       {showLink ? (
         <div className="composer-row link-row">
           <input
@@ -594,5 +700,52 @@ export function RequestComposer({
         </div>
       ) : null}
     </form>
+  );
+}
+
+function MicIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="9" y="3.5" width="6" height="10" rx="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M12 17v3M9 20h6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function FileIcon() {
+  return <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/file.png)" }} aria-hidden="true" />;
+}
+
+function LinkIcon() {
+  return <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/link.png)" }} aria-hidden="true" />;
+}
+
+function NoteIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7 5.5h10a1.5 1.5 0 0 1 1.5 1.5v8.2L14.2 19.5H7A1.5 1.5 0 0 1 5.5 18V7A1.5 1.5 0 0 1 7 5.5z" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M14 19.2V15h4.2M8.5 9.5h6M8.5 12.5h4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function TemplateIcon() {
+  return <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/template.png)" }} aria-hidden="true" />;
+}
+
+function SendIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 17V7M8 10.5 12 6.5l4 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function StopIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="8" y="8" width="8" height="8" rx="1.5" fill="currentColor" />
+    </svg>
   );
 }

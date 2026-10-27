@@ -63,7 +63,8 @@ def test_agent_does_not_invent_hours_from_month() -> None:
     assert result["course"].brief.duration_hours == 0
     assert result["course"].brief.program_kind == "unset"
     assert "точный объём" in result["assistant"]
-    assert result["assistant"].count("?") <= 6
+    assert result["assistant"].count("?") == 1
+    assert "\n2." not in result["assistant"]
 
 
 def test_chat_turn_http_contract(monkeypatch) -> None:

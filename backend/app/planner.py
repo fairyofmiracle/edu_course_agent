@@ -167,12 +167,33 @@ QUESTION_LABELS = {
 
 
 def intake_questions(course: CourseDocument) -> str:
-    missing = missing_brief_lines(course)[:5]
-    lines = [
-        f"{index}. {QUESTION_LABELS.get(item, item)}?"
-        for index, item in enumerate(missing, start=1)
+    missing = missing_brief_lines(course)
+    if not missing:
+        return "Проверьте часы и утвердите каркас."
+    hours = "точный объём в академических часах"
+    item = hours if hours in missing else missing[0]
+    question = QUESTION_LABELS.get(item, item)
+    return f"Не хватает данных, чтобы собрать программу. Уточните:\n1. {question}?"
+
+
+def spoken_reply(course: CourseDocument, task: str = "") -> str:
+    """Фраза методисту. Текст шага планировщика в чат не попадает."""
+    if missing_brief_lines(course):
+        return intake_questions(course)
+    failed = [
+        str(item.get("label") or item.get("id"))
+        for item in framework_items(course)
+        if not item.get("ok")
     ]
-    return "Не хватает данных, чтобы собрать программу. Уточните:\n" + "\n".join(lines)
+    if failed:
+        return (
+            f"Каркас ещё не сходится: {'; '.join(failed)}. "
+            "Проверьте эти пункты. Утвердить каркас можно, когда данные будут на месте."
+        )
+    folded = task.casefold()
+    if "итог" in folded or "собрано" in folded:
+        return "Комплект собран. Проверьте документ перед выгрузкой."
+    return "Проверьте данные и, если вас всё устраивает, утвердите каркас."
 
 
 def plan_step(
@@ -254,7 +275,7 @@ def plan_step(
                 "update_brief",
             ]
         else:
-            tools = ["revise_section", "update_brief", "set_structure"]
+            tools = ["revise_section", "update_brief", "set_structure", "set_competency_map"]
         return {
             "kind": "auto",
             "tools": tools,
@@ -272,10 +293,12 @@ def plan_step(
         }
     missing = missing_brief_lines(course)
     if mode == "intake" and missing:
+        hours = "точный объём в академических часах"
+        item = hours if hours in missing else missing[0]
         return {
             "kind": "reply",
             "task": (
-                f"Уточни: {', '.join(missing)}. Задай не больше пяти вопросов. "
+                f"Уточни: {item}. Задай один вопрос. "
                 "«Примерно месяц» не считай точным объёмом. "
                 "Компетенции и модули не собирай, пока этих данных нет."
             ),
@@ -367,8 +390,8 @@ def plan_step(
     return {
         "kind": "reply",
         "task": (
-            f"Попроси проверить каркас. Не пройдены: {', '.join(failed)}."
+            f"Каркас ещё не сходится: {', '.join(failed)}. Проверьте эти пункты. Утвердить каркас можно, когда данные будут на месте."
             if failed
-            else "Попроси проверить часы и утвердить каркас."
+            else "Проверьте данные и, если вас всё устраивает, утвердите каркас."
         ),
     }

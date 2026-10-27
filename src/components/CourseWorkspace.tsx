@@ -6,20 +6,20 @@ import { SourceChecks } from "@/components/SourceChecks";
 import { StackFreshnessPanel } from "@/components/StackFreshness";
 import { LectureDeck } from "@/components/LectureDeck";
 import { MermaidBlock } from "@/components/MermaidBlock";
-import { auditCourse, methodistNotes, type AuditSection, type AuditStatus } from "@/lib/course-audit";
-import { isHttpSource, sourceConfidence } from "@/lib/verbatim";
+import { auditCourse, type AuditStatus } from "@/lib/course-audit";
+import { isOfficialPublication } from "@/lib/legal-basis";
+import { isHttpSource } from "@/lib/verbatim";
 import { exportAssessmentDocx, exportSeminarDocx } from "@/lib/export-docx";
 import { briefGaps, moduleKindsGap, programBalanceNote, validateCourseHours } from "@/lib/course-validation";
 import { moduleFlowChart } from "@/lib/presentation/course-to-presentation";
 import { calendarPace } from "@/lib/week-plan";
-import { contentGaps, frameworkItems, isFrameworkApproved, isKitComplete, outcomeGaps } from "@/lib/framework-check";
+import { contentGaps, frameworkItems, hasBuiltMaterials, isFrameworkApproved, outcomeGaps } from "@/lib/framework-check";
 import {
   BLOOM_LABELS,
   FORMAT_LABELS,
   LEVEL_LABELS,
   PROGRAM_KIND_LABELS,
   QUESTION_LABELS,
-  courseCompleteness,
   type CourseDocument,
 } from "@/lib/course-schema";
 
@@ -60,7 +60,7 @@ export function CourseTabs({
 }) {
   const tabs = WORKSPACE_TABS.filter((item) => approved || !CONTENT_TABS.includes(item.id));
   return (
-    <nav className="journal-tabs" aria-label="Разделы курса">
+    <nav className="nav-sections" aria-label="Разделы курса">
       {tabs.map((item) => (
         <button
           key={item.id}
@@ -77,20 +77,17 @@ export function CourseTabs({
 }
 
 export function CourseWorkspace({ course, tab }: CourseWorkspaceProps) {
-  const completeness = courseCompleteness(course);
-  const approved = isFrameworkApproved(course);
-  const locked = CONTENT_TABS.includes(tab) && !approved;
+  const contentOpen = isFrameworkApproved(course) || hasBuiltMaterials(course);
+  const locked = CONTENT_TABS.includes(tab) && !contentOpen;
 
   return (
     <section className="workspace">
-      <p className="kicker section-hint">{WORKSPACE_TABS.find((item) => item.id === tab)?.hint}</p>
-
       <div className="workspace-body">
         {locked ? (
           <LockedContentState />
         ) : (
           <>
-            {tab === "overview" ? <Overview course={course} score={completeness.score} /> : null}
+            {tab === "overview" ? <Overview course={course} /> : null}
             {tab === "structure" ? <Structure course={course} /> : null}
             {tab === "competencies" ? <CompetencyMap course={course} /> : null}
             {tab === "lectures" ? <LectureDeck course={course} /> : null}
@@ -107,72 +104,96 @@ export function CourseWorkspace({ course, tab }: CourseWorkspaceProps) {
 function LockedContentState() {
   return (
     <div className="hero-empty compact">
-      <p className="kicker">Следующий этап</p>
-      <h2>Сначала проверьте каркас</h2>
-      <p>
-        Лекции, задания и тесты собираются после того, как часы и связи проверены,
-        а методист нажал «Утвердить каркас».
-      </p>
+      <h2>Сначала утвердите каркас</h2>
     </div>
   );
 }
 
-const AUDIT_STATUS: Record<AuditStatus, string> = {
-  pass: "Пройдено",
-  warning: "Проверить вручную",
-  fail: "Не выполнено",
-};
+function sourceStatus(source?: string) {
+  const value = source?.trim() ?? "";
+  if (!value) return "Источник не указан";
+  if (!isHttpSource(value)) return "Файл методиста";
+  if (isOfficialPublication(value)) return "Официальное опубликование";
+  return "Ссылка не подтверждена";
+}
 
-const AUDIT_SECTIONS: Array<{ id: AuditSection; label: string }> = [
-  { id: "framework", label: "Каркас" },
-  { id: "content", label: "Полный комплект" },
-  { id: "sources", label: "Источники" },
-  { id: "freshness", label: "Актуальность" },
-  { id: "case", label: "Условия запроса" },
-];
-
-function ConfidenceNote({ course }: { course: CourseDocument }) {
-  const confidence = sourceConfidence(course);
+function ReferenceList({
+  references,
+  title,
+}: {
+  references: CourseDocument["brief"]["references"];
+  title: string;
+}) {
   return (
-    <p className={confidence.level === "низкая" ? "voice-error" : "muted"}>{confidence.summary}</p>
+    <article>
+      <h3>{title}</h3>
+      {references.length === 0 ? (
+        <p className="muted">—</p>
+      ) : (
+        <ul className="ref-list">
+          {references.map((item, index) => {
+            const source = item.source?.trim() ?? "";
+            return (
+              <li key={`${item.title}-${source}-${index}`}>
+                <strong>{item.title}</strong>
+                <span>{sourceStatus(item.source)}</span>
+                {isHttpSource(source) ? (
+                  <a href={source} target="_blank" rel="noreferrer">
+                    {source}
+                  </a>
+                ) : source ? (
+                  <span>{source}</span>
+                ) : null}
+                {item.note ? <span>{item.note}</span> : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </article>
   );
 }
 
 function AuditPanel({ course }: { course: CourseDocument }) {
   const report = auditCourse(course);
+  const groups: { status: AuditStatus; title: string }[] = [
+    { status: "fail", title: "Не выполнено" },
+    { status: "warning", title: "Вручную" },
+    { status: "pass", title: "Пройдено" },
+  ];
   return (
     <div className="audit">
-      <header className="overview-head">
-        <div>
-          <p className="kicker">Автопроверка</p>
-          <h2>Отчёт по программе</h2>
-        </div>
-        <p className="score">
-          {report.summary.pass} / {report.items.length}
-        </p>
-      </header>
-      <ConfidenceNote course={course} />
-      <p className="muted">
-        Пройдено: {report.summary.pass}. Не выполнено: {report.summary.fail}. Проверить вручную:{" "}
-        {report.summary.warning}.
-      </p>
-      {AUDIT_SECTIONS.map((section) => {
-        const items = report.items.filter((entry) => entry.section === section.id);
-        if (items.length === 0) return null;
+      <div className="audit-counts">
+        {groups.map((group) => (
+          <p key={group.status} className={`audit-count ${group.status}`}>
+            <strong>{report.summary[group.status]}</strong>
+            <span>{group.title}</span>
+          </p>
+        ))}
+      </div>
+      {groups.map((group) => {
+        const items = report.items.filter((entry) => entry.status === group.status);
+        if (items.length === 0 || group.status === "pass") return null;
         return (
-          <article key={section.id}>
-            <h3>{section.label}</h3>
-            <ul className="audit-list">
-              {items.map((entry) => (
-                <li key={entry.id} className={entry.status}>
-                  <strong>{AUDIT_STATUS[entry.status]}:</strong> {entry.label}
-                  {entry.details ? <span>{entry.details}</span> : null}
-                </li>
-              ))}
-            </ul>
-          </article>
+          <section key={group.status} className="audit-group">
+            {items.map((entry) => (
+              <article key={entry.id} className={`audit-card ${entry.status}`}>
+                <h3>{entry.label}</h3>
+                {entry.details ? <span>{entry.details}</span> : null}
+              </article>
+            ))}
+          </section>
         );
       })}
+      <details className="audit-passed">
+        <summary>Пройдено: {report.summary.pass}</summary>
+        {report.items
+          .filter((entry) => entry.status === "pass")
+          .map((entry) => (
+            <p key={entry.id}>{entry.label}</p>
+          ))}
+      </details>
+      <ReferenceList references={course.brief.references} title="Источники" />
       <SourceChecks course={course} />
       <StackFreshnessPanel course={course} />
     </div>
@@ -181,7 +202,6 @@ function AuditPanel({ course }: { course: CourseDocument }) {
 
 function FrameworkCheck({ course }: { course: CourseDocument }) {
   const items = frameworkItems(course);
-  const approved = isFrameworkApproved(course);
   const gaps = contentGaps(course);
   const hourErrors = validateCourseHours(course);
   return (
@@ -194,13 +214,6 @@ function FrameworkCheck({ course }: { course: CourseDocument }) {
           </li>
         ))}
       </ul>
-      <p className="muted">
-        {approved
-          ? isKitComplete(course)
-            ? "Каркас утверждён, комплект собран."
-            : "Каркас утверждён. Можно собирать тесты, задания и лекции."
-          : "Содержание откроется после кнопки «Утвердить каркас»."}
-      </p>
       {course.assessments.length > 0 && gaps.length > 0 ? (
         <p className="voice-error">
           Вопросы не закрывают компетенции: {gaps.join(", ")}
@@ -321,68 +334,44 @@ function ModuleBoard({ course }: { course: CourseDocument }) {
   );
 }
 
-function Overview({ course, score }: { course: CourseDocument; score: number }) {
+function Overview({ course }: { course: CourseDocument }) {
   const { brief } = course;
-  const notes = methodistNotes(course);
+  const gaps = briefGaps(course);
   return (
     <div className="overview">
-      <header className="overview-head">
-        <div>
-          <p className="kicker">Программа</p>
-          <h2>
-            {brief.title.trim() ||
-              (course.modules.length === 0 ? "Новая образовательная программа" : "Без названия")}
-          </h2>
-          {!brief.title && course.modules.length === 0 ? (
-            <p className="program-soon">
-              {briefGaps(course).length
-                ? `Пока нет: ${briefGaps(course).join(", ")}.`
-                : "скоро здесь будет программа"}
-            </p>
-          ) : null}
-        </div>
-        <p className="score">{Math.round(score * 100)}% заполнено</p>
-      </header>
-      <ConfidenceNote course={course} />
-      {notes.length ? (
-        <article>
-          <h3>Для методиста</h3>
-          <ul>
-            {notes.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </article>
+      {!brief.title && course.modules.length === 0 && gaps.length > 0 ? (
+        <p className="program-soon">Пока нет: {gaps.join(", ")}.</p>
       ) : null}
-      <dl className="meta-grid">
-        <div>
-          <dt>Аудитория</dt>
-          <dd>{brief.audience || "—"}</dd>
-        </div>
-        <div>
-          <dt>Уровень</dt>
-          <dd>{LEVEL_LABELS[brief.level]}</dd>
-        </div>
-        <div>
-          <dt>Объём</dt>
-          <dd>{brief.durationHours ? `${brief.durationHours} ч` : "—"}</dd>
-        </div>
-        <div>
-          <dt>Формат</dt>
-          <dd>{FORMAT_LABELS[brief.format]}</dd>
-        </div>
-        <div>
-          <dt>Шаблон</dt>
-          <dd>{PROGRAM_KIND_LABELS[brief.programKind]}</dd>
-        </div>
-        <div>
-          <dt>Аттестация</dt>
-          <dd>
-            {brief.attestationHours ? `${brief.attestationHours} ч` : "0 ч"}
-            {brief.attestationForm ? ` · ${brief.attestationForm}` : ""}
-          </dd>
-        </div>
-      </dl>
+      <section className="about-card">
+        <h2>О программе</h2>
+        <p className="about-label">Целевая аудитория</p>
+        <p className="about-audience">{brief.audience.trim() || "Аудитория ещё не названа"}</p>
+        <dl className="meta-grid">
+          <div>
+            <dt>Объём</dt>
+            <dd>{brief.durationHours ? `${brief.durationHours} ч` : "—"}</dd>
+          </div>
+          <div>
+            <dt>Шаблон</dt>
+            <dd>{PROGRAM_KIND_LABELS[brief.programKind]}</dd>
+          </div>
+          <div>
+            <dt>Аттестация</dt>
+            <dd>
+              {brief.attestationHours ? `${brief.attestationHours} ч` : "0 ч"}
+              {brief.attestationForm ? ` · ${brief.attestationForm}` : ""}
+            </dd>
+          </div>
+          <div>
+            <dt>Формат</dt>
+            <dd>{FORMAT_LABELS[brief.format]}</dd>
+          </div>
+          <div>
+            <dt>Уровень</dt>
+            <dd>{LEVEL_LABELS[brief.level]}</dd>
+          </div>
+        </dl>
+      </section>
       {course.modules.length > 0 ? (
         <>
         <table className="hours-table">
@@ -428,11 +417,6 @@ function Overview({ course, score }: { course: CourseDocument; score: number }) 
             </tr>
           </tbody>
         </table>
-        <p className="muted">
-          Лекции — объяснение преподавателя. Семинары — разбор вместе с группой. Лабораторные —
-          работа за компьютером. Самостоятельно — без преподавателя. Сумма четырёх колонок равна
-          «Всего».
-        </p>
         </>
       ) : null}
       <div className="two-col">
@@ -454,26 +438,7 @@ function Overview({ course, score }: { course: CourseDocument; score: number }) 
         </article>
       </div>
       <FrameworkCheck course={course} />
-      <article>
-        <h3>Референсы</h3>
-        <ul>
-          {brief.references.length ? (
-            brief.references.map((item) => (
-              <li key={item.title}>
-                <strong>{item.title}</strong>
-                {item.source ? ` · ${item.source}` : ""}
-                {item.note ? ` — ${item.note}` : ""}
-                {" · "}
-                {item.source?.trim() && !isHttpSource(item.source)
-                  ? "файл методиста"
-                  : "не подтверждён"}
-              </li>
-            ))
-          ) : (
-            <li>—</li>
-          )}
-        </ul>
-      </article>
+      <ReferenceList references={brief.references} title="Референсы" />
     </div>
   );
 }
@@ -563,8 +528,6 @@ function WeekPlan({ course }: { course: CourseDocument }) {
             {sameAsGraph
               ? ` на ${weeks.length} ${weekWord(weeks.length)}, по ${formatHours(perWeek)} ч.`
               : ` · сейчас ${weeks.length} ${weekWord(weeks.length)} по ${formatHours(perWeek)} ч.`}
-            {" "}
-            Даты занятий не подставляются.
           </p>
         </div>
         <label>
@@ -606,7 +569,7 @@ function WeekPlan({ course }: { course: CourseDocument }) {
 
 function Structure({ course }: { course: CourseDocument }) {
   if (course.modules.length === 0) {
-    return <p className="empty-hint">Структура появится, когда агент соберёт модули.</p>;
+    return null;
   }
   return (
     <div className="structure">
@@ -623,7 +586,7 @@ function competencyName(course: CourseDocument, id: string) {
 function Seminars({ course }: { course: CourseDocument }) {
   const [openId, setOpenId] = useState<string | null>(null);
   if (course.seminars.length === 0) {
-    return <p className="empty-hint">Файлы семинаров появятся, когда агент соберёт задания.</p>;
+    return null;
   }
   return (
     <ul className="file-list">
@@ -692,7 +655,7 @@ function Seminars({ course }: { course: CourseDocument }) {
 function Tests({ course }: { course: CourseDocument }) {
   const [openId, setOpenId] = useState<string | null>(null);
   if (course.assessments.length === 0) {
-    return <p className="empty-hint">Файлы тестов появятся, когда агент соберёт вопросы.</p>;
+    return null;
   }
   return (
     <ul className="file-list">

@@ -16,6 +16,7 @@ import {
   writeStamp,
   type SourceStamp,
 } from "@/lib/source-watch";
+import { isOfficialPublication } from "@/lib/legal-basis";
 
 const STATE_LABEL = {
   reachable: "Сайт ответил",
@@ -101,7 +102,9 @@ export function SourceChecks({ course }: { course: CourseDocument }) {
             const notice = noticeFor(stamps[result.url], result.fingerprint?.trim() || "");
             const text = noticeText(notice, formatSeen);
             const requisites = result.requisites ?? "unchecked";
-            const confirmed = result.state === "reachable" && requisites === "found";
+            const official = isOfficialPublication(result.url);
+            const confirmed =
+              result.state === "reachable" && (official || requisites === "found");
             return (
               <li
                 key={result.url}
@@ -113,9 +116,19 @@ export function SourceChecks({ course }: { course: CourseDocument }) {
                     : "pass"
                 }
               >
-                <strong>{STATE_LABEL[result.state]}:</strong> {result.url}
-                <span>{result.message}</span>
-                <span>{REQUISITE_LABEL[requisites]}</span>
+                <strong>
+                  {official && result.state === "reachable"
+                    ? "Официальное опубликование"
+                    : STATE_LABEL[result.state]}
+                </strong>
+                <a href={result.url} target="_blank" rel="noreferrer">
+                  {result.url}
+                </a>
+                <span>
+                  {official && result.state === "reachable"
+                    ? "Это ссылка из нашего списка. Текст приказа со страницы не забираем."
+                    : `${result.message} ${REQUISITE_LABEL[requisites]}`}
+                </span>
                 {text ? <span>{text}</span> : null}
                 {notice.kind === "changed" ? (
                   <button type="button" onClick={() => acknowledge(result)}>

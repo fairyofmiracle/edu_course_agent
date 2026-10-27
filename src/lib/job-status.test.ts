@@ -32,8 +32,8 @@ describe("job status labels", () => {
     expect(exportWaitLabel("pptx", 4000)).toMatch(/тяжёл/);
     expect(exportDoneLabel("json")).toBe("JSON готов");
     expect(exportWaitLabel("gift", 100, "браузере")).toMatch(/GIFT в браузере/);
-    expect(exportKindName("moodle")).toBe("MOODLE");
-    expect(exportDoneLabel("moodle")).toBe("MOODLE готов");
+    expect(exportKindName("moodle")).toBe("Moodle");
+    expect(exportDoneLabel("moodle")).toBe("Moodle готов");
   });
 
   it("прогресс и токены читаются без нового запроса к модели", () => {

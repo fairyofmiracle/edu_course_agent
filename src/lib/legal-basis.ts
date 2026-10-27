@@ -36,6 +36,13 @@ export const ORDER_499: LegalDocument = {
   note: "Утратил силу с 01.09.2025. В требование он входит как прежнее основание программ повышения квалификации. Действующий порядок — приказ № 266.",
 };
 
+export function isOfficialPublication(source: string) {
+  const value = source.trim().replace(/\/+$/, "").replace(/^https:\/\//i, "http://").toLowerCase();
+  return [LAW_273.source, ORDER_629.source, ORDER_266.source].some(
+    (item) => item.replace(/\/+$/, "").replace(/^https:\/\//i, "http://").toLowerCase() === value,
+  );
+}
+
 export function requiredLegalBasis(kind: CourseBrief["programKind"]): LegalDocument[] {
   if (kind === "general") return [ORDER_629];
   if (kind === "qualification") return [LAW_273, ORDER_266];

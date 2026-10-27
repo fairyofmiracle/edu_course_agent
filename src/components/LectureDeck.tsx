@@ -14,18 +14,11 @@ export function LectureDeck({ course }: LectureDeckProps) {
   const [openId, setOpenId] = useState<string | null>(null);
 
   if (lectures.length === 0) {
-    return (
-      <p className="empty-hint">
-        Файлы лекций появятся, когда агент соберёт слайды по модулям.
-      </p>
-    );
+    return null;
   }
 
   return (
     <div className="file-shelf">
-      <p className="muted">
-        Текст слайдов — черновик модели. Часы модуля и штамп паспорта от этих формулировок не зависят.
-      </p>
       <ul className="file-list">
         {lectures.map((lecture) => {
           const courseModule = course.modules.find((item) => item.id === lecture.moduleId);

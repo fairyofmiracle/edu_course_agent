@@ -52,11 +52,10 @@ def test_lecture_explains_topics_without_hour_table() -> None:
     lecture = lecture_for_module(module, course)
     titles = [slide["title"] for slide in lecture["slides"]]
     assert len(lecture["slides"]) > 4
-    assert "Ход занятия" in titles
+    assert "Ход занятия" not in titles
     assert "Часы модуля" not in titles
     assert all("ч." not in " ".join(slide["bullets"]) for slide in lecture["slides"])
-    chart = next(slide for slide in lecture["slides"] if slide["title"] == "Ход занятия")
-    assert "flowchart" in chart["mermaid"]
+    assert lecture["slides"][0]["bullets"][0] == "Переменные"
 
 
 def test_teacher_ai_kit_follows_case2_document() -> None:

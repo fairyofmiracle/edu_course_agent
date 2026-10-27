@@ -12,7 +12,9 @@ import hashlib
 import hmac
 import json
 import os
+import secrets
 import time
+import warnings
 from enum import Enum
 from typing import Any, Literal
 
@@ -195,9 +197,56 @@ def auth_logout() -> StubLogout:
     return StubLogout()
 
 
+_WEAK_JWT_SECRETS = frozenset(
+    {
+        "roadmap-stub-jwt",
+        "secret",
+        "changeme",
+        "studio",
+        "password",
+        "jwt-secret",
+    }
+)
+_generated_jwt_secret: bytes | None = None
+
+
+def _studio_is_production() -> bool:
+    flag = os.environ.get("STUDIO_ENV", os.environ.get("ENVIRONMENT", "")).strip().lower()
+    return flag in {"prod", "production"}
+
+
 def jwt_secret() -> bytes:
-    raw = os.environ.get("STUDIO_JWT_SECRET", "").strip() or "roadmap-stub-jwt"
-    return raw.encode("utf-8")
+    """HS256 secret for the roadmap JWT stub.
+
+    Production (STUDIO_ENV=production) requires a strong STUDIO_JWT_SECRET.
+    Dev/test without the variable get a per-process random secret and a warning —
+    never the old hardcoded roadmap-stub-jwt default.
+    """
+    global _generated_jwt_secret
+
+    raw = os.environ.get("STUDIO_JWT_SECRET", "").strip()
+    if raw:
+        if raw in _WEAK_JWT_SECRETS or len(raw) < 16:
+            if _studio_is_production():
+                raise RuntimeError(
+                    "STUDIO_JWT_SECRET слишком слабый для production "
+                    "(минимум 16 символов, не словарный дефолт)."
+                )
+            warnings.warn(
+                "STUDIO_JWT_SECRET слабый; допустим только для локальной разработки.",
+                stacklevel=2,
+            )
+        return raw.encode("utf-8")
+    if _studio_is_production():
+        raise RuntimeError("Задайте STUDIO_JWT_SECRET в окружении production.")
+    if _generated_jwt_secret is None:
+        _generated_jwt_secret = secrets.token_urlsafe(32).encode("ascii")
+        warnings.warn(
+            "STUDIO_JWT_SECRET не задан: сгенерирован временный секрет на процесс "
+            "(только разработка/тесты).",
+            stacklevel=2,
+        )
+    return _generated_jwt_secret
 
 
 def issue_jwt(email: str, role: StudioRole, ttl: int = JWT_TTL) -> str:

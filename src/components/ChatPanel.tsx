@@ -83,7 +83,6 @@ type ChatPanelProps = {
   frameworkApproved: boolean;
   kitComplete: boolean;
   stage: "ask" | "framework" | "kit";
-  missingChecks: string[];
   onReferencesChange: (value: string) => void;
   onReferenceAdd: (reference: CourseBrief["references"][number]) => void;
   onSend: (text: string, brief?: Partial<CourseBrief>) => void;
@@ -99,7 +98,6 @@ export function ChatPanel({
   frameworkApproved,
   kitComplete,
   stage,
-  missingChecks,
   onReferencesChange,
   onReferenceAdd,
   onSend,
@@ -161,24 +159,16 @@ export function ChatPanel({
       ) : null}
       <header className="pane-head chat-head">
         <div>
-          <p className="pane-label">Запрос</p>
-          <h2>Чат</h2>
+          <p className="pane-label">Ассистент</p>
+          <h2>Методий</h2>
           {progress ? <p className="work-caption">{progress.label}</p> : null}
-        </div>
-        <div className="chat-head-side">
-          <span className="chat-help">
-            <button type="button" className="chat-help-mark" aria-describedby="chat-help-tip">
-              ?
-            </button>
-            <p id="chat-help-tip" className="chat-help-tip" role="tooltip">
-              Укажите ваш запрос
-            </p>
-          </span>
         </div>
       </header>
 
       <div className="messages" aria-live="polite">
-        {messages.length === 0 ? null : (
+        {messages.length === 0 ? (
+          <p className="chat-empty">Напишите, какой курс нужен.</p>
+        ) : (
           messages.map((message) => {
             const texts = message.parts.filter(
               (part): part is { type: "text"; text: string } => part.type === "text" && Boolean(part.text),
@@ -332,19 +322,6 @@ export function ChatPanel({
         {error ? <p className="chat-error">{userFacingError(error)}</p> : null}
         <div ref={bottomRef} />
       </div>
-      {messages.length > 0 ? (
-        <p className="chat-hint">
-          {stage === "ask"
-            ? "Часы впишите в вопрос. Тип, аттестацию и форму можно выбрать кнопками. Слушателей напишите текстом."
-            : stage === "framework"
-              ? missingChecks.length
-                ? `В программе ещё проверить: ${missingChecks.slice(0, 2).join("; ")}.`
-                : "Каркас готов. Откройте программу и утвердите его."
-              : kitComplete
-                ? "Комплект собран. Его можно смотреть в программе и выгружать."
-                : "Каркас утверждён. Можно попросить собрать комплект."}
-        </p>
-      ) : null}
 
       <RequestComposer
         extraReferences={extraReferences}

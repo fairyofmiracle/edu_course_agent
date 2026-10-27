@@ -4,7 +4,7 @@ import json
 import time
 from typing import Any
 
-from .brief_guard import repair_typos
+from .brief_guard import repair_typos, volume_from_text
 from .cloud import CloudRuClient, TurnStopped
 from .domain import apply_patch, framework_fingerprint, framework_items, rebalance_course
 from .catalog import (
@@ -37,8 +37,8 @@ from .planner import (
     KIT_TOOLS,
     content_missing,
     decide_mode,
-    intake_questions,
     is_duration_edit_request,
+    spoken_reply,
     is_framework_approved,
     kit_needed,
     kit_request_ready,
@@ -296,6 +296,8 @@ async def run_turn(
     client: CloudRuClient | None = None,
 ) -> dict[str, Any]:
     client = client or CloudRuClient()
+    if hasattr(client, "begin_turn"):
+        client.begin_turn()
     user_texts = [repair_typos(text) for text in user_texts]
     last_text = user_texts[-1] if user_texts else ""
     if kit_request_ready(course, last_text):
@@ -317,6 +319,7 @@ async def run_turn(
     if is_framework_approved(course) and kit_needed(course):
         mode = "kit"
     planned: list[str] = []
+    hours_before = course.brief.duration_hours
     patches: list[dict[str, Any]] = []
     calls: list[dict[str, Any]] = []
     assistant_text = ""
@@ -361,7 +364,11 @@ async def run_turn(
         )
         planned.append(key)
         if step.get("tool") == "update_brief":
-            if skip_brief_extraction:
+            local_hours = None
+            if is_duration_edit_request(last_text):
+                local_hours = volume_from_text([last_text])
+                arguments = {"durationHours": local_hours} if local_hours else {}
+            elif skip_brief_extraction:
                 arguments = {}
             else:
                 try:
@@ -390,15 +397,15 @@ async def run_turn(
                     patches.append(output)
             if references:
                 course = apply_reference_hints(course, references, user_texts)
+            if local_hours and any(item.get("type") != "tool_error" for item in patches):
+                assistant_text = duration_reply(local_hours)
+                break
             continue
         if step.get("kind") == "reply":
-            if missing_brief_lines(course):
-                assistant_text = intake_questions(course)
-            else:
-                assistant_text = str(step.get("task") or "Каркас готов. Проверьте часы и утвердите.")
-                notes = promise_notes(course)
-                if notes:
-                    assistant_text = assistant_text + "\n\n" + "\n".join(notes)
+            assistant_text = spoken_reply(course, str(step.get("task") or ""))
+            notes = promise_notes(course)
+            if notes and not missing_brief_lines(course):
+                assistant_text = assistant_text + "\n\n" + "\n".join(notes)
             break
         if step.get("tool") == "set_competency_map" and not getattr(client, "api_key", None):
             output = execute_tool(
@@ -606,6 +613,16 @@ async def run_turn(
         assistant_text = kit_assistant_text(client, calls, planned)
     elif is_framework_approved(course) and not assistant_text:
         assistant_text = "Каркас утверждён."
+    if mode == "free" and not patches and "не изменил" not in assistant_text.casefold():
+        notice = "Документ не изменился."
+        assistant_text = f"{assistant_text}\n\n{notice}".strip() if assistant_text else notice
+    hours_now = course.brief.duration_hours
+    if hours_now > LARGE_DURATION_HOURS and hours_now != hours_before and "больше 1024" not in assistant_text:
+        note = (
+            f"Объём {hours_now:g} академических часов больше {LARGE_DURATION_HOURS}. "
+            "Подтвердите, что вам нужен курс такого объёма."
+        )
+        assistant_text = f"{assistant_text}\n\n{note}".strip() if assistant_text else note
 
     return {
         "course": course,
@@ -618,6 +635,19 @@ async def run_turn(
         "usage": getattr(client, "usage", None),
         "gatewayRetries": list(getattr(client, "gateway_retries", []) or []),
     }
+
+
+LARGE_DURATION_HOURS = 1024
+
+
+def duration_reply(hours: float) -> str:
+    line = f"Объём программы теперь {hours:g} академических часов."
+    if hours > LARGE_DURATION_HOURS:
+        return (
+            f"{line} Это больше {LARGE_DURATION_HOURS} часов. "
+            "Подтвердите, что вам нужен курс такого объёма."
+        )
+    return f"{line} Проверьте, что сумма модулей сходится с этим объёмом."
 
 
 def strengthen_framework(course: CourseDocument) -> CourseDocument:

@@ -230,7 +230,7 @@ def test_complete_requires_key_and_budget(monkeypatch) -> None:
         raise AssertionError("без ключа complete должен падать")
     client.api_key = "k"
     client.token_budget = 1
-    client.usage["total_tokens"] = 5
+    client.turn_usage["total_tokens"] = 5
     try:
         asyncio.run(
             client.complete(
@@ -517,3 +517,18 @@ def test_single_attempt_names_one_try(monkeypatch) -> None:
         assert "после 1 попытки" in str(error)
     else:
         raise AssertionError("таймаут должен подниматься")
+
+
+def test_begin_turn_resets_token_budget() -> None:
+    client = CloudRuClient()
+    client.token_budget = 10
+    client.add_usage({"prompt_tokens": 6, "completion_tokens": 2, "total_tokens": 8})
+    assert client.usage["total_tokens"] == 8
+    assert client.turn_usage["total_tokens"] == 8
+    assert client.budget_left()
+    client.add_usage({"prompt_tokens": 3, "completion_tokens": 0, "total_tokens": 3})
+    assert not client.budget_left()
+    client.begin_turn()
+    assert client.turn_usage["total_tokens"] == 0
+    assert client.usage["total_tokens"] == 11
+    assert client.budget_left()

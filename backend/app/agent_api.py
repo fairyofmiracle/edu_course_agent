@@ -143,6 +143,8 @@ async def run_case(request: RunRequest) -> dict[str, Any]:
 
     async def turn(text: str) -> None:
         nonlocal course, messages
+        # Budget is per turn; reset before the pre-check so prior turns do not block demos.
+        client.begin_turn()
         if not client.budget_left():
             transcript.append(
                 {

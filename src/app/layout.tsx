@@ -1,17 +1,13 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, IBM_Plex_Sans, Manrope } from "next/font/google";
+import localFont from "next/font/local";
+import { IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
-const sans = IBM_Plex_Sans({
-  subsets: ["latin", "cyrillic"],
-  weight: ["400", "500", "600"],
-  variable: "--font-ibm-sans",
-});
-
-const display = Manrope({
-  subsets: ["latin", "cyrillic"],
-  weight: ["500", "600"],
-  variable: "--font-manrope",
+const involve = localFont({
+  src: "../fonts/Involve-VF.ttf",
+  variable: "--font-involve",
+  weight: "100 900",
+  display: "swap",
 });
 
 const mono = IBM_Plex_Mono({
@@ -21,7 +17,7 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Студия образовательных программ",
+  title: "Методий",
   description:
     "ИИ-агент собирает программу обучения: структуру, компетенции, тесты, семинары и лекции.",
 };
@@ -30,14 +26,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="ru"
-      className={`${sans.variable} ${display.variable} ${mono.variable} h-full antialiased`}
+      className={`${involve.variable} ${mono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="h-full">
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try{if(localStorage.getItem('edu-course-theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}",
+              "try{if(localStorage.getItem('edu-course-theme')==='light')document.documentElement.dataset.theme='light'}catch(e){}",
           }}
         />
         {children}

@@ -32,6 +32,17 @@ _MARKERS = {
 }
 
 
+def is_official_publication(source: str | None) -> bool:
+    text = (source or "").strip().rstrip("/").lower()
+    if text.startswith("https://"):
+        text = "http://" + text[len("https://") :]
+    known = {
+        item["source"].rstrip("/").lower()
+        for item in (LAW_273, ORDER_629, ORDER_266)
+    }
+    return text in known
+
+
 def required_legal_basis(kind: str | None) -> list[dict[str, str]]:
     if kind == "general":
         return [ORDER_629]

@@ -349,21 +349,38 @@ class CloudRuClient:
             "total_tokens": 0,
             "calls": 0,
         }
+        # Per-turn counters for LLM_TOKEN_BUDGET; lifetime totals stay in self.usage.
+        self.turn_usage = {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "calls": 0,
+        }
         self.gateway_retries: list[int] = []
         self.gate = None
+
+    def begin_turn(self) -> None:
+        """Reset the per-turn token budget; keep lifetime usage for reports."""
+        self.turn_usage = {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "calls": 0,
+        }
 
     def add_usage(self, usage: dict[str, Any] | None) -> None:
         data = usage or {}
         prompt = int(data.get("prompt_tokens") or 0)
         completion = int(data.get("completion_tokens") or 0)
         total = int(data.get("total_tokens") or (prompt + completion))
-        self.usage["prompt_tokens"] += prompt
-        self.usage["completion_tokens"] += completion
-        self.usage["total_tokens"] += total
-        self.usage["calls"] += 1
+        for bag in (self.usage, self.turn_usage):
+            bag["prompt_tokens"] += prompt
+            bag["completion_tokens"] += completion
+            bag["total_tokens"] += total
+            bag["calls"] += 1
 
     def budget_left(self) -> bool:
-        return self.usage["total_tokens"] < self.token_budget
+        return self.turn_usage["total_tokens"] < self.token_budget
 
     async def complete(
         self,
@@ -385,7 +402,7 @@ class CloudRuClient:
             )
         if not self.budget_left():
             raise RuntimeError(
-                f"Достигнут лимит токенов {self.token_budget}. Запрос к модели не отправлен."
+                f"Достигнут лимит токенов на ход {self.token_budget}. Запрос к модели не отправлен."
             )
         payload = build_chat_payload(
             model=model or self.model,

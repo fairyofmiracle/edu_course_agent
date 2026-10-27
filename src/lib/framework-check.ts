@@ -172,6 +172,10 @@ export function contentGaps(course: CourseDocument) {
     .map((node) => node.id);
 }
 
+export function hasBuiltMaterials(course: CourseDocument) {
+  return course.lectures.length > 0 || course.seminars.length > 0 || course.assessments.length > 0;
+}
+
 export function isKitComplete(course: CourseDocument) {
   if (course.modules.length === 0) return false;
   return course.modules.every((module) => {

@@ -37,8 +37,8 @@ from .planner import (
     KIT_TOOLS,
     content_missing,
     decide_mode,
-    intake_questions,
     is_duration_edit_request,
+    spoken_reply,
     is_framework_approved,
     kit_needed,
     kit_request_ready,
@@ -392,13 +392,10 @@ async def run_turn(
                 course = apply_reference_hints(course, references, user_texts)
             continue
         if step.get("kind") == "reply":
-            if missing_brief_lines(course):
-                assistant_text = intake_questions(course)
-            else:
-                assistant_text = str(step.get("task") or "Каркас готов. Проверьте часы и утвердите.")
-                notes = promise_notes(course)
-                if notes:
-                    assistant_text = assistant_text + "\n\n" + "\n".join(notes)
+            assistant_text = spoken_reply(course, str(step.get("task") or ""))
+            notes = promise_notes(course)
+            if notes and not missing_brief_lines(course):
+                assistant_text = assistant_text + "\n\n" + "\n".join(notes)
             break
         if step.get("tool") == "set_competency_map" and not getattr(client, "api_key", None):
             output = execute_tool(
@@ -606,6 +603,9 @@ async def run_turn(
         assistant_text = kit_assistant_text(client, calls, planned)
     elif is_framework_approved(course) and not assistant_text:
         assistant_text = "Каркас утверждён."
+    if mode == "free" and not patches and "не изменил" not in assistant_text.casefold():
+        notice = "Документ не изменился."
+        assistant_text = f"{assistant_text}\n\n{notice}".strip() if assistant_text else notice
 
     return {
         "course": course,

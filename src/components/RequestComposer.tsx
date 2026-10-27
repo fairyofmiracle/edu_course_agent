@@ -18,6 +18,7 @@ import { userFacingError } from "@/lib/user-error";
 
 type Mode = "free" | "template";
 type ProgramKind = "general" | "qualification";
+type Material = { label: string; body: string };
 
 type TemplateFields = {
   programKind: ProgramKind;
@@ -121,6 +122,8 @@ export function RequestComposer({
   const [busyFile, setBusyFile] = useState(false);
   const [fileNote, setFileNote] = useState("");
   const [showRefs, setShowRefs] = useState(false);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [materialNote, setMaterialNote] = useState("");
   const [showLink, setShowLink] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [formError, setFormError] = useState("");
@@ -141,6 +144,17 @@ export function RequestComposer({
     const timer = window.setTimeout(() => setFileNote(""), 3000);
     return () => window.clearTimeout(timer);
   }, [fileNote]);
+
+  const publishMaterials = (next: Material[], note: string) => {
+    const chunks = [...next.map((item) => item.body), note.trim()].filter(Boolean);
+    onReferencesChange(chunks.join("\n\n"));
+  };
+
+  useEffect(() => {
+    if (extraReferences) return;
+    setMaterials((current) => (current.length === 0 ? current : []));
+    setMaterialNote((current) => (current ? "" : current));
+  }, [extraReferences]);
 
   const readFailure = (error: unknown, fallback: string) => {
     if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
@@ -268,15 +282,18 @@ export function RequestComposer({
       });
       const payload = (await response.json()) as { text?: string; title?: string; error?: string };
       if (!response.ok) throw new Error(payload.error || "Не удалось прочитать файл");
-      const chunk = `[${payload.title}]\n${payload.text ?? ""}`;
-      onReferencesChange(extraReferences ? `${extraReferences}\n\n${chunk}` : chunk);
+      const label = file.name;
+      const body = `[${payload.title || file.name}]\n${payload.text ?? ""}`;
+      const next = [...materials, { label, body }];
+      setMaterials(next);
+      publishMaterials(next, materialNote);
       onReferenceAdd({
         title: payload.title || file.name,
         source: file.name,
         note: "Файл загружен методистом",
       });
       setShowRefs(true);
-      setFileNote(`Готово: ${payload.title || file.name}`);
+      setFileNote(`Готово: ${label}`);
     } catch (err) {
       setFileNote(readFailure(err, "Файл не разобрался."));
     } finally {
@@ -298,10 +315,13 @@ export function RequestComposer({
       });
       const payload = (await response.json()) as { text?: string; title?: string; error?: string };
       if (!response.ok) throw new Error(payload.error || "Не удалось скачать страницу");
-      const chunk = `[${payload.title} | ${url}]\n${payload.text ?? ""}`;
-      onReferencesChange(extraReferences ? `${extraReferences}\n\n${chunk}` : chunk);
+      const label = payload.title?.trim() || url;
+      const body = `[${label} | ${url}]\n${payload.text ?? ""}`;
+      const next = [...materials, { label, body }];
+      setMaterials(next);
+      publishMaterials(next, materialNote);
       onReferenceAdd({
-        title: payload.title || url,
+        title: label,
         source: url,
         note: "Ссылка добавлена методистом",
       });
@@ -590,13 +610,40 @@ export function RequestComposer({
         </p>
       ) : null}
       {showRefs ? (
-        <textarea
-          className="refs-box"
-          value={extraReferences}
-          onChange={(event) => onReferencesChange(event.target.value)}
-          placeholder="Текст бланка, профстандарта или старой программы"
-          rows={3}
-        />
+        <div className="material-list">
+          {materials.length === 0 ? (
+            <p className="muted">Файлов пока нет.</p>
+          ) : (
+            <ul>
+              {materials.map((item, index) => (
+                <li key={`${item.label}-${index}`}>
+                  <span>{item.label}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = materials.filter((_, itemIndex) => itemIndex !== index);
+                      setMaterials(next);
+                      publishMaterials(next, materialNote);
+                    }}
+                  >
+                    Убрать
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <textarea
+            className="refs-box"
+            value={materialNote}
+            onChange={(event) => {
+              const note = event.target.value;
+              setMaterialNote(note);
+              publishMaterials(materials, note);
+            }}
+            placeholder="Короткая пометка, если нужна"
+            rows={2}
+          />
+        </div>
       ) : null}
       {showLink ? (
         <div className="composer-row link-row">

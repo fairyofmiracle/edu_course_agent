@@ -89,6 +89,7 @@ def test_own3_two_months_is_not_volume() -> None:
     assert "точный объём" in " ".join(missing_brief_lines(first))
     questions = intake_questions(first).lower()
     assert "час" in questions
+    assert "\n2." not in questions
     assert not is_teacher_ai(first)
 
     course = assemble_local_course([OWN3, OWN3_ANSWERS])

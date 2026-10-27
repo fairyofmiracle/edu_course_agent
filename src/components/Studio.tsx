@@ -25,7 +25,7 @@ import {
   isFrameworkApproved,
   isKitComplete,
 } from "@/lib/framework-check";
-import { FRAMEWORK_PROMPT, KIT_PROMPT, moduleKitPrompt, adaptHoursPrompt, adaptAudiencePrompt, refreshOutdatedPrompt } from "@/lib/agent/service-prompts";
+import { FRAMEWORK_PROMPT, KIT_PROMPT, moduleKitPrompt, refreshOutdatedPrompt } from "@/lib/agent/service-prompts";
 import { briefGaps } from "@/lib/course-validation";
 import { userFacingError } from "@/lib/user-error";
 import {
@@ -697,9 +697,6 @@ function StudioSession({
         </button>
         {showDocument ? (
         <div className="pane pane-doc">
-          <header className="pane-head">
-            <h2>Документ программы</h2>
-          </header>
           <CourseWorkspace
             course={course}
             tab={tab}
@@ -727,16 +724,6 @@ function StudioSession({
               setChatOpen(true);
               if (!frameworkApproved || chatPending) return;
               send(moduleKitPrompt(moduleId, title));
-            }}
-            onAdaptHours={(hours) => {
-              setChatOpen(true);
-              if (chatPending) return;
-              send(adaptHoursPrompt(hours));
-            }}
-            onAdaptAudience={(audience) => {
-              setChatOpen(true);
-              if (chatPending) return;
-              send(adaptAudiencePrompt(audience));
             }}
             onRefreshOutdated={(labels) => {
               setChatOpen(true);

@@ -56,8 +56,6 @@ type CourseWorkspaceProps = {
   onGatherKit?: () => void;
   onOpenChat?: () => void;
   onRebuildModule?: (moduleId: string, title: string) => void;
-  onAdaptHours?: (hours: number) => void;
-  onAdaptAudience?: (audience: string) => void;
   onRefreshOutdated?: (labels: string[]) => void;
 };
 
@@ -124,8 +122,6 @@ export function CourseWorkspace({
   onGatherFramework,
   onGatherKit,
   onRebuildModule,
-  onAdaptHours,
-  onAdaptAudience,
   onRefreshOutdated,
   onOpenChat,
 }: CourseWorkspaceProps) {
@@ -145,7 +141,7 @@ export function CourseWorkspace({
           />
         ) : (
           <>
-            {tab === "overview" ? <Overview course={course} onAdaptHours={onAdaptHours} onAdaptAudience={onAdaptAudience} /> : null}
+            {tab === "overview" ? <Overview course={course} /> : null}
             {tab === "structure" ? (
               course.modules.length === 0 ? (
                 <TabEmpty
@@ -504,7 +500,7 @@ function ModuleBoard({ course, onRebuildModule }: { course: CourseDocument; onRe
   );
 }
 
-function Overview({ course, onAdaptHours, onAdaptAudience }: { course: CourseDocument; onAdaptHours?: (hours: number) => void; onAdaptAudience?: (audience: string) => void }) {
+function Overview({ course }: { course: CourseDocument }) {
   const { brief } = course;
   const gaps = briefGaps(course);
   return (
@@ -516,40 +512,6 @@ function Overview({ course, onAdaptHours, onAdaptAudience }: { course: CourseDoc
         <h2>О программе</h2>
         <p className="about-label">Целевая аудитория</p>
         <p className="about-audience">{brief.audience.trim() || "Аудитория ещё не названа"}</p>
-        {(onAdaptHours || onAdaptAudience) && (brief.durationHours > 0 || course.modules.length > 0) ? (
-          <div className="pane-actions adapt-actions" style={{ margin: "10px 0 4px", display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {onAdaptHours
-              ? [16, 36, 72]
-                  .filter((h) => h !== brief.durationHours)
-                  .slice(0, 3)
-                  .map((h) => (
-                    <button
-                      key={h}
-                      type="button"
-                      title={`Пересобрать каркас под ${h} академических часов`}
-                      onClick={() => onAdaptHours(h)}
-                    >
-                      Объём {h} ч
-                    </button>
-                  ))
-              : null}
-            {onAdaptAudience ? (
-              <button
-                type="button"
-                title="Адаптировать формулировки под другую целевую аудиторию"
-                onClick={() =>
-                  onAdaptAudience(
-                    brief.audience.trim()
-                      ? "начинающие специалисты без опыта в теме курса"
-                      : "начинающие специалисты без опыта",
-                  )
-                }
-              >
-                Другая аудитория
-              </button>
-            ) : null}
-          </div>
-        ) : null}
         <dl className="meta-grid">
           <div>
             <dt>Объём</dt>

@@ -2472,6 +2472,7 @@ button.primary {
 
 .file-row {
   display: flex;
+  flex-wrap: nowrap;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
@@ -2483,9 +2484,24 @@ button.primary {
   border-bottom: 0;
 }
 
+.file-row > div:first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .file-row strong {
   display: block;
   margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-row .deck-nav {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  margin-top: 0;
+  white-space: nowrap;
 }
 
 .file-preview {

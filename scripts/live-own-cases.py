@@ -204,28 +204,32 @@ def render_report(rows: list[dict], total_usage: dict) -> str:
 
 async def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
-    client = CloudRuClient()
     rows = []
+    total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "calls": 0}
     for spec in CASES:
         spent = estimate_cost_rub(
             CHAT_PRO,
-            client.usage["prompt_tokens"],
-            client.usage["completion_tokens"],
+            total_usage["prompt_tokens"],
+            total_usage["completion_tokens"],
         )
         if spent > 8:
             print(f"stop before {spec['id']}: already ≈ {spent:.2f} rub")
             break
+        # Отдельный клиент на кейс: иначе хвост пакета упирается в LLM_TOKEN_BUDGET.
+        client = CloudRuClient()
         row = await run_case(client, spec)
         rows.append(row)
+        for key in total_usage:
+            total_usage[key] += row["usage"][key]
         print(
             f"{row['id']} profile={row['profile']} source={row['source']} "
             f"ok={sum(i['ok'] for i in row['checks'])}/{len(row['checks'])}"
         )
-    report = render_report(rows, client.usage)
+    report = render_report(rows, total_usage)
     (ROOT / "docs" / "proverka-svoi-kejsy.txt").write_text(report, encoding="utf-8")
     (OUT / "live-own-cases.json").write_text(
         json.dumps(
-            {"usage": client.usage, "cases": [{k: v for k, v in row.items() if k != "course"} for row in rows]},
+            {"usage": total_usage, "cases": [{k: v for k, v in row.items() if k != "course"} for row in rows]},
             ensure_ascii=False,
             indent=2,
         ),

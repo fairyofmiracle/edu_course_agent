@@ -296,6 +296,8 @@ async def run_turn(
     client: CloudRuClient | None = None,
 ) -> dict[str, Any]:
     client = client or CloudRuClient()
+    if hasattr(client, "begin_turn"):
+        client.begin_turn()
     user_texts = [repair_typos(text) for text in user_texts]
     last_text = user_texts[-1] if user_texts else ""
     if kit_request_ready(course, last_text):

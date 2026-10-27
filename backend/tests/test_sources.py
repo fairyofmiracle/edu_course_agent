@@ -480,3 +480,12 @@ def test_token_closes_the_loopback_api(monkeypatch) -> None:
     assert client.get("/api/courses").status_code == 401
     opened = client.get("/api/courses", headers={"Authorization": "Bearer secret"})
     assert opened.status_code == 200
+
+def test_cgnat_addresses_are_not_public() -> None:
+    assert not public_http_url("http://100.64.0.1/order")
+    assert not public_http_url("http://100.127.255.254/order")
+    assert public_http_url("http://100.63.255.255/order")
+    assert public_http_url("http://100.128.0.1/order")
+    missed = probe_url("http://100.64.10.10/order")
+    assert missed["state"] == "not_checked"
+

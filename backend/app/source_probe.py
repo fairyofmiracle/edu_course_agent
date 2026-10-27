@@ -39,9 +39,14 @@ def public_http_url(url: str) -> bool:
     return _public_ip(address)
 
 
+_CGNAT = ipaddress.ip_network("100.64.0.0/10")
+
+
 def _public_ip(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
         return _public_ip(address.ipv4_mapped)
+    if isinstance(address, ipaddress.IPv4Address) and address in _CGNAT:
+        return False
     return not (
         address.is_private
         or address.is_loopback

@@ -293,10 +293,12 @@ def plan_step(
         }
     missing = missing_brief_lines(course)
     if mode == "intake" and missing:
+        hours = "точный объём в академических часах"
+        item = hours if hours in missing else missing[0]
         return {
             "kind": "reply",
             "task": (
-                f"Уточни: {missing[0]}. Задай один вопрос. "
+                f"Уточни: {item}. Задай один вопрос. "
                 "«Примерно месяц» не считай точным объёмом. "
                 "Компетенции и модули не собирай, пока этих данных нет."
             ),

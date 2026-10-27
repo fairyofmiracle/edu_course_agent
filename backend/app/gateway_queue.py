@@ -404,19 +404,22 @@ class ModelGate:
         self.budget = budget
         self.timeout = timeout
         self.held = False
+        # Per-turn (per-job) spend — do not share lifetime budget across demo turns.
+        self.spent = 0
 
     def enter(self) -> None:
         if self.store.cancelled(self.job_id):
             raise TurnStopped("Ход остановлен.")
-        if not self.store.budget_allows(self.budget):
+        if self.spent >= self.budget:
             raise RuntimeError(
-                f"Достигнут лимит токенов {self.budget}. Запрос к модели не отправлен."
+                f"Достигнут лимит токенов на ход {self.budget}. Запрос к модели не отправлен."
             )
         if not self.store.acquire_slot(concurrency_limit(), self.timeout):
             raise RuntimeError("Очередь к шлюзу занята. Повторите ход.")
         self.held = True
 
     def charge(self, tokens: int) -> None:
+        self.spent += max(0, int(tokens or 0))
         self.store.charge(tokens)
 
     def leave(self) -> None:

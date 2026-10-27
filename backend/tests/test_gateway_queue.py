@@ -128,3 +128,23 @@ def test_chat_turn_returns_a_queue_ticket(monkeypatch: pytest.MonkeyPatch) -> No
         job_id = body["jobId"]
         assert client.get(f"/api/chat/jobs/{job_id}").json()["status"] == "queued"
         assert client.post(f"/api/chat/jobs/{job_id}/cancel").json()["status"] == "cancelled"
+
+
+def test_model_gate_budget_is_per_turn() -> None:
+    """Each job/turn has its own spent counter; prior turns do not block the next."""
+    store = MemoryGateway()
+    job1 = store.enqueue()
+    assert store.begin(job1)
+    gate1 = ModelGate(store, job1, budget=10, timeout=0)
+    gate1.charge(10)
+    assert gate1.spent == 10
+    with pytest.raises(RuntimeError, match="лимит токенов"):
+        gate1.enter()
+    store.finish(job1, {"ok": True})
+
+    job2 = store.enqueue()
+    assert store.begin(job2)
+    gate2 = ModelGate(store, job2, budget=10, timeout=0)
+    # Fresh turn — must enter even if store.spent still high from job1 metrics.
+    gate2.enter()
+    gate2.leave()

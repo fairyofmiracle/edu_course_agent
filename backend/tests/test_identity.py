@@ -89,3 +89,36 @@ def test_roles_me_and_logout_are_fixed_examples() -> None:
     logout = client.post("/api/auth/logout")
     assert logout.status_code == 200
     assert logout.json()["closed"] is False
+
+
+def test_jwt_secret_rejects_default_in_production(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("STUDIO_ENV", "production")
+    monkeypatch.delenv("STUDIO_JWT_SECRET", raising=False)
+    from backend.app import identity as identity_mod
+
+    identity_mod._generated_jwt_secret = None
+    with pytest.raises(RuntimeError, match="STUDIO_JWT_SECRET"):
+        identity_mod.jwt_secret()
+
+
+def test_jwt_secret_rejects_weak_secret_in_production(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("STUDIO_ENV", "production")
+    monkeypatch.setenv("STUDIO_JWT_SECRET", "roadmap-stub-jwt")
+    from backend.app import identity as identity_mod
+
+    with pytest.raises(RuntimeError, match="слабый"):
+        identity_mod.jwt_secret()
+
+
+def test_jwt_secret_generates_dev_secret_without_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("STUDIO_ENV", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+    monkeypatch.delenv("STUDIO_JWT_SECRET", raising=False)
+    from backend.app import identity as identity_mod
+
+    identity_mod._generated_jwt_secret = None
+    first = identity_mod.jwt_secret()
+    second = identity_mod.jwt_secret()
+    assert first == second
+    assert len(first) >= 32
+    assert first != b"roadmap-stub-jwt"

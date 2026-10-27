@@ -61,6 +61,15 @@ def _blob(course) -> str:
     ).lower()
 
 
+
+def test_own1_modules_do_not_flip_to_data_analysis() -> None:
+    """Модель может написать «анализ данных» в модуле — профиль берём из брифа."""
+    course = assemble_local_course([OWN1])
+    assert profile_name(course) == "generic"
+    course.modules[0].title = "Автоматизация и анализ данных в Excel для бухгалтерии"
+    assert profile_name(course) == "generic"
+
+
 def test_own1_excel_is_generic() -> None:
     course = assemble_local_course([OWN1])
     assert profile_name(course) == "generic"

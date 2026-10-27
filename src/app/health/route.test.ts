@@ -17,7 +17,7 @@ describe("GET /health", () => {
           service: "edu-course-python",
           llmConfigured: true,
           llmHost: "hub.gigaschool.ru",
-          exports: ["json", "docx", "pptx"],
+          exports: ["json", "docx", "pptx", "zip", "moodle", "gift", "csv", "html"],
         }),
       ),
     );
@@ -34,6 +34,6 @@ describe("GET /health", () => {
     const body = await (await GET()).json();
     expect(body.status).toBe("ok");
     expect(body.llmConfigured).toBe(false);
-    expect(body.exports).toEqual(["json", "docx", "pptx"]);
+    expect(body.exports).toEqual(["json", "docx", "pptx", "zip", "moodle", "gift", "csv", "html"]);
   });
 });

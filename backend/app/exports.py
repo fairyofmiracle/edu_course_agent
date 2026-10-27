@@ -72,6 +72,13 @@ def build_zip(course: CourseDocument) -> bytes:
         archive.writestr(f"тесты/{title}-moodle.xml", course_moodle_xml(course).encode("utf-8"))
         archive.writestr(f"тесты/{title}.csv", course_csv(course).encode("utf-8"))
         archive.writestr(f"слайды/{title}.html", course_slides_html(course).encode("utf-8"))
+        from .audit import audit_course_document
+
+        report = audit_course_document(course)
+        archive.writestr(
+            f"проверка/{title}-audit.json",
+            json.dumps(report, ensure_ascii=False, indent=2).encode("utf-8"),
+        )
 
     return buffer.getvalue()
 
@@ -112,21 +119,45 @@ def _program_title(kind: str) -> str:
     return "ДОПОЛНИТЕЛЬНАЯ ОБРАЗОВАТЕЛЬНАЯ ПРОГРАММА"
 
 
+def _source_mark(source: str | None, title: str | None = None) -> str:
+    """Пометка источника для выгрузки: официальная / файл / не подтверждён."""
+    from .legal_basis import is_official_publication
+    from .verbatim import stored_source_status
+
+    raw = (source or "").strip()
+    if is_official_publication(raw):
+        return "официальная публикация"
+    status = stored_source_status(raw)
+    if status == "source_attached":
+        return "файл методиста"
+    lowered = raw.lower()
+    if lowered.startswith("http://") or lowered.startswith("https://"):
+        return "не подтверждён"
+    if raw or (title or "").strip():
+        return "указан методистом"
+    return "нет источника"
+
+
 def _basis_lines(course: CourseDocument) -> list[str]:
     lines: list[str] = []
     seen: set[str] = set()
     for document in required_legal_basis(course.brief.program_kind):
         seen.add(document["source"])
-        lines.append(" · ".join(part for part in (document["title"], document["source"]) if part))
+        mark = _source_mark(document["source"], document["title"])
+        lines.append(
+            " · ".join(
+                part
+                for part in (document["title"], document["source"], f"[{mark}]")
+                if part
+            )
+        )
     for reference in course.brief.references:
         key = reference.source or reference.title
         if key in seen:
             continue
         seen.add(key)
-        parts = [part for part in (reference.title, reference.source) if part]
-        source = (reference.source or "").strip().lower()
-        if source.startswith("http://") or source.startswith("https://"):
-            parts.append("не подтверждён")
+        mark = _source_mark(reference.source, reference.title)
+        parts = [part for part in (reference.title, reference.source, f"[{mark}]") if part]
         lines.append(" · ".join(parts))
     return lines or ["Нормативное основание не указано."]
 
@@ -139,6 +170,11 @@ def _add_table(doc: Document, headers: list[str], rows: list[list[str]]) -> None
     for row_index, row in enumerate(rows, start=1):
         for col_index, value in enumerate(row):
             table.rows[row_index].cells[col_index].text = value or "—"
+
+
+
+def _competency_names(course: CourseDocument) -> dict[str, str]:
+    return {node.id: node.name for node in course.competencies.nodes}
 
 
 def build_docx(course: CourseDocument) -> bytes:
@@ -172,11 +208,21 @@ def build_docx(course: CourseDocument) -> bytes:
     self_study = sum(module.self_study_hours for module in course.modules)
     module_total = sum(module.hours for module in course.modules)
 
-    # --- Титул (оба шаблона) ---
+    # --- Титул (оба шаблона АЦР: ПК и общеразвивающая) ---
+    if kind == "general":
+        org_lines = (
+            "Автономная некоммерческая организация",
+            "дополнительного образования",
+            "«Академия Информационных Технологий»",
+        )
+    else:
+        org_lines = (
+            "Автономная некоммерческая организация",
+            "дополнительного профессионального образования",
+            "«Академия Информационных Технологий»",
+        )
     for line in (
-        "Автономная некоммерческая организация",
-        "дополнительного профессионального образования",
-        "«Академия Информационных Технологий»",
+        *org_lines,
         "ОГРН: ____________________  ИНН/КПП: ____________________",
         "Российская Федерация, Республика Ингушетия, г. Магас",
         "",
@@ -254,6 +300,7 @@ def build_docx(course: CourseDocument) -> bytes:
         heading_comp = "1.7. Планируемые результаты обучения"
     doc.add_heading(heading_comp, level=2)
     nodes = course.competencies.nodes
+    by_name = _competency_names(course)
     if kind == "qualification":
         _add_table(
             doc,
@@ -426,6 +473,72 @@ def build_docx(course: CourseDocument) -> bytes:
     for row in module_rationales(course.as_api()):
         doc.add_paragraph(row["text"], style="List Bullet")
 
+    # --- 3. Итоговая аттестация ↔ компетенции ---
+    doc.add_heading("3. Итоговая аттестация", level=1)
+    doc.add_paragraph(
+        f"Форма: {brief.attestation_form or '____________________'}; "
+        f"объём: {hours(brief.attestation_hours)} ч."
+    )
+    doc.add_paragraph(
+        "Связь компетенций со средствами проверки (тест / задание / итоговая аттестация):"
+    )
+    by_name = _competency_names(course)
+    assess_by_comp: dict[str, int] = {}
+    task_by_comp: dict[str, int] = {}
+    for assessment in course.assessments:
+        for question in assessment.questions:
+            cid = question.competency_id or ""
+            if cid:
+                assess_by_comp[cid] = assess_by_comp.get(cid, 0) + 1
+    for seminar in course.seminars:
+        for task in seminar.tasks:
+            cid = task.competency_id or ""
+            if cid:
+                task_by_comp[cid] = task_by_comp.get(cid, 0) + 1
+    matrix_rows: list[list[str]] = []
+    for node in nodes:
+        qn = assess_by_comp.get(node.id, 0)
+        tn = task_by_comp.get(node.id, 0)
+        # fallback: module-level link counts as covered if questions/tasks exist on those modules
+        if qn == 0:
+            mod_ids = set(node.module_ids or [])
+            for assessment in course.assessments:
+                if assessment.module_id in mod_ids:
+                    qn += len(assessment.questions)
+        if tn == 0:
+            mod_ids = set(node.module_ids or [])
+            for seminar in course.seminars:
+                if seminar.module_id in mod_ids:
+                    tn += len(seminar.tasks)
+        covered = "да" if (qn and tn) else ("частично" if (qn or tn) else "нет")
+        matrix_rows.append(
+            [
+                node.name,
+                str(qn),
+                str(tn),
+                brief.attestation_form or "—",
+                covered,
+            ]
+        )
+    _add_table(
+        doc,
+        ["Компетенция / результат", "Вопросов теста", "Заданий", "Итоговая аттестация", "Покрыто"],
+        matrix_rows or [["—", "0", "0", "—", "нет"]],
+    )
+    hours_match = abs(module_total + brief.attestation_hours - brief.duration_hours) < 0.001
+    doc.add_paragraph(
+        "Автопроверка часов: "
+        + (
+            f"сходятся ({hours(module_total + brief.attestation_hours)} = "
+            f"{hours(brief.duration_hours)})."
+            if hours_match
+            else (
+                f"расхождение — модули {hours(module_total)} + аттестация "
+                f"{hours(brief.attestation_hours)} ≠ {hours(brief.duration_hours)}."
+            )
+        )
+    )
+
     # --- Приложения ---
     doc.add_heading("Приложение 1. Оценочные материалы", level=1)
     questions = [
@@ -439,7 +552,8 @@ def build_docx(course: CourseDocument) -> bytes:
         doc.add_paragraph(f"{index}. {question.stem}")
         doc.add_paragraph(f"Модуль: {titles.get(module_id, module_id)}")
         if question.competency_id:
-            doc.add_paragraph(f"Компетенция: {question.competency_id}")
+            qname = by_name.get(question.competency_id, question.competency_id)
+            doc.add_paragraph(f"Компетенция: {qname}")
         for option in question.options or []:
             doc.add_paragraph(option, style="List Bullet")
         doc.add_paragraph(f"Ключ: {question.answer}")
@@ -457,7 +571,8 @@ def build_docx(course: CourseDocument) -> bytes:
         doc.add_heading(f"{task.title} · {hours(task.time_min)} мин", level=2)
         doc.add_paragraph(f"Модуль: {titles.get(module_id, module_id)}")
         if task.competency_id:
-            doc.add_paragraph(f"Компетенция: {task.competency_id}")
+            tname = by_name.get(task.competency_id, task.competency_id)
+            doc.add_paragraph(f"Компетенция: {tname}")
         doc.add_paragraph(task.prompt)
         for step in task.steps:
             doc.add_paragraph(step, style="List Number")
@@ -648,9 +763,54 @@ def build_lecture_docx(course: CourseDocument, lecture) -> bytes:
     return buffer.getvalue()
 
 
+def _add_results_slide(presentation, course: CourseDocument) -> None:
+    """Слайд результатов обучения / компетенций — связка с аттестацией."""
+    nodes = list(course.competencies.nodes or [])
+    if not nodes:
+        return
+    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    _paint(slide)
+    kind = course.brief.program_kind
+    heading = (
+        "Планируемые результаты (компетенции)"
+        if kind == "qualification"
+        else "Планируемые результаты обучения"
+    )
+    _add_textbox(slide, 0.7, 0.45, 12, 0.7, heading, 26, True, "2C2825", "Georgia")
+    bullets: list[str] = []
+    for node in nodes[:8]:
+        zun = []
+        if node.knowledge:
+            zun.append("З: " + node.knowledge[0][:60])
+        if node.skills:
+            zun.append("У: " + node.skills[0][:60])
+        if node.abilities:
+            zun.append("Н: " + node.abilities[0][:60])
+        line = node.name
+        if zun:
+            line = f"{node.name} — {'; '.join(zun)}"
+        bullets.append(line[:140])
+    _add_bullets(slide, bullets)
+    assessed = sum(len(a.questions) for a in course.assessments)
+    tasks = sum(len(s.tasks) for s in course.seminars)
+    _add_textbox(
+        slide,
+        0.7,
+        6.4,
+        12,
+        0.5,
+        f"Проверка: {assessed} вопросов теста, {tasks} заданий семинаров.",
+        14,
+        False,
+        "5C534C",
+        "Georgia",
+    )
+
+
 def build_pptx(course: CourseDocument) -> bytes:
     presentation = _new_presentation()
     _add_course_cover(presentation, course)
+    _add_results_slide(presentation, course)
     if not course.lectures:
         empty = presentation.slides.add_slide(presentation.slide_layouts[6])
         _paint(empty)
@@ -658,4 +818,7 @@ def build_pptx(course: CourseDocument) -> bytes:
     titles = {module.id: module.title for module in course.modules}
     for lecture in course.lectures:
         _add_lecture_slides(presentation, lecture, titles.get(lecture.module_id, lecture.module_id))
+    if len(presentation.slides) < 1:
+        empty = presentation.slides.add_slide(presentation.slide_layouts[6])
+        _paint(empty)
     return _presentation_bytes(presentation)

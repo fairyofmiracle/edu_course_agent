@@ -697,18 +697,23 @@ def strip_teacher_only_modules(course: CourseDocument) -> CourseDocument:
     """Убирает шаблонные модули про этику/ПДн вне teacher_ai."""
     if is_teacher_ai(course):
         return course
-    markers = ("этик", "персональных данных", "пдн", "pdn", "конфиденциал")
+    markers = ("персональных данных", "пдн", "pdn", "конфиденциал")
     kept = []
     for module in course.modules:
         blob = f"{module.title} {' '.join(module.topics or [])}".lower()
-        if any(mark in blob for mark in markers):
+        # «этик» ловит шаблон teacher_ai, но не «этикетка».
+        ethic_hit = ("этик" in blob) and ("этикет" not in blob)
+        if ethic_hit or any(mark in blob for mark in markers):
             continue
         kept.append(module)
     if len(kept) == len(course.modules):
         return course
     value = course.as_api()
     value["modules"] = [module.model_dump(by_alias=True) for module in kept]
-    return CourseDocument.model_validate(value)
+    course = CourseDocument.model_validate(value)
+    # После вырезания шаблонных модулей снова свести часы — иначе каркас
+    # не утверждается и комплект (тесты/семинары) не собирается.
+    return rebalance_course(course)
 
 def strengthen_framework(course: CourseDocument) -> CourseDocument:
     if is_incomplete_brief(course):
@@ -836,23 +841,37 @@ def fill_missing_kit(
         course = approve_framework(course)
     if not is_framework_approved(course):
         return course
-    if has_stub_questions(course):
+    # Тесты: создать, если нет, или заменить заглушки.
+    need_assessment = (not course.assessments) or has_stub_questions(course)
+    if need_assessment and course.modules:
         target = (
             course.assessments[0].module_id
             if course.assessments
-            else (course.modules[-1].id if course.modules else None)
+            else course.modules[0].id
         )
         output = execute_tool("set_assessment", {}, course, [], module_id=target)
         if output.get("type") != "tool_error":
             course = apply_patch(course, output)
+    # На каждый модуль с outcomes — свой тест, если его ещё нет.
+    assessed = {item.module_id for item in course.assessments}
+    for module in course.modules:
+        if module.id in assessed:
+            continue
+        if not module.learning_outcomes:
+            continue
+        output = execute_tool("set_assessment", {}, course, [], module_id=module.id)
+        if output.get("type") != "tool_error":
+            course = apply_patch(course, output)
+            assessed.add(module.id)
     for module in lecture_modules(course, kit_lecture_target(course)):
         if not _lecture_is_stub(course, module.id):
             continue
         output = execute_tool("set_lecture", {}, course, [], module_id=module.id)
         if output.get("type") != "tool_error":
             course = apply_patch(course, output)
+    # Семинары: хотя бы один; добить модули без заданий.
     if not course.seminars:
-        module = project_module(course)
+        module = project_module(course) or (course.modules[0] if course.modules else None)
         output = execute_tool(
             "set_seminar",
             {},
@@ -862,6 +881,16 @@ def fill_missing_kit(
         )
         if output.get("type") != "tool_error":
             course = apply_patch(course, output)
+    seminared = {item.module_id for item in course.seminars}
+    for module in course.modules:
+        if module.id in seminared:
+            continue
+        if not module.learning_outcomes:
+            continue
+        output = execute_tool("set_seminar", {}, course, [], module_id=module.id)
+        if output.get("type") != "tool_error":
+            course = apply_patch(course, output)
+            seminared.add(module.id)
     return cover_learning_outcomes(course)
 
 

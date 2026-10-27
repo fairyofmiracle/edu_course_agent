@@ -100,11 +100,26 @@ def test_fill_covers_every_outcome_on_each_module() -> None:
     second = course.modules[0].model_copy(
         update={
             "id": "M2",
-            "title": "Этикетка",
-            "learning_outcomes": ["Пишет короткую этикетку"],
-            "topics": ["Этикетка"],
+            "title": "Алгоритмы",
+            "learning_outcomes": ["Понимать алгоритмы"],
+            "topics": ["Алгоритмы"],
+            "hours": 14.0,
+            "lecture_hours": 4.0,
+            "practice_hours": 6.0,
+            "lab_hours": 0.0,
+            "self_study_hours": 4.0,
         }
     )
+    course.modules[0] = course.modules[0].model_copy(
+        update={
+            "hours": 14.0,
+            "lecture_hours": 4.0,
+            "practice_hours": 6.0,
+            "lab_hours": 0.0,
+            "self_study_hours": 4.0,
+        }
+    )
+    course.brief.attestation_hours = 2.0
     course.modules.append(second)
     filled = fill_missing_kit(course)
     outcomes = [

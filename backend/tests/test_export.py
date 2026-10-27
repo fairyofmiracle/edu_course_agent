@@ -156,3 +156,103 @@ def test_build_artifact_rejects_unknown_kind() -> None:
         assert "docx" in str(error)
     else:
         raise AssertionError("неизвестный формат должен падать")
+
+
+def test_docx_both_acr_templates() -> None:
+    """Оба шаблона АЦР: разные титулы."""
+    from io import BytesIO
+
+    from docx import Document
+
+    from backend.app.exports import build_docx
+    from backend.tests.test_domain import fixture_course
+
+    def _text(payload: bytes) -> str:
+        doc = Document(BytesIO(payload))
+        parts = [p.text for p in doc.paragraphs]
+        for table in doc.tables:
+            for row in table.rows:
+                parts.extend(cell.text for cell in row.cells)
+        return "\n".join(parts)
+
+    course = fixture_course()
+    course.brief.program_kind = "qualification"
+    course.brief.title = "Python для аналитиков"
+    pk = _text(build_docx(course))
+    assert "ДОПОЛНИТЕЛЬНАЯ ПРОФЕССИОНАЛЬНАЯ ПРОГРАММА" in pk
+    assert "дополнительного профессионального образования" in pk
+
+    course.brief.program_kind = "general"
+    course.brief.title = "Основы информатики"
+    od = _text(build_docx(course))
+    assert "ДОПОЛНИТЕЛЬНАЯ ОБЩЕОБРАЗОВАТЕЛЬНАЯ ОБЩЕРАЗВИВАЮЩАЯ ПРОГРАММА" in od
+    assert "дополнительного образования" in od
+    assert "дополнительного профессионального образования" not in od
+    assert "Пояснительная записка" in od
+
+
+def test_pptx_has_cover_and_results_slide() -> None:
+    pytest.importorskip("pptx")
+    from io import BytesIO
+
+    from pptx import Presentation
+
+    from backend.app.exports import build_pptx
+    from backend.tests.test_domain import fixture_course
+
+    course = fixture_course()
+    payload = build_pptx(course)
+    deck = Presentation(BytesIO(payload))
+    assert len(deck.slides) >= 1
+    texts: list[str] = []
+    for slide in deck.slides:
+        for shape in slide.shapes:
+            if getattr(shape, "has_text_frame", False):
+                texts.append(shape.text_frame.text)
+    blob = "\n".join(texts).lower()
+    assert "результат" in blob or "компетенц" in blob or course.brief.title[:8].lower() in blob
+
+
+def test_lms_gift_and_moodle_build() -> None:
+    from backend.app.lms_export import course_gift, course_moodle_xml
+    from backend.tests.test_domain import fixture_course
+
+    course = fixture_course()
+    gift = course_gift(course)
+    moodle = course_moodle_xml(course)
+    assert isinstance(gift, str)
+    assert isinstance(moodle, str)
+    assert "quiz" in moodle or "question" in moodle or "<?xml" in moodle
+
+
+
+def test_zip_contains_audit_report() -> None:
+    from io import BytesIO
+    from zipfile import ZipFile
+
+    from backend.app.exports import build_zip
+    from backend.tests.test_domain import fixture_course
+
+    course = fixture_course()
+    payload = build_zip(course)
+    names = ZipFile(BytesIO(payload)).namelist()
+    assert any(name.endswith("-audit.json") or "/проверка/" in name or name.startswith("проверка/") for name in names)
+
+
+def test_docx_attestation_competency_matrix() -> None:
+    from io import BytesIO
+
+    from docx import Document
+
+    from backend.app.exports import build_docx
+    from backend.tests.test_domain import fixture_course
+
+    course = fixture_course()
+    doc = Document(BytesIO(build_docx(course)))
+    text = "\n".join(p.text for p in doc.paragraphs)
+    for table in doc.tables:
+        for row in table.rows:
+            text += "\n" + " | ".join(cell.text for cell in row.cells)
+    assert "Итоговая аттестация" in text
+    assert "Автопроверка часов" in text
+    assert "Вопросов теста" in text or "Покрыто" in text

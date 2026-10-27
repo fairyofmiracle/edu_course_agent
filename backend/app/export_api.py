@@ -7,8 +7,22 @@ from fastapi.responses import Response
 
 from .exports import build_artifact
 from .models import CourseDocument
+from .planner import missing_brief_lines
 
 router = APIRouter(tags=["export"])
+
+def export_is_ready(course: CourseDocument, kind: str) -> tuple[bool, str]:
+    """Zip/docx/pptx требуют каркас; json/html можно и на черновике."""
+    heavy = {"zip", "docx", "pptx", "moodle"}
+    if kind.lower().strip() not in heavy:
+        return True, "ready"
+    if missing_brief_lines(course):
+        return False, "incomplete_brief"
+    if not course.modules:
+        return False, "no_modules"
+    return True, "ready"
+
+
 
 
 _ASCII_NAME = {
@@ -20,6 +34,16 @@ _ASCII_NAME = {
 
 
 def file_response(kind: str, course: CourseDocument) -> Response:
+    ok, status = export_is_ready(course, kind)
+    if not ok:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Сначала соберите и утвердите каркас курса — "
+                f"выгрузка {kind} пока недоступна ({status})."
+            ),
+            headers={"X-Studio-Export": status},
+        )
     try:
         payload, media, filename = build_artifact(kind, course)
     except ValueError as error:
@@ -33,7 +57,7 @@ def file_response(kind: str, course: CourseDocument) -> Response:
             f"filename*=UTF-8''{quote(filename)}"
         ),
         "Cache-Control": "no-store",
-        "X-Studio-Export": "ready",
+        "X-Studio-Export": status,
     }
     if kind.lower().strip() == "zip":
         try:

@@ -161,7 +161,7 @@ def health() -> HealthResponse:
         service="edu-course-python",
         llm_configured=configured,
         llm_host=host,
-        exports=["json", "docx", "pptx"],
+        exports=["json", "docx", "pptx", "zip", "moodle", "gift", "csv", "html"],
     )
 
 

@@ -8,7 +8,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .agent import approve_framework, course_report, run_turn, strengthen_framework
-from .gateway_queue import cancel_queued_job, job_snapshot, submit_chat_job
+from .brief_guard import PROFANITY_REPLY, contains_profanity
+from .gateway_queue import QueueFull, cancel_queued_job, job_snapshot, submit_chat_job
 from .audit import audit_course_document
 from .catalog import is_incomplete_brief
 from .cloud import CloudRuClient
@@ -75,12 +76,35 @@ def chat_job_cancel(job_id: str) -> dict[str, Any]:
     operation_id="chatTurn",
 )
 async def chat_turn(request: ChatTurnRequest) -> dict[str, Any]:
+    # Early refuse: every user turn (incl. mid-dialog), before Redis/LLM.
+    last_user = str(request.userTexts[-1] or "") if request.userTexts else ""
+    if not last_user and request.messages:
+        for msg in reversed(request.messages):
+            if isinstance(msg, dict) and msg.get("role") == "user":
+                content = msg.get("content")
+                last_user = content if isinstance(content, str) else ""
+                break
+    if last_user and contains_profanity(last_user):
+        return {
+            "course": request.course.as_api(),
+            "assistant": PROFANITY_REPLY,
+            "mode": "intake",
+            "steps": ["profanity_refuse_api"],
+            "patches": [],
+            "calls": [],
+            "modelMessages": list(request.messages),
+            "usage": None,
+        }
+
     messages = list(request.messages)
     if not messages or messages[-1].get("role") != "user":
         messages.append({"role": "user", "content": request.userTexts[-1]})
     payload = request.model_dump(mode="json", by_alias=True)
     payload["messages"] = messages
-    queued = submit_chat_job(payload)
+    try:
+        queued = submit_chat_job(payload)
+    except QueueFull as error:
+        raise HTTPException(status_code=429, detail=str(error)) from error
     if queued is not None:
         return JSONResponse(status_code=202, content=queued)
     try:
@@ -144,7 +168,8 @@ async def run_case(request: RunRequest) -> dict[str, Any]:
     async def turn(text: str) -> None:
         nonlocal course, messages
         # Budget is per turn; reset before the pre-check so prior turns do not block demos.
-        client.begin_turn()
+        if hasattr(client, "begin_turn"):
+            client.begin_turn()
         if not client.budget_left():
             transcript.append(
                 {

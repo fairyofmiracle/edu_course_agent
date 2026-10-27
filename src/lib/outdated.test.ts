@@ -39,6 +39,8 @@ describe("устаревшие инструменты", () => {
     expect(findOutdated(courseWithTopic("Python 2.7 и virtualenv"))).toHaveLength(1);
     expect(findOutdated(courseWithTopic("Python 3 и Python 2024"))).toEqual([]);
     expect(findOutdated(courseWithTopic("CentOS 8 и flashlight"))).toEqual([]);
+    expect(findOutdated(courseWithTopic("Практика на Bootstrap 3")).map((h) => h.label)).toEqual(["Bootstrap 3"]);
+    expect(findOutdated(courseWithTopic("Node.js 12 и npm")).map((h) => h.id)).toContain("nodejs-old");
   });
 
   it("в отчёте это предупреждение, а не провал программы", () => {

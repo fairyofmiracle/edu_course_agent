@@ -21,7 +21,7 @@ VOLUME = re.compile(
 )
 SERVICE_PROMPT = re.compile(r"^(Собери |Каркас утверждён)")
 LEAD = re.compile(
-    r"^(?:сделайте|нужна|нужен|прошу)\s+",
+    r"^(?:сделайте|сделаем|делаем|давайте|давай|хочу|нужна|нужен|нужно|прошу)\s+",
     re.IGNORECASE,
 )
 AUDIENCE = re.compile(
@@ -370,6 +370,173 @@ def drop_empty_fields(patch: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+
+GARBAGE_TITLE = re.compile(
+    r"^(?:asdf|qwerty|lorem|test|xxx|zzz|foo|bar)\b",
+    re.IGNORECASE,
+)
+OFFTOPIC = re.compile(
+    r"(?:"
+    r"рецепт\w*|борщ\w*|калорий\w*|ингредиент\w*|"
+    r"напиши\s+(?:подробн\w*\s+)?(?:рецепт|функци\w*|код)|"
+    r"функци\w*\s+на\s+python|"
+    r"def\s+\w+\s*\("
+    r")",
+    re.IGNORECASE,
+)
+COURSE_FRAME = re.compile(
+    r"(?:программ\w*|курс\w*|основы|введение|интенсив\w*|практикум\w*|стажировк\w*|повышен\w*\s+квалификац\w*|"
+    r"общеразвивающ\w*|обучен\w*|слушател\w*|академ\w*\s*час)",
+    re.IGNORECASE,
+)
+URGENT_DEADLINE = re.compile(
+    r"(?:"
+    r"срочн\w*|"
+    r"за\s+(?:1|один)\s+день|"
+    r"за\s+день\b|"
+    r"к\s+завтра|"
+    r"сегодня\s+нужн"
+    r")",
+    re.IGNORECASE,
+)
+VOLUME_CLARIFIED = re.compile(
+    r"(?:"
+    r"объ[её]м\s+обучен|"
+    r"срок\s+сборк|"
+    r"оставить\s+\d+|"
+    r"сократить\s+(?:до|объ)|"
+    r"реально\s+за|"
+    r"собрать\s+программу\s+быстр|"
+    r"часы\s+для\s+слушател"
+    r")",
+    re.IGNORECASE,
+)
+VOLUME_CLARIFY_NOTE = (
+    "Уточнить: указанные часы — объём обучения слушателей или "
+    "срок сборки программы?"
+)
+GENERIC_GOAL = re.compile(r"^освоить\s+программу\b", re.IGNORECASE)
+
+
+def letter_ratio(text: str) -> float:
+    chars = [ch for ch in text if not ch.isspace()]
+    if not chars:
+        return 0.0
+    letters = sum(1 for ch in chars if ch.isalpha())
+    return letters / len(chars)
+
+
+TITLE_MARKER = re.compile(
+    r"(?:"
+    r"программ\w*|курс\w*|основы|введение|интенсив\w*|практикум\w*|стажировк\w*|повышен\w*\s+квалификац\w*|"
+    r"общеразвивающ\w*|обучен\w*|слушател\w*|академ\w*\s*час|"
+    r"(?:курс|программ\w*)\s+по\s+|"
+    r"(?:назван\w*|тема)\s*[:—-]|"
+    r"«[^»]{3,160}»"
+    r")",
+    re.IGNORECASE,
+)
+WEAK_TITLE_LEAD = re.compile(
+    r"^(?:делаем|сделаем|давайте|давай|хочу|нужно|прошу)\b",
+    re.IGNORECASE,
+)
+
+
+def is_garbage_title(text: str) -> bool:
+    cleaned = (text or "").strip()
+    if len(cleaned) < 3:
+        return True
+    if GARBAGE_TITLE.search(cleaned):
+        return True
+    if letter_ratio(cleaned) < 0.45:
+        return True
+    if contains_profanity(cleaned):
+        return True
+    if len(re.findall(r"[!?.]{2,}", cleaned)) >= 2 and letter_ratio(cleaned) < 0.7:
+        return True
+    # Single vague token / slang without course frame — not a program title.
+    # Two tokens like «Основы Python» are valid short titles.
+    words = re.findall(r"[A-Za-zА-Яа-яЁё0-9+#.]+", cleaned)
+    if len(words) <= 1 and not TITLE_MARKER.search(cleaned):
+        return True
+    if (
+        len(words) == 2
+        and not TITLE_MARKER.search(cleaned)
+        and letter_ratio(cleaned) < 0.55
+    ):
+        return True
+    if WEAK_TITLE_LEAD.search(cleaned) and not TITLE_MARKER.search(cleaned):
+        return True
+    return False
+
+
+def has_title_markers(text: str) -> bool:
+    return bool(TITLE_MARKER.search(text or ""))
+
+
+def is_offtopic_request(text: str) -> bool:
+    blob = (text or "").strip()
+    if not blob:
+        return False
+    if COURSE_FRAME.search(blob):
+        return False
+    return bool(OFFTOPIC.search(blob))
+
+
+def deadline_volume_conflict(texts: list[str], hours: float | int | None) -> bool:
+    try:
+        value = float(hours or 0)
+    except (TypeError, ValueError):
+        value = 0.0
+    if value < 80:
+        return False
+    blob = " ".join(texts or [])
+    if not URGENT_DEADLINE.search(blob):
+        return False
+    if VOLUME_CLARIFIED.search(blob):
+        return False
+    return True
+
+
+
+# Soft RU+EN swear filter: block title/goals and refuse to assemble a course.
+PROFANITY_REPLY = (
+    "Переформулируйте запрос без грубостей — из мата программу не собираю."
+)
+_PROFANITY = re.compile(
+    r"(?:"
+    r"\b(?:"
+    r"бля(?:д|т|ть|ди|дск)?\w*"
+    r"|сука\w*"
+    r"|хуй\w*|хуя\w*|хуе\w*|хуё\w*"
+    r"|пизд\w*"
+    r"|еба\w*|ёба\w*|ебл\w*|ёбл\w*|ебу\w*|ёбу\w*|ебан\w*|ёбан\w*"
+    r"|муда\w*|мудил\w*"
+    r"|гавно\w*|говно\w*"
+    r"|залуп\w*"
+    r"|пидор\w*|пидар\w*"
+    r"|долбо[её]б\w*"
+    r"|у[её]б\w*"
+    r")"
+    r"|"
+    r"\b(?:"
+    r"fuck\w*|fucking|motherfuck\w*"
+    r"|shit\w*|bullshit"
+    r"|asshole\w*|dickhead\w*"
+    r"|bitch\w*"
+    r"|cunt\w*"
+    r"|bastard\w*"
+    r"|wtf\b"
+    r")"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def contains_profanity(text: str) -> bool:
+    return bool(_PROFANITY.search(text or ""))
+
+
 def title_from_request(text: str) -> str:
     text = repair_typos(text)
     quoted = re.search(r"«([^»]{3,160})»", text)
@@ -408,7 +575,16 @@ def title_from_request(text: str) -> str:
     title = re.split(r"\s[—–-]\s|[.,;:\n]", cleaned)[0].strip()
     if title:
         title = title[0].upper() + title[1:]
-    return title[:160]
+    title = title[:160]
+    if is_offtopic_request(text) or contains_profanity(text) or contains_profanity(title):
+        return ""
+    # Short extracted topic ("Python") is OK when the request already framed a course.
+    if is_garbage_title(title) and not has_title_markers(text):
+        return ""
+    # Do not mint a title from raw chat without DPO/course markers.
+    if not has_title_markers(text) and not has_title_markers(title):
+        return ""
+    return title
 
 
 def _trim_audience(value: str) -> str:
@@ -696,20 +872,69 @@ def guard_brief(
             brief.pop("attestationHours", None)
             brief.pop("attestationStatus", None)
 
-    if not current.get("title", "").strip() and not brief.get("title", "").strip():
-        first = next(
-            (
-                text
-                for text in user_texts
-                if text.strip() and not SERVICE_PROMPT.search(text.strip())
-            ),
-            "",
-        )
-        title = title_from_request(first)
+    first = next(
+        (
+            text
+            for text in user_texts
+            if text.strip() and not SERVICE_PROMPT.search(text.strip())
+        ),
+        "",
+    )
+    # Protect established title after intake: do not clear it just because an early
+    # history message looked offtopic. Decide destructive pops from the LAST turn.
+    established = str(current.get("title") or "").strip()
+    last_turn = last or (texts[-1] if texts else "")
+    if is_offtopic_request(last_turn) and not established:
+        brief.pop("title", None)
+        brief.pop("goals", None)
+    elif not established and not brief.get("title", "").strip():
+        title = title_from_request(first if first else last_turn)
         if title:
             brief["title"] = title
+    candidate = str(brief.get("title") or "").strip()
+    # Never accept profanity in a new title. If course already has a clean title,
+    # drop only a bad *incoming* candidate — keep established.
+    if candidate and contains_profanity(candidate):
+        brief.pop("title", None)
+        dropped.append("title")
+        candidate = ""
+    if candidate and (
+        is_offtopic_request(candidate)
+        or (
+            is_garbage_title(candidate)
+            and not has_title_markers(candidate)
+            and not any(has_title_markers(item) for item in texts)
+        )
+    ):
+        # Protect established title
+        if established and candidate != established:
+            brief.pop("title", None)  # reject bad patch; current stays via merge
+            dropped.append("title")
+        elif not established:
+            brief.pop("title", None)
+            dropped.append("title")
+
+    # drop profane goals
+    goals = list(brief.get("goals") or [])
+    clean_goals = [g for g in goals if not contains_profanity(str(g))]
+    if len(clean_goals) != len(goals):
+        brief["goals"] = clean_goals
+        dropped.append("goals")
+
     if not brief.get("goals") and not current.get("goals"):
-        title = brief.get("title") or current.get("title")
-        if title:
-            brief["goals"] = [f"Освоить программу «{title}»"]
+        title = str(brief.get("title") or current.get("title") or "").strip()
+        if title and not GENERIC_GOAL.search(title) and not is_garbage_title(title):
+            brief["goals"] = [f"Подготовить слушателей по теме «{title}»"]
+
+    hours = brief.get("durationHours", current.get("durationHours", 0))
+    constraints = list(brief.get("constraints") or current.get("constraints") or [])
+    if deadline_volume_conflict(user_texts, hours):
+        if VOLUME_CLARIFY_NOTE not in constraints:
+            constraints.append(VOLUME_CLARIFY_NOTE)
+        brief["constraints"] = constraints[:12]
+    else:
+        cleaned = [item for item in constraints if item != VOLUME_CLARIFY_NOTE]
+        if cleaned != constraints:
+            brief["constraints"] = cleaned[:12]
     return brief, dropped
+

@@ -5,6 +5,7 @@ import { useChat } from "@ai-sdk/react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ChatPanel } from "@/components/ChatPanel";
 import { CourseTabs, CourseWorkspace, type WorkspaceTab } from "@/components/CourseWorkspace";
+import { NavIcon } from "@/components/NavIcon";
 import { SiteFrame } from "@/components/SiteFrame";
 import {
   CourseConflictError,
@@ -24,7 +25,7 @@ import {
   isFrameworkApproved,
   isKitComplete,
 } from "@/lib/framework-check";
-import { FRAMEWORK_PROMPT } from "@/lib/agent/service-prompts";
+import { FRAMEWORK_PROMPT, KIT_PROMPT, moduleKitPrompt, refreshOutdatedPrompt } from "@/lib/agent/service-prompts";
 import { briefGaps } from "@/lib/course-validation";
 import { userFacingError } from "@/lib/user-error";
 import {
@@ -87,16 +88,74 @@ export function Studio({
   fresh?: boolean;
 }) {
   const isClient = useIsClient();
-  const [introDone, setIntroDone] = useState(false);
+  const BOOT_SEEN_KEY = "edu-course-boot-seen";
+  const [bootSkipped, setBootSkipped] = useState(false);
+  const [showBoot, setShowBoot] = useState(true);
+  const [bootFading, setBootFading] = useState(false);
+
+  // Cold-start only: revisit in the same tab skips splash.
   useEffect(() => {
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const timer = window.setTimeout(() => setIntroDone(true), reduce ? 400 : 3600);
-    return () => window.clearTimeout(timer);
+    try {
+      if (window.sessionStorage.getItem(BOOT_SEEN_KEY) === "1") {
+        setBootSkipped(true);
+        setShowBoot(false);
+      }
+    } catch {
+      // sessionStorage may be blocked — show boot once this mount
+    }
   }, []);
-  if (!isClient || !introDone) {
-    const opening = isClient
-      ? resolveStudioOpen({ courseId, sample, fresh }, window.localStorage)
-      : null;
+
+  // Keep splash until studio is mounted and the first paint settles, then fade out.
+  useEffect(() => {
+    if (!isClient || bootSkipped || !showBoot || bootFading) return;
+    let cancelled = false;
+    let fadeTimer = 0;
+
+    const waitPaint = () =>
+      new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => resolve());
+        });
+      });
+
+    (async () => {
+      try {
+        if (document.fonts?.ready) {
+          await document.fonts.ready;
+        }
+      } catch {
+        // ignore font readiness errors
+      }
+      await waitPaint();
+      // Yield so layout/styles of StudioSession can apply under the overlay.
+      await new Promise<void>((resolve) => {
+        fadeTimer = window.setTimeout(resolve, 0);
+      });
+      if (cancelled) return;
+      try {
+        window.sessionStorage.setItem(BOOT_SEEN_KEY, "1");
+      } catch {
+        // ignore
+      }
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (reduce) {
+        setShowBoot(false);
+      } else {
+        setBootFading(true);
+        // Fallback if transitionend never fires (e.g. display quirks).
+        fadeTimer = window.setTimeout(() => {
+          if (!cancelled) setShowBoot(false);
+        }, 500);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (fadeTimer) window.clearTimeout(fadeTimer);
+    };
+  }, [isClient, bootSkipped, showBoot, bootFading]);
+
+  if (!isClient) {
     return (
       <div className="boot" aria-label="Методий">
         <div className="boot-stack">
@@ -104,20 +163,44 @@ export function Studio({
             <span className="boot-word">Методий</span>
             <span className="boot-nib" aria-hidden="true" />
           </p>
-          {opening ? <p className="boot-line">{bootCaption(opening, { courseId, sample, fresh })}</p> : null}
         </div>
       </div>
     );
   }
+
   const open = resolveStudioOpen({ courseId, sample, fresh }, window.localStorage);
+  const openingCaption = bootCaption(open, { courseId, sample, fresh });
+
   return (
-    <StudioSession
-      initialCourse={open.course}
-      initialMessages={open.messages}
-      initialSessionId={open.rotateSession ? newSessionId() : loadSessionId()}
-      persist={open.persist}
-      localNotice={open.notice}
-    />
+    <>
+      <StudioSession
+        initialCourse={open.course}
+        initialMessages={open.messages}
+        initialSessionId={open.rotateSession ? newSessionId() : loadSessionId()}
+        persist={open.persist}
+        localNotice={open.notice}
+      />
+      {showBoot && !bootSkipped ? (
+        <div
+          className={`boot boot-overlay${bootFading ? " boot-overlay--leave" : ""}`}
+          aria-label="Методий"
+          aria-busy={!bootFading}
+          onTransitionEnd={(event) => {
+            if (event.propertyName !== "opacity") return;
+            if (!bootFading) return;
+            setShowBoot(false);
+          }}
+        >
+          <div className="boot-stack">
+            <p className="boot-write">
+              <span className="boot-word">Методий</span>
+              <span className="boot-nib" aria-hidden="true" />
+            </p>
+            <p className="boot-line">{openingCaption}</p>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -477,7 +560,6 @@ function StudioSession({
         course.brief.title.trim() ||
         (course.modules.length === 0 ? "Новая образовательная программа" : "Без названия")
       }
-      crumb={{ href: "/courses", label: "Мои курсы" }}
       subtitle={courseSubtitle(course)}
       chatOpen={chatOpen}
       onOpenChat={() => setChatOpen(true)}
@@ -530,7 +612,7 @@ function StudioSession({
               Снять утверждение
             </button>
           ) : frameworkReady ? (
-            <button type="button" className="primary framework-action" title="Каркас готов к утверждению" onClick={approveFramework}>
+            <button type="button" id="framework-approve" className="primary framework-action" title="Каркас готов к утверждению" onClick={approveFramework}>
               Утвердить каркас
             </button>
           ) : briefReady ? (
@@ -569,8 +651,12 @@ function StudioSession({
       }
       actions={() => (
         <>
-          <a href="/courses">Мои курсы</a>
+          <a href="/courses">
+            <NavIcon name="courses" />
+            Мои курсы
+          </a>
           <button type="button" onClick={reset}>
+            <NavIcon name="plus" />
             Новый курс
           </button>
           <CourseTabs tab={tab} approved={contentOpen} onTabChange={setTab} />
@@ -611,11 +697,41 @@ function StudioSession({
         </button>
         {showDocument ? (
         <div className="pane pane-doc">
-          <header className="pane-head">
-            <p className="pane-label">Документ</p>
-            <h2>Документ программы</h2>
-          </header>
-          <CourseWorkspace course={course} tab={tab} />
+          <CourseWorkspace
+            course={course}
+            tab={tab}
+            frameworkReady={frameworkReady}
+            onApproveFramework={approveFramework}
+            onGoApprove={() => {
+              setTab("overview");
+              setChatOpen(true);
+              window.setTimeout(() => {
+                document.getElementById("framework-approve")?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "nearest",
+                });
+              }, 50);
+            }}
+            onGatherFramework={() => {
+              setChatOpen(true);
+              if (briefReady && !chatPending) send(FRAMEWORK_PROMPT);
+            }}
+            onGatherKit={() => {
+              setChatOpen(true);
+              if (frameworkApproved && !kitComplete && !chatPending) send(KIT_PROMPT);
+            }}
+            onRebuildModule={(moduleId, title) => {
+              setChatOpen(true);
+              if (!frameworkApproved || chatPending) return;
+              send(moduleKitPrompt(moduleId, title));
+            }}
+            onRefreshOutdated={(labels) => {
+              setChatOpen(true);
+              if (chatPending) return;
+              send(refreshOutdatedPrompt(labels));
+            }}
+            onOpenChat={() => setChatOpen(true)}
+          />
         </div>
         ) : null}
       </div>

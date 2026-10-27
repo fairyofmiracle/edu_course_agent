@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { CompetencyMap } from "@/components/CompetencyMap";
 import { SourceChecks } from "@/components/SourceChecks";
 import { StackFreshnessPanel } from "@/components/StackFreshness";
+import { findOutdated } from "@/lib/outdated";
 import { LectureDeck } from "@/components/LectureDeck";
 import { MermaidBlock } from "@/components/MermaidBlock";
 import { auditCourse, type AuditStatus } from "@/lib/course-audit";
@@ -47,7 +48,39 @@ const WORKSPACE_TABS: { id: WorkspaceTab; label: string; hint: string }[] = [
 type CourseWorkspaceProps = {
   course: CourseDocument;
   tab: WorkspaceTab;
+  frameworkReady?: boolean;
+  onApproveFramework?: () => void;
+  onGoApprove?: () => void;
+  onGatherFramework?: () => void;
+  onGatherKit?: () => void;
+  onOpenChat?: () => void;
+  onRebuildModule?: (moduleId: string, title: string) => void;
+  onRefreshOutdated?: (labels: string[]) => void;
 };
+
+function TabEmpty({
+  phrase,
+  hint,
+  ctaLabel,
+  onCta,
+}: {
+  phrase: string;
+  hint?: string;
+  ctaLabel?: string;
+  onCta?: () => void;
+}) {
+  return (
+    <div className="tab-empty">
+      <p className="tab-empty-phrase">{phrase}</p>
+      {hint ? <p className="muted">{hint}</p> : null}
+      {ctaLabel && onCta ? (
+        <button type="button" className="primary tab-empty-cta" onClick={onCta}>
+          {ctaLabel}
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 export function CourseTabs({
   tab,
@@ -60,11 +93,13 @@ export function CourseTabs({
 }) {
   const tabs = WORKSPACE_TABS.filter((item) => approved || !CONTENT_TABS.includes(item.id));
   return (
-    <nav className="nav-sections" aria-label="Разделы курса">
+    <nav className="nav-sections" aria-label="Разделы курса" role="tablist">
       {tabs.map((item) => (
         <button
           key={item.id}
           type="button"
+          role="tab"
+          aria-selected={tab === item.id}
           className={["journal-tab", tab === item.id ? "active" : ""].filter(Boolean).join(" ")}
           title={item.hint}
           onClick={() => onTabChange(item.id)}
@@ -76,24 +111,96 @@ export function CourseTabs({
   );
 }
 
-export function CourseWorkspace({ course, tab }: CourseWorkspaceProps) {
+export function CourseWorkspace({
+  course,
+  tab,
+  frameworkReady = false,
+  onApproveFramework,
+  onGoApprove,
+  onGatherFramework,
+  onGatherKit,
+  onRebuildModule,
+  onRefreshOutdated,
+  onOpenChat,
+}: CourseWorkspaceProps) {
   const contentOpen = isFrameworkApproved(course) || hasBuiltMaterials(course);
   const locked = CONTENT_TABS.includes(tab) && !contentOpen;
+  const gatherFramework = onGatherFramework ?? onOpenChat;
+  const gatherKit = onGatherKit ?? onOpenChat;
 
   return (
     <section className="workspace">
       <div className="workspace-body">
         {locked ? (
-          <LockedContentState />
+          <LockedContentState
+            frameworkReady={frameworkReady}
+            onApprove={onApproveFramework}
+            onGoApprove={onGoApprove}
+          />
         ) : (
           <>
             {tab === "overview" ? <Overview course={course} /> : null}
-            {tab === "structure" ? <Structure course={course} /> : null}
-            {tab === "competencies" ? <CompetencyMap course={course} /> : null}
-            {tab === "lectures" ? <LectureDeck course={course} /> : null}
-            {tab === "seminars" ? <Seminars course={course} /> : null}
-            {tab === "tests" ? <Tests course={course} /> : null}
-            {tab === "checks" ? <AuditPanel course={course} /> : null}
+            {tab === "structure" ? (
+              course.modules.length === 0 ? (
+                <TabEmpty
+                  phrase="Модулей ещё нет"
+                  hint="Сначала соберите каркас в чате"
+                  ctaLabel={gatherFramework ? "Собрать каркас" : undefined}
+                  onCta={gatherFramework}
+                />
+              ) : (
+                <Structure course={course} onRebuildModule={onRebuildModule} />
+              )
+            ) : null}
+            {tab === "competencies" ? (
+              course.competencies.nodes.length === 0 ? (
+                <TabEmpty
+                  phrase="Компетенций ещё нет"
+                  hint="Сначала соберите каркас в чате"
+                  ctaLabel={gatherFramework ? "Собрать каркас" : undefined}
+                  onCta={gatherFramework}
+                />
+              ) : (
+                <CompetencyMap course={course} />
+              )
+            ) : null}
+            {tab === "lectures" ? (
+              course.lectures.length === 0 ? (
+                <TabEmpty
+                  phrase="Лекций ещё нет"
+                  hint="Соберите комплект после утверждения каркаса"
+                  ctaLabel={gatherKit ? "Собрать комплект" : undefined}
+                  onCta={gatherKit}
+                />
+              ) : (
+                <LectureDeck course={course} />
+              )
+            ) : null}
+            {tab === "seminars" ? (
+              course.seminars.length === 0 ? (
+                <TabEmpty
+                  phrase="Семинаров ещё нет"
+                  hint="Соберите комплект после утверждения каркаса"
+                  ctaLabel={gatherKit ? "Собрать комплект" : undefined}
+                  onCta={gatherKit}
+                />
+              ) : (
+                <Seminars course={course} />
+              )
+            ) : null}
+            {tab === "tests" ? (
+              course.assessments.length === 0 ? (
+                <TabEmpty
+                  phrase="Тестов ещё нет"
+                  hint="Соберите комплект после утверждения каркаса"
+                  ctaLabel={gatherKit ? "Собрать комплект" : undefined}
+                  onCta={gatherKit}
+                />
+              ) : (
+                <Tests course={course} />
+              )
+            ) : null}
+            {tab === "checks" ? <AuditPanel course={course} onRefreshOutdated={onRefreshOutdated} /> : null}
           </>
         )}
       </div>
@@ -101,10 +208,26 @@ export function CourseWorkspace({ course, tab }: CourseWorkspaceProps) {
   );
 }
 
-function LockedContentState() {
+function LockedContentState({
+  frameworkReady,
+  onApprove,
+  onGoApprove,
+}: {
+  frameworkReady: boolean;
+  onApprove?: () => void;
+  onGoApprove?: () => void;
+}) {
+  const canApprove = Boolean(frameworkReady && onApprove);
+  const go = canApprove ? onApprove : onGoApprove;
+  const label = canApprove ? "Утвердить каркас" : "К утверждению";
   return (
-    <div className="hero-empty compact">
-      <h2>Сначала утвердите каркас</h2>
+    <div className="tab-empty">
+      <p className="tab-empty-phrase">Сначала утвердите каркас</p>
+      {go ? (
+        <button type="button" className="primary tab-empty-cta" onClick={go}>
+          {label}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -154,7 +277,7 @@ function ReferenceList({
   );
 }
 
-function AuditPanel({ course }: { course: CourseDocument }) {
+function AuditPanel({ course, onRefreshOutdated }: { course: CourseDocument; onRefreshOutdated?: (labels: string[]) => void }) {
   const report = auditCourse(course);
   const groups: { status: AuditStatus; title: string }[] = [
     { status: "fail", title: "Не выполнено" },
@@ -195,6 +318,36 @@ function AuditPanel({ course }: { course: CourseDocument }) {
       </details>
       <ReferenceList references={course.brief.references} title="Источники" />
       <SourceChecks course={course} />
+      
+      {(() => {
+        const hits = findOutdated(course);
+        if (hits.length === 0) return null;
+        const labels = [...new Set(hits.map((h) => h.label))];
+        return (
+          <article className="outdated-panel">
+            <h3>Устаревшие технологии</h3>
+            <ul className="audit-list">
+              {hits.map((hit) => (
+                <li key={`${hit.id}:${hit.place}`} className="warning">
+                  <strong>{hit.label}:</strong> {hit.note}
+                  <span>{hit.place}</span>
+                </li>
+              ))}
+            </ul>
+            {onRefreshOutdated ? (
+              <div className="pane-actions" style={{ marginTop: 8 }}>
+                <button
+                  type="button"
+                  title="Заменить устаревшие технологии в каркасе через чат"
+                  onClick={() => onRefreshOutdated(labels)}
+                >
+                  Обновить устаревшее
+                </button>
+              </div>
+            ) : null}
+          </article>
+        );
+      })()}
       <StackFreshnessPanel course={course} />
     </div>
   );
@@ -257,7 +410,7 @@ function kitOf(course: CourseDocument, moduleId: string) {
   };
 }
 
-function ModuleBoard({ course }: { course: CourseDocument }) {
+function ModuleBoard({ course, onRebuildModule }: { course: CourseDocument; onRebuildModule?: (moduleId: string, title: string) => void }) {
   const [moduleId, setModuleId] = useState(course.modules[0]?.id ?? "");
   const selected = course.modules.find((item) => item.id === moduleId) ?? course.modules[0];
   if (!selected) return null;
@@ -302,6 +455,17 @@ function ModuleBoard({ course }: { course: CourseDocument }) {
       <article className="module-detail">
         <p className="kicker">Модуль</p>
         <h3>{selected.title}</h3>
+        {onRebuildModule && isFrameworkApproved(course) ? (
+          <div className="pane-actions" style={{ margin: "8px 0 12px" }}>
+            <button
+              type="button"
+              title="Пересобрать лекции, семинар и тест только для этого модуля"
+              onClick={() => onRebuildModule(selected.id, selected.title)}
+            >
+              Пересобрать материалы модуля
+            </button>
+          </div>
+        ) : null}
         <p className="muted">
           {selected.hours} ч
           {selected.competencyIds.length
@@ -344,9 +508,11 @@ function Overview({ course }: { course: CourseDocument }) {
       ) : null}
       <section className="about-card">
         <h2>О программе</h2>
-        <p className="about-label">Целевая аудитория</p>
-        <p className="about-audience">{brief.audience.trim() || "Аудитория ещё не названа"}</p>
         <dl className="meta-grid">
+          <div>
+            <dt>Целевая аудитория</dt>
+            <dd>{brief.audience.trim() || "—"}</dd>
+          </div>
           <div>
             <dt>Объём</dt>
             <dd>{brief.durationHours ? `${brief.durationHours} ч` : "—"}</dd>
@@ -567,14 +733,14 @@ function WeekPlan({ course }: { course: CourseDocument }) {
   );
 }
 
-function Structure({ course }: { course: CourseDocument }) {
+function Structure({ course, onRebuildModule }: { course: CourseDocument; onRebuildModule?: (moduleId: string, title: string) => void }) {
   if (course.modules.length === 0) {
     return null;
   }
   return (
     <div className="structure">
       <WeekPlan course={course} />
-      <ModuleBoard course={course} />
+      <ModuleBoard course={course} onRebuildModule={onRebuildModule} />
     </div>
   );
 }

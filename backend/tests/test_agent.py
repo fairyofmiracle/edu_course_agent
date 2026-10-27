@@ -514,6 +514,9 @@ class LocalRunClient:
     api_key = None
     usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "calls": 0}
 
+    def begin_turn(self) -> None:
+        return None
+
     def budget_left(self) -> bool:
         return True
 

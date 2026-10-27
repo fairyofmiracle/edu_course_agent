@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from typing import Any
 
 from .kit_content import course_text, is_intro_python, is_teacher_ai
@@ -58,15 +60,56 @@ def _brief_profile_text(course: CourseDocument) -> str:
     return " ".join(part for part in parts if part).lower()
 
 
+# Strong DS stack only — Excel/данные/аналитика alone must stay generic
+# (own-s1 Excel→бухгалтерия) and not auto-pick «ИИ для аналитиков».
+_OFFICE_NOT_DS = re.compile(
+    r"бухгалтер|кадров|кадры|1с|зуп|офисн|делопроизвод",
+    re.IGNORECASE,
+)
+_STRONG_DS = re.compile(
+    r"pandas|dataframe|jupyter|"
+    r"(?<![a-zа-яё0-9_])sql(?![a-zа-яё0-9_])|"
+    r"машинн\w*\s+обучен|machine\s+learning|(?<![a-zа-яё])ml(?![a-zа-яё])",
+    re.IGNORECASE,
+)
+_WEAK_DATA_HINT = re.compile(
+    r"анализ\w*\s+данн|данн\w*|аналитик|статистик|excel|эксель",
+    re.IGNORECASE,
+)
+
+
+_ANALYSIS_PYTHON = re.compile(
+    r"анализ\w*\s+данн.*(?:python|питон)|(?:python|питон).*анализ\w*\s+данн",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
 def is_data_analysis(course: CourseDocument) -> bool:
+    """pandas/SQL/ML или «анализ данных + Python» плюс Excel/банк; офис — нет."""
     if is_teacher_ai(course):
         return False
     text = _brief_profile_text(course)
-    topic = any(token in text for token in ("pandas", "анализ данных", "sql", "статистик"))
+    if _OFFICE_NOT_DS.search(text):
+        return False
+    strong = bool(_STRONG_DS.search(text) or _ANALYSIS_PYTHON.search(text))
+    if not strong:
+        return False
     workplace = any(
         token in text and f"без {token}" not in text for token in ("excel", "банк")
     )
-    return topic and workplace
+    return workplace
+
+
+def needs_profile_confirm(course: CourseDocument) -> bool:
+    """Excel/данные/аналитика без явного DS-стека — спросить профиль."""
+    if is_teacher_ai(course) or is_data_analysis(course):
+        return False
+    text = _brief_profile_text(course)
+    if _OFFICE_NOT_DS.search(text):
+        return False
+    if not _WEAK_DATA_HINT.search(text):
+        return False
+    return not (_STRONG_DS.search(text) or _ANALYSIS_PYTHON.search(text))
 
 
 def is_internship(course: CourseDocument) -> bool:

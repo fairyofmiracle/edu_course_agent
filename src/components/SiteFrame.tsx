@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { applyTheme, readTheme, storeTheme, type Theme } from "@/lib/theme";
+import { NavIcon } from "@/components/NavIcon";
 import { LAW_273, ORDER_266, ORDER_499, ORDER_629 } from "@/lib/legal-basis";
 
 export function SiteFrame({
@@ -79,7 +80,7 @@ export function SiteFrame({
             <div className="site-heading">
               {crumb ? (
                 <p className="site-crumb">
-                  <a href={crumb.href}>{crumb.label}</a>
+                  <a href={crumb.href} onClick={() => setPanel(null)}>{crumb.label}</a>
                 </p>
               ) : null}
               <h1 className="site-title">{title}</h1>
@@ -87,7 +88,7 @@ export function SiteFrame({
             </div>
           ) : null}
         </div>
-        {tools ? <div className="site-tools site-tools-header">{tools}</div> : null}
+        {tools ? <div className="site-tools site-tools-header" onClick={() => setPanel(null)}>{tools}</div> : null}
         {onOpenChat ? (
           <button
             type="button"
@@ -126,8 +127,14 @@ export function SiteFrame({
         aria-label="Меню студии"
         onClick={(event) => {
           const target = event.target as HTMLElement;
-          if (target.closest("a, button")) setMenuOpen(false);
-          if (target.closest(".nav-sections")) setPanel(null);
+          const hit = target.closest("a, button");
+          if (hit) setMenuOpen(false);
+          // Keep Settings/FAQ open only when toggling them (or theme).
+          // Any other nav action (Мои курсы, Новый, разделы, выгрузка…) returns to the document.
+          const keepPanel = Boolean(
+            target.closest(".nav-help, .account-toggle, .theme-toggle"),
+          );
+          if (hit && !keepPanel) setPanel(null);
         }}
       >
         <Link className="nav-brand" href="/">
@@ -150,6 +157,7 @@ export function SiteFrame({
             aria-pressed={panel === "faq"}
             onClick={() => setPanel((current) => (current === "faq" ? null : "faq"))}
           >
+            <NavIcon name="help" />
             Инструкция
           </button>
           <div className="nav-user">
@@ -237,22 +245,27 @@ function SideTab({
 }) {
   return (
     <section className="side-tab">
-      <nav className="journal-tabs" aria-label="Инструкция и настройки">
-        <button
-          type="button"
-          className={panel === "faq" ? "journal-tab active" : "journal-tab"}
-          onClick={() => onPanel("faq")}
-        >
-          Инструкция
+      <div className="side-tab-bar">
+        <button type="button" className="side-tab-back" onClick={() => onPanel(null)}>
+          К программе
         </button>
-        <button
-          type="button"
-          className={panel === "account" ? "journal-tab active" : "journal-tab"}
-          onClick={() => onPanel("account")}
-        >
-          Настройки
-        </button>
-      </nav>
+        <nav className="journal-tabs" aria-label="Инструкция и настройки">
+          <button
+            type="button"
+            className={panel === "faq" ? "journal-tab active" : "journal-tab"}
+            onClick={() => onPanel("faq")}
+          >
+            Инструкция
+          </button>
+          <button
+            type="button"
+            className={panel === "account" ? "journal-tab active" : "journal-tab"}
+            onClick={() => onPanel("account")}
+          >
+            Настройки
+          </button>
+        </nav>
+      </div>
       {panel === "faq" ? (
         <div className="side-tab-body">
           <h2>Инструкция</h2>

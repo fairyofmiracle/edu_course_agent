@@ -31,11 +31,48 @@ export function mentionedKind(texts: string[]): "general" | "qualification" | nu
 
 export const SERVICE_PROMPT = /^(Собери |Каркас утверждён)/;
 
+const TITLE_MARKER =
+  /программ\w*|курс\w*|повышен\w*\s+квалификац\w*|общеразвивающ\w*|обучен\w*|слушател\w*|академ\w*\s*час|(?:курс|программ\w*)\s+по\s+|(?:назван\w*|тема)\s*[:—-]|«[^»]{3,160}»/i;
+const WEAK_TITLE_LEAD = /^(?:делаем|сделаем|давайте|давай|хочу|нужно|прошу)\b/i;
+const LEAD_STRIP =
+  /^(?:сделайте|сделаем|делаем|давайте|давай|хочу|нужна|нужен|нужно|прошу)\s+/i;
+
+/** Soft RU+EN swear filter — mirror backend brief_guard.contains_profanity */
+const PROFANITY =
+  /\b(?:бля(?:д|т|ть|ди|дск)?\w*|сука\w*|хуй\w*|хуя\w*|хуе\w*|хуё\w*|пизд\w*|еба\w*|ёба\w*|ебл\w*|ёбл\w*|ебу\w*|ёбу\w*|ебан\w*|ёбан\w*|муда\w*|мудил\w*|гавно\w*|говно\w*|залуп\w*|пидор\w*|пидар\w*|долбо[её]б\w*|у[её]б\w*|fuck\w*|fucking|motherfuck\w*|shit\w*|bullshit|asshole\w*|dickhead\w*|bitch\w*|cunt\w*|bastard\w*|wtf\b)/i;
+
+export const PROFANITY_REPLY =
+  "Переформулируйте запрос без грубостей — из мата программу не собираю.";
+
+export function containsProfanity(text: string): boolean {
+  return PROFANITY.test(text || "");
+}
+
+function isGarbageTitle(text: string): boolean {
+  const cleaned = (text || "").trim();
+  if (cleaned.length < 3) return true;
+  if (containsProfanity(cleaned)) return true;
+  const words = cleaned.match(/[A-Za-zА-Яа-яЁё0-9+#.]+/g) ?? [];
+  if (words.length <= 2 && !TITLE_MARKER.test(cleaned)) return true;
+  if (WEAK_TITLE_LEAD.test(cleaned) && !TITLE_MARKER.test(cleaned)) return true;
+  return false;
+}
+
 export function titleFromRequest(text: string): string {
+  if (containsProfanity(text)) return "";
   const quoted = text.match(/«([^»]{3,160})»/);
-  if (quoted) return quoted[1].trim();
-  const head = text.split(/\s[—–-]\s|[.,;:\n]/)[0]?.trim() ?? "";
-  return head.slice(0, 160);
+  if (quoted) {
+    const q = quoted[1].trim();
+    return containsProfanity(q) || isGarbageTitle(q) ? "" : q;
+  }
+  let cleaned = text.trim().replace(LEAD_STRIP, "");
+  let head = cleaned.split(/\s[—–-]\s|[.,;:\n]/)[0]?.trim() ?? "";
+  if (head) head = head[0].toUpperCase() + head.slice(1);
+  head = head.slice(0, 160);
+  if (!head || containsProfanity(head)) return "";
+  if (isGarbageTitle(head) && !TITLE_MARKER.test(text)) return "";
+  if (!TITLE_MARKER.test(text) && !TITLE_MARKER.test(head)) return "";
+  return head;
 }
 
 /** GigaChat копирует значения по умолчанию из схемы: "", 0, "unset", []. Они не должны затирать бриф. */
@@ -122,9 +159,22 @@ export function guardBrief(
     if (attest) brief.attestationForm = attest;
   }
 
+  if (brief.title && (containsProfanity(brief.title) || isGarbageTitle(brief.title))) {
+    delete brief.title;
+    dropped.push("title");
+  }
+
+  if (brief.goals?.length) {
+    const clean = brief.goals.filter((g) => !containsProfanity(String(g)));
+    if (clean.length !== brief.goals.length) {
+      brief.goals = clean;
+      dropped.push("goals");
+    }
+  }
+
   if ((!brief.goals || brief.goals.length === 0) && current.goals.length === 0) {
     const title = brief.title || current.title;
-    if (title) brief.goals = [`Освоить программу «${title}»`];
+    if (title && !containsProfanity(title)) brief.goals = [`Освоить программу «${title}»`];
   }
 
   if (

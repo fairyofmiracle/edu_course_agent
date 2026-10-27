@@ -123,6 +123,24 @@ button {
   background: var(--paper);
 }
 
+.boot-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--paper);
+  opacity: 1;
+  transition: opacity 0.4s ease;
+  pointer-events: auto;
+}
+
+.boot-overlay--leave {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .boot-stack {
   display: flex;
   flex-direction: column;
@@ -152,7 +170,7 @@ button {
   line-height: 1.1;
   letter-spacing: 0.01em;
   clip-path: inset(0 100% 0 0);
-  animation: boot-ink 3.4s cubic-bezier(0.42, 0.02, 0.18, 1) forwards;
+  animation: boot-ink 1.05s cubic-bezier(0.42, 0.02, 0.18, 1) forwards;
 }
 
 html[data-theme="light"] .boot-word {
@@ -172,7 +190,7 @@ html[data-theme="light"] .boot-nib {
   border-radius: 2px 10px 10px 10px;
   background: #44eb99;
   transform: rotate(-18deg);
-  animation: boot-pen 3.4s cubic-bezier(0.42, 0.02, 0.18, 1) forwards;
+  animation: boot-pen 1.05s cubic-bezier(0.42, 0.02, 0.18, 1) forwards;
 }
 
 @keyframes boot-ink {
@@ -869,6 +887,36 @@ html[data-theme="light"] .nav-burger span {
   border-radius: 16px;
 }
 
+.side-tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.side-tab-back {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.side-tab-back:hover {
+  border-color: var(--ink);
+}
+
+.side-tab-bar .journal-tabs {
+  margin: 0;
+  border-bottom: 0;
+}
+
 .side-tab-body {
   display: flex;
   flex-direction: column;
@@ -1287,6 +1335,10 @@ button.primary {
     display: none;
   }
 
+  .boot-overlay {
+    transition: none;
+  }
+
   .voice-wave i {
     animation: none;
     transform: scaleY(0.6);
@@ -1400,7 +1452,7 @@ button.primary {
 }
 
 .pane-doc {
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto 1fr;
 }
 
 .pane-head {
@@ -2420,6 +2472,7 @@ button.primary {
 
 .file-row {
   display: flex;
+  flex-wrap: nowrap;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
@@ -2431,9 +2484,24 @@ button.primary {
   border-bottom: 0;
 }
 
+.file-row > div:first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .file-row strong {
   display: block;
   margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-row .deck-nav {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  margin-top: 0;
+  white-space: nowrap;
 }
 
 .file-preview {
@@ -3486,5 +3554,160 @@ html[data-theme="light"] .hours-gap {
 
   .workspace-body {
     padding: 16px 16px 28px;
+  }
+}
+
+
+/* --- P0 UX: tabs over document, empty tabs, start chips, dock labels --- */
+.doc-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: 4px;
+  margin: 0;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.doc-tabs .journal-tab {
+  flex: none;
+}
+
+.pane-doc > .doc-tabs {
+  flex: none;
+}
+
+.tab-empty {
+  max-width: 420px;
+  padding: 32px 8px 24px;
+}
+
+.tab-empty-phrase {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.tab-empty .muted {
+  margin: 0 0 16px;
+}
+
+.tab-empty-cta {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tab-empty-cta:hover {
+  filter: brightness(1.05);
+}
+
+.chat-start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 8px 8px;
+}
+
+.start-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.start-chip {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.start-chip:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+}
+
+.composer-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 0 8px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  align-self: flex-start;
+}
+
+.composer-mode button {
+  min-height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.composer-mode button.active,
+.composer-mode button[aria-selected="true"] {
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--line) 80%, transparent);
+}
+
+.dock-icon.dock-labeled {
+  width: auto;
+  height: auto;
+  min-width: 44px;
+  min-height: 40px;
+  padding: 4px 6px 2px;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dock-caption {
+  font-size: 10px;
+  line-height: 1.1;
+  font-weight: 500;
+  color: inherit;
+  white-space: nowrap;
+}
+
+.chat-dock-bar {
+  align-items: flex-end;
+}
+
+
+@media (max-width: 980px) {
+  .doc-tabs {
+    padding: 0 12px;
+  }
+
+  .dock-icon.dock-labeled {
+    min-width: 40px;
+  }
+
+  .dock-caption {
+    font-size: 9px;
   }
 }

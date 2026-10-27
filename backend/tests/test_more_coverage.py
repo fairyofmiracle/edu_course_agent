@@ -457,7 +457,7 @@ def test_http_service_routes() -> None:
         health = client.get("/health").json()
         assert health["status"] == "ok"
         assert "llmConfigured" in health
-        assert health["exports"] == ["json", "docx", "pptx"]
+        assert health["exports"] == ["json", "docx", "pptx", "zip", "moodle", "gift", "csv", "html"]
         assert client.get("/api/regulatory/policy").json()["rules"]
         stack = client.post("/api/stack/freshness", json={"texts": ["Python 3.12"]})
         assert stack.status_code == 200

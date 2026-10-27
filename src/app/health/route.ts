@@ -3,7 +3,7 @@ const FALLBACK = {
   service: "edu-course-python",
   llmConfigured: false,
   llmHost: "",
-  exports: ["json", "docx", "pptx"],
+  exports: ["json", "docx", "pptx", "zip", "moodle", "gift", "csv", "html"],
 };
 
 function pythonBase() {

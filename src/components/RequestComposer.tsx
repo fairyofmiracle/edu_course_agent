@@ -99,6 +99,8 @@ type RequestComposerProps = {
   kitComplete: boolean;
   stage: "ask" | "framework" | "kit";
   pending: boolean;
+  mode?: Mode;
+  onModeChange?: (mode: Mode) => void;
   onReferencesChange: (value: string) => void;
   onReferenceAdd: (reference: CourseBrief["references"][number]) => void;
   onSend: (text: string, brief?: Partial<CourseBrief>) => void;
@@ -111,12 +113,20 @@ export function RequestComposer({
   kitComplete,
   stage,
   pending,
+  mode: modeProp,
+  onModeChange,
   onReferencesChange,
   onReferenceAdd,
   onSend,
   onStop,
 }: RequestComposerProps) {
-  const [mode, setMode] = useState<Mode>("free");
+  const [modeState, setModeState] = useState<Mode>("free");
+  const mode = modeProp ?? modeState;
+  const setMode = (next: Mode | ((value: Mode) => Mode)) => {
+    const resolved = typeof next === "function" ? next(mode) : next;
+    if (onModeChange) onModeChange(resolved);
+    else setModeState(resolved);
+  };
   const [input, setInput] = useState("");
   const [fields, setFields] = useState<TemplateFields>(emptyTemplate);
   const [busyFile, setBusyFile] = useState(false);
@@ -382,6 +392,26 @@ export function RequestComposer({
 
   return (
     <form className="composer" onSubmit={submit}>
+      <div className="composer-mode" role="tablist" aria-label="Режим запроса">
+        <button
+          type="button"
+          role="tab"
+          className={mode === "free" ? "active" : undefined}
+          aria-selected={mode === "free"}
+          onClick={() => setMode("free")}
+        >
+          Чат
+        </button>
+        <button
+          type="button"
+          role="tab"
+          className={mode === "template" ? "active" : undefined}
+          aria-selected={mode === "template"}
+          onClick={() => setMode("template")}
+        >
+          Шаблон
+        </button>
+      </div>
       {mode === "template" ? (
         <div className="template-grid">
           <label>
@@ -553,17 +583,18 @@ export function RequestComposer({
         <div className="chat-dock-bar">
           <button
             type="button"
-            className="dock-icon"
+            className="dock-icon dock-labeled"
             title={busyFile ? "Читаю файл" : "Файл"}
             aria-label={busyFile ? "Читаю файл" : "Файл"}
             onClick={() => fileRef.current?.click()}
             disabled={busyFile || recording}
           >
             <FileIcon />
+            <span className="dock-caption">Файл</span>
           </button>
           <button
             type="button"
-            className="dock-icon"
+            className="dock-icon dock-labeled"
             title="Ссылка"
             aria-label="Ссылка"
             aria-pressed={showLink}
@@ -571,26 +602,18 @@ export function RequestComposer({
             disabled={busyFile}
           >
             <LinkIcon />
+            <span className="dock-caption">Ссылка</span>
           </button>
           <button
             type="button"
-            className="dock-icon"
+            className="dock-icon dock-labeled"
             title={extraReferences ? "Материал приложен" : "Материал"}
             aria-label={extraReferences ? "Материал приложен" : "Материал"}
             aria-pressed={showRefs}
             onClick={() => setShowRefs((value) => !value)}
           >
             <NoteIcon />
-          </button>
-          <button
-            type="button"
-            className="dock-icon"
-            title={mode === "template" ? "Свободный запрос" : "По шаблону"}
-            aria-label={mode === "template" ? "Свободный запрос" : "По шаблону"}
-            aria-pressed={mode === "template"}
-            onClick={() => setMode((value) => (value === "free" ? "template" : "free"))}
-          >
-            <TemplateIcon />
+            <span className="dock-caption">Материал</span>
           </button>
           <span className="dock-spacer" />
           {mode === "template" ? (
@@ -722,17 +745,9 @@ function LinkIcon() {
 }
 
 function NoteIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M7 5.5h10a1.5 1.5 0 0 1 1.5 1.5v8.2L14.2 19.5H7A1.5 1.5 0 0 1 5.5 18V7A1.5 1.5 0 0 1 7 5.5z" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M14 19.2V15h4.2M8.5 9.5h6M8.5 12.5h4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
+  return <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/overview.png)" }} aria-hidden="true" />;
 }
 
-function TemplateIcon() {
-  return <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/template.png)" }} aria-hidden="true" />;
-}
 
 function SendIcon() {
   return (

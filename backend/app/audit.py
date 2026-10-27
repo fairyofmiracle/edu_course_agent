@@ -219,6 +219,127 @@ def audit_course(course: dict[str, Any]) -> dict[str, Any]:
                 )
             )
 
+
+    # Учебно-тематический план: сумма тем = видам часов модуля
+    for module in modules:
+        module_id = str(module.get("id") or "module")
+        plan = module.get("plan") or []
+        if not plan:
+            items.append(
+                _audit_item(
+                    f"plan.{module_id}.missing",
+                    f"{module.get('title') or module_id}: есть учебно-тематический план",
+                    False,
+                    "framework",
+                    "нет строк плана тем",
+                    status="warning",
+                )
+            )
+            continue
+        for field, label in (
+            ("lectureHours", "ЛК"),
+            ("practiceHours", "ПР"),
+            ("labHours", "ЛБ"),
+            ("selfStudyHours", "СРС"),
+        ):
+            planned = sum(_number(row.get(field)) for row in plan if isinstance(row, dict))
+            target = _number(module.get(field))
+            ok = abs(planned - target) < 0.001
+            items.append(
+                _audit_item(
+                    f"plan.{module_id}.{field}",
+                    f"{module.get('title') or module_id}: сумма тем по {label} = {planned:g} из {target:g}",
+                    ok,
+                    "framework",
+                    None if ok else f"темы {planned:g}, модуль {target:g}",
+                )
+            )
+
+    # Карта компетенций: ЗУН и связь с модулями / проверкой
+    for node in competencies:
+        node_id = str(node.get("id") or "comp")
+        name = str(node.get("name") or node_id)
+        has_zun = bool(node.get("knowledge")) and bool(node.get("skills")) and bool(
+            node.get("abilities")
+        )
+        items.append(
+            _audit_item(
+                f"competency.{node_id}.zun",
+                f"Компетенция «{name}»: знания, умения и навыки",
+                has_zun,
+                "framework",
+                None
+                if has_zun
+                else "не хватает "
+                + ", ".join(
+                    part
+                    for part, present in (
+                        ("знаний", bool(node.get("knowledge"))),
+                        ("умений", bool(node.get("skills"))),
+                        ("навыков", bool(node.get("abilities"))),
+                    )
+                    if not present
+                ),
+            )
+        )
+        module_ids = {str(value) for value in (node.get("moduleIds") or []) if value}
+        if not module_ids:
+            # fallback: modules pointing to this competency
+            module_ids = {
+                str(module.get("id") or "")
+                for module in modules
+                if node_id in {str(x) for x in (module.get("competencyIds") or [])}
+            }
+        items.append(
+            _audit_item(
+                f"competency.{node_id}.modules",
+                f"Компетенция «{name}» связана с темами/модулями",
+                bool(module_ids),
+                "framework",
+                None if module_ids else "нет moduleIds",
+            )
+        )
+        # at least one question or task references this competency or its module outcomes
+        linked_assess = False
+        for assessment in assessments:
+            if str(assessment.get("moduleId") or "") in module_ids:
+                linked_assess = True
+                break
+            for question in assessment.get("questions") or []:
+                if str(question.get("competencyId") or "") == node_id:
+                    linked_assess = True
+                    break
+        linked_task = False
+        for seminar in seminars:
+            if str(seminar.get("moduleId") or "") in module_ids:
+                linked_task = True
+                break
+            for task in seminar.get("tasks") or []:
+                if str(task.get("competencyId") or "") == node_id:
+                    linked_task = True
+                    break
+        covered = linked_assess and linked_task
+        items.append(
+            _audit_item(
+                f"competency.{node_id}.assessment",
+                f"Компетенция «{name}» покрыта вопросом и заданием",
+                covered,
+                "content",
+                None
+                if covered
+                else "не хватает: "
+                + " и ".join(
+                    part
+                    for part, present in (
+                        ("тест", linked_assess),
+                        ("задание", linked_task),
+                    )
+                    if not present
+                ),
+                status="pass" if covered else "warning",
+            )
+        )
+
     outdated = find_outdated(course)
     if modules and not outdated:
         items.append(

@@ -131,6 +131,7 @@ export function ChatPanel({
   const [picks, setPicks] = useState<Record<string, string>>({});
   const [ownAttestation, setOwnAttestation] = useState("");
   const [ownHours, setOwnHours] = useState("");
+  const [composerMode, setComposerMode] = useState<"free" | "template">("free");
   const wasPending = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -167,7 +168,30 @@ export function ChatPanel({
 
       <div className="messages" aria-live="polite">
         {messages.length === 0 ? (
-          <p className="chat-empty">Напишите, какой курс нужен.</p>
+          <div className="chat-start">
+            <p className="chat-empty">С чего начнём?</p>
+            <div className="start-chips">
+              <button
+                type="button"
+                className="start-chip"
+                onClick={() => setComposerMode("template")}
+              >
+                По шаблону
+              </button>
+              <button
+                type="button"
+                className="start-chip"
+                onClick={() => {
+                  setComposerMode("free");
+                  window.setTimeout(() => {
+                    document.getElementById("course-request")?.focus();
+                  }, 30);
+                }}
+              >
+                Своими словами
+              </button>
+            </div>
+          </div>
         ) : (
           messages.map((message) => {
             const texts = message.parts.filter(
@@ -329,6 +353,8 @@ export function ChatPanel({
         kitComplete={kitComplete}
         stage={stage}
         pending={pending}
+        mode={composerMode}
+        onModeChange={setComposerMode}
         onReferencesChange={onReferencesChange}
         onReferenceAdd={onReferenceAdd}
         onSend={onSend}

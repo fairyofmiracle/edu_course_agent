@@ -869,6 +869,36 @@ html[data-theme="light"] .nav-burger span {
   border-radius: 16px;
 }
 
+.side-tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.side-tab-back {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.side-tab-back:hover {
+  border-color: var(--ink);
+}
+
+.side-tab-bar .journal-tabs {
+  margin: 0;
+  border-bottom: 0;
+}
+
 .side-tab-body {
   display: flex;
   flex-direction: column;

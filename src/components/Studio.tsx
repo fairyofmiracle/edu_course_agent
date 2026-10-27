@@ -150,8 +150,11 @@ function StudioSession({
   const [tab, setTab] = useState<WorkspaceTab>("overview");
   const [chatOpen, setChatOpen] = useState(true);
   useEffect(() => {
-    if (window.matchMedia("(max-width: 720px)").matches) setChatOpen(false);
-  }, []);
+    const hasDocument = Boolean(
+      initialCourse.brief.title.trim() || initialCourse.modules.length || initialMessages.length,
+    );
+    if (hasDocument && window.matchMedia("(max-width: 980px)").matches) setChatOpen(false);
+  }, [initialCourse, initialMessages.length]);
   const [sessionId, setSessionId] = useState(initialSessionId);
   const [backendReady, setBackendReady] = useState(!hasBackendStorage());
   const [saveState, setSaveState] = useState<
@@ -594,20 +597,18 @@ function StudioSession({
           onStop={() => stop()}
           onClose={() => setChatOpen(false)}
         />
-        {showDocument ? (
-          <button
-            type="button"
-            className="chat-edge chat-edge-open"
-            aria-label={chatOpen ? "Скрыть ассистента" : "Открыть ассистента"}
-            title={chatOpen ? "Скрыть ассистента" : "Открыть ассистента"}
-            onClick={() => setChatOpen((open) => !open)}
-          >
-            <svg className="chat-edge-chevron" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span className="chat-edge-mark" style={{ ["--glyph" as string]: "url(/icons/chat.png)" }} aria-hidden="true" />
-          </button>
-        ) : null}
+        <button
+          type="button"
+          className="chat-edge chat-edge-open"
+          aria-label={chatOpen ? "Скрыть ассистента" : "Открыть ассистента"}
+          title={chatOpen ? "Скрыть ассистента" : "Открыть ассистента"}
+          onClick={() => setChatOpen((open) => !open)}
+        >
+          <svg className="chat-edge-chevron" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <img className="chat-edge-mark" src="/icons/chat.png" alt="" />
+        </button>
         {showDocument ? (
         <div className="pane pane-doc">
           <header className="pane-head">

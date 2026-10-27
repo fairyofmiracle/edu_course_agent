@@ -188,7 +188,6 @@ export function CourseCatalog() {
   return (
     <SiteFrame
       title="Мои курсы"
-      menu={false}
       actions={() => (
         <Link href="/?new=1">Добавить курс</Link>
       )}

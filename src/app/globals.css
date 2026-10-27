@@ -310,6 +310,7 @@ html[data-theme="light"] .boot-nib {
   height: 2px;
   border-radius: 2px;
   background: var(--accent);
+  pointer-events: none;
 }
 
 html[data-theme="light"] .nav-burger span {
@@ -1160,9 +1161,7 @@ button.primary {
   display: none;
   width: 26px;
   height: 26px;
-  background: currentColor;
-  -webkit-mask: var(--glyph) center / contain no-repeat;
-  mask: var(--glyph) center / contain no-repeat;
+  object-fit: contain;
 }
 
 .studio[data-chat="open"] .studio-body > .chat-edge-open {
@@ -3211,24 +3210,8 @@ html[data-theme="light"] .hours-gap {
   .studio[data-chat="open"] .topbar,
   .studio-body > .pane-doc,
   .studio[data-chat="closed"] .studio-body > .pane-doc {
-    margin: 8px;
-    border-radius: 16px;
-  }
-
-  .studio-body > .pane-write {
-    position: static;
-    top: auto;
-    right: auto;
-    bottom: auto;
-    width: auto;
-    height: auto;
-    margin: 8px;
-    border-radius: 16px;
-    box-shadow: none;
-  }
-
-  .studio-body > .chat-edge-open {
-    right: 0;
+    margin: 0 0 72px;
+    border-radius: 0;
   }
 
   .side-tab {
@@ -3257,16 +3240,12 @@ html[data-theme="light"] .hours-gap {
   .studio {
     height: 100dvh;
     max-width: 100%;
-    overflow-x: hidden;
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
   }
 
-  .studio-stage,
-  .studio-column,
-  .studio-main,
-  .studio-body,
-  .pane-doc {
+  .pane-doc,
+  .workspace-body {
     max-width: 100%;
     overflow-x: hidden;
     touch-action: pan-y;
@@ -3279,7 +3258,7 @@ html[data-theme="light"] .hours-gap {
     grid-row: 2;
     min-width: 0;
     min-height: 0;
-    overflow: hidden;
+    overflow: visible;
   }
 
   .studio-column {
@@ -3316,6 +3295,76 @@ html[data-theme="light"] .hours-gap {
     transform: none;
   }
 
+  .studio-body {
+    position: relative;
+    min-height: 100%;
+  }
+
+  .studio-body > .pane-write {
+    position: fixed;
+    z-index: 16;
+    top: auto;
+    right: 12px;
+    bottom: 84px;
+    left: 12px;
+    width: auto;
+    max-width: none;
+    height: min(72dvh, 640px);
+    margin: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .studio[data-chat="closed"] .studio-body > .pane-write {
+    display: none;
+  }
+
+  .studio-body.chat-only > .pane-write {
+    top: 72px;
+    right: 0;
+    bottom: 80px;
+    left: 0;
+    height: auto;
+  }
+
+  .pane-write > .chat-edge {
+    display: none;
+  }
+
+  .studio-body > .chat-edge-open {
+    display: inline-flex;
+    position: fixed;
+    z-index: 31;
+    top: auto;
+    right: 16px;
+    bottom: 16px;
+    left: auto;
+    width: 56px;
+    height: 56px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--on-accent);
+    box-shadow: 0 8px 20px rgb(17 17 17 / 16%);
+    transform: none;
+  }
+
+  .studio-body > .chat-edge-open .chat-edge-chevron {
+    display: none;
+  }
+
+  .studio-body > .chat-edge-open .chat-edge-mark {
+    display: block;
+  }
+
+  .studio[data-chat="open"] .studio-body > .chat-edge-open {
+    display: inline-flex;
+  }
+
+  .header-chat {
+    display: none;
+  }
+
   .studio[data-nav="off"] .nav-burger {
     display: none;
   }
@@ -3331,7 +3380,7 @@ html[data-theme="light"] .hours-gap {
   }
 
   .pane-write {
-    min-height: 70vh;
+    min-height: 0;
   }
 }
 
@@ -3416,61 +3465,6 @@ html[data-theme="light"] .hours-gap {
     margin: 0 0 72px;
     border: 0;
     border-radius: 0;
-  }
-
-  .studio-body > .pane-write {
-    position: fixed;
-    z-index: 16;
-    top: auto;
-    right: 12px;
-    bottom: 84px;
-    left: 12px;
-    width: auto;
-    max-width: calc(100vw - 24px);
-    height: min(72dvh, 640px);
-    border-radius: 0;
-  }
-
-  .studio[data-chat="closed"] .studio-body > .pane-write {
-    display: none;
-  }
-
-  .pane-write > .chat-edge {
-    display: none;
-  }
-
-  .studio-body > .chat-edge-open {
-    display: inline-flex;
-    position: fixed;
-    z-index: 21;
-    top: auto;
-    right: 16px;
-    bottom: 16px;
-    left: auto;
-    width: 56px;
-    height: 56px;
-    border: 0;
-    border-radius: 50%;
-    background: var(--accent);
-    color: var(--on-accent);
-    box-shadow: 0 8px 20px rgb(17 17 17 / 16%);
-    transform: none;
-  }
-
-  .studio-body > .chat-edge-open .chat-edge-chevron {
-    display: none;
-  }
-
-  .studio-body > .chat-edge-open .chat-edge-mark {
-    display: block;
-  }
-
-  .studio[data-chat="open"] .studio-body > .chat-edge-open {
-    display: inline-flex;
-  }
-
-  .header-chat {
-    display: none;
   }
 
   .nav-user {

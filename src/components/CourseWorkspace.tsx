@@ -90,7 +90,7 @@ export function CourseTabs({
 }) {
   const tabs = WORKSPACE_TABS.filter((item) => approved || !CONTENT_TABS.includes(item.id));
   return (
-    <nav className="doc-tabs" aria-label="Разделы курса" role="tablist">
+    <nav className="nav-sections" aria-label="Разделы курса" role="tablist">
       {tabs.map((item) => (
         <button
           key={item.id}

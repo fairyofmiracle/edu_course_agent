@@ -137,17 +137,7 @@ export function SiteFrame({
           </span>
         </Link>
         {tools ? <div className="site-tools site-tools-nav">{tools}</div> : null}
-        <div className="top-actions">
-          {actions?.()}
-          <button
-            type="button"
-            className="nav-settings-link"
-            aria-pressed={panel === "account"}
-            onClick={() => setPanel((current) => (current === "account" ? null : "account"))}
-          >
-            Настройки
-          </button>
-        </div>
+        <div className="top-actions">{actions?.()}</div>
         <div className="nav-foot">
           {note ? (
             <p className="nav-note" aria-live="polite">

@@ -87,10 +87,26 @@ export function Studio({
   fresh?: boolean;
 }) {
   const isClient = useIsClient();
+  const BOOT_SEEN_KEY = "edu-course-boot-seen";
   const [introDone, setIntroDone] = useState(false);
   useEffect(() => {
+    try {
+      if (window.sessionStorage.getItem(BOOT_SEEN_KEY) === "1") {
+        setIntroDone(true);
+        return;
+      }
+    } catch {
+      // sessionStorage may be blocked — show boot once this mount
+    }
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const timer = window.setTimeout(() => setIntroDone(true), reduce ? 400 : 3600);
+    const timer = window.setTimeout(() => {
+      try {
+        window.sessionStorage.setItem(BOOT_SEEN_KEY, "1");
+      } catch {
+        // ignore
+      }
+      setIntroDone(true);
+    }, reduce ? 400 : 1100);
     return () => window.clearTimeout(timer);
   }, []);
   if (!isClient || !introDone) {
@@ -477,7 +493,6 @@ function StudioSession({
         course.brief.title.trim() ||
         (course.modules.length === 0 ? "Новая образовательная программа" : "Без названия")
       }
-      crumb={{ href: "/courses", label: "Мои курсы" }}
       subtitle={courseSubtitle(course)}
       chatOpen={chatOpen}
       onOpenChat={() => setChatOpen(true)}
@@ -573,6 +588,7 @@ function StudioSession({
           <button type="button" onClick={reset}>
             Новый курс
           </button>
+          <CourseTabs tab={tab} approved={contentOpen} onTabChange={setTab} />
         </>
       )}
       onSample={loadSample}
@@ -611,10 +627,8 @@ function StudioSession({
         {showDocument ? (
         <div className="pane pane-doc">
           <header className="pane-head">
-            <p className="pane-label">Документ</p>
             <h2>Документ программы</h2>
           </header>
-          <CourseTabs tab={tab} approved={contentOpen} onTabChange={setTab} />
           <CourseWorkspace
             course={course}
             tab={tab}

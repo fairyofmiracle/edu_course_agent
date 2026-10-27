@@ -99,6 +99,8 @@ type RequestComposerProps = {
   kitComplete: boolean;
   stage: "ask" | "framework" | "kit";
   pending: boolean;
+  mode?: Mode;
+  onModeChange?: (mode: Mode) => void;
   onReferencesChange: (value: string) => void;
   onReferenceAdd: (reference: CourseBrief["references"][number]) => void;
   onSend: (text: string, brief?: Partial<CourseBrief>) => void;
@@ -111,12 +113,20 @@ export function RequestComposer({
   kitComplete,
   stage,
   pending,
+  mode: modeProp,
+  onModeChange,
   onReferencesChange,
   onReferenceAdd,
   onSend,
   onStop,
 }: RequestComposerProps) {
-  const [mode, setMode] = useState<Mode>("free");
+  const [modeState, setModeState] = useState<Mode>("free");
+  const mode = modeProp ?? modeState;
+  const setMode = (next: Mode | ((value: Mode) => Mode)) => {
+    const resolved = typeof next === "function" ? next(mode) : next;
+    if (onModeChange) onModeChange(resolved);
+    else setModeState(resolved);
+  };
   const [input, setInput] = useState("");
   const [fields, setFields] = useState<TemplateFields>(emptyTemplate);
   const [busyFile, setBusyFile] = useState(false);
@@ -382,6 +392,26 @@ export function RequestComposer({
 
   return (
     <form className="composer" onSubmit={submit}>
+      <div className="composer-mode" role="tablist" aria-label="Режим запроса">
+        <button
+          type="button"
+          role="tab"
+          className={mode === "free" ? "active" : undefined}
+          aria-selected={mode === "free"}
+          onClick={() => setMode("free")}
+        >
+          Чат
+        </button>
+        <button
+          type="button"
+          role="tab"
+          className={mode === "template" ? "active" : undefined}
+          aria-selected={mode === "template"}
+          onClick={() => setMode("template")}
+        >
+          Шаблон
+        </button>
+      </div>
       {mode === "template" ? (
         <div className="template-grid">
           <label>
@@ -553,17 +583,18 @@ export function RequestComposer({
         <div className="chat-dock-bar">
           <button
             type="button"
-            className="dock-icon"
+            className="dock-icon dock-labeled"
             title={busyFile ? "Читаю файл" : "Файл"}
             aria-label={busyFile ? "Читаю файл" : "Файл"}
             onClick={() => fileRef.current?.click()}
             disabled={busyFile || recording}
           >
             <FileIcon />
+            <span className="dock-caption">Файл</span>
           </button>
           <button
             type="button"
-            className="dock-icon"
+            className="dock-icon dock-labeled"
             title="Ссылка"
             aria-label="Ссылка"
             aria-pressed={showLink}
@@ -571,26 +602,29 @@ export function RequestComposer({
             disabled={busyFile}
           >
             <LinkIcon />
+            <span className="dock-caption">Ссылка</span>
           </button>
           <button
             type="button"
-            className="dock-icon"
+            className="dock-icon dock-labeled"
             title={extraReferences ? "Материал приложен" : "Материал"}
             aria-label={extraReferences ? "Материал приложен" : "Материал"}
             aria-pressed={showRefs}
             onClick={() => setShowRefs((value) => !value)}
           >
             <NoteIcon />
+            <span className="dock-caption">Материал</span>
           </button>
           <button
             type="button"
-            className="dock-icon"
-            title={mode === "template" ? "Свободный запрос" : "По шаблону"}
-            aria-label={mode === "template" ? "Свободный запрос" : "По шаблону"}
+            className="dock-icon dock-labeled"
+            title="Шаблон"
+            aria-label="Шаблон"
             aria-pressed={mode === "template"}
-            onClick={() => setMode((value) => (value === "free" ? "template" : "free"))}
+            onClick={() => setMode(mode === "template" ? "free" : "template")}
           >
             <TemplateIcon />
+            <span className="dock-caption">Шаблон</span>
           </button>
           <span className="dock-spacer" />
           {mode === "template" ? (

@@ -47,7 +47,37 @@ const WORKSPACE_TABS: { id: WorkspaceTab; label: string; hint: string }[] = [
 type CourseWorkspaceProps = {
   course: CourseDocument;
   tab: WorkspaceTab;
+  frameworkReady?: boolean;
+  onApproveFramework?: () => void;
+  onGoApprove?: () => void;
+  onGatherFramework?: () => void;
+  onGatherKit?: () => void;
+  onOpenChat?: () => void;
 };
+
+function TabEmpty({
+  phrase,
+  hint,
+  ctaLabel,
+  onCta,
+}: {
+  phrase: string;
+  hint?: string;
+  ctaLabel?: string;
+  onCta?: () => void;
+}) {
+  return (
+    <div className="tab-empty">
+      <p className="tab-empty-phrase">{phrase}</p>
+      {hint ? <p className="muted">{hint}</p> : null}
+      {ctaLabel && onCta ? (
+        <button type="button" className="primary tab-empty-cta" onClick={onCta}>
+          {ctaLabel}
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 export function CourseTabs({
   tab,
@@ -60,11 +90,13 @@ export function CourseTabs({
 }) {
   const tabs = WORKSPACE_TABS.filter((item) => approved || !CONTENT_TABS.includes(item.id));
   return (
-    <nav className="nav-sections" aria-label="Разделы курса">
+    <nav className="doc-tabs" aria-label="Разделы курса" role="tablist">
       {tabs.map((item) => (
         <button
           key={item.id}
           type="button"
+          role="tab"
+          aria-selected={tab === item.id}
           className={["journal-tab", tab === item.id ? "active" : ""].filter(Boolean).join(" ")}
           title={item.hint}
           onClick={() => onTabChange(item.id)}
@@ -76,23 +108,93 @@ export function CourseTabs({
   );
 }
 
-export function CourseWorkspace({ course, tab }: CourseWorkspaceProps) {
+export function CourseWorkspace({
+  course,
+  tab,
+  frameworkReady = false,
+  onApproveFramework,
+  onGoApprove,
+  onGatherFramework,
+  onGatherKit,
+  onOpenChat,
+}: CourseWorkspaceProps) {
   const contentOpen = isFrameworkApproved(course) || hasBuiltMaterials(course);
   const locked = CONTENT_TABS.includes(tab) && !contentOpen;
+  const gatherFramework = onGatherFramework ?? onOpenChat;
+  const gatherKit = onGatherKit ?? onOpenChat;
 
   return (
     <section className="workspace">
       <div className="workspace-body">
         {locked ? (
-          <LockedContentState />
+          <LockedContentState
+            frameworkReady={frameworkReady}
+            onApprove={onApproveFramework}
+            onGoApprove={onGoApprove}
+          />
         ) : (
           <>
             {tab === "overview" ? <Overview course={course} /> : null}
-            {tab === "structure" ? <Structure course={course} /> : null}
-            {tab === "competencies" ? <CompetencyMap course={course} /> : null}
-            {tab === "lectures" ? <LectureDeck course={course} /> : null}
-            {tab === "seminars" ? <Seminars course={course} /> : null}
-            {tab === "tests" ? <Tests course={course} /> : null}
+            {tab === "structure" ? (
+              course.modules.length === 0 ? (
+                <TabEmpty
+                  phrase="Модулей ещё нет"
+                  hint="Сначала соберите каркас в чате"
+                  ctaLabel={gatherFramework ? "Собрать каркас" : undefined}
+                  onCta={gatherFramework}
+                />
+              ) : (
+                <Structure course={course} />
+              )
+            ) : null}
+            {tab === "competencies" ? (
+              course.competencies.nodes.length === 0 ? (
+                <TabEmpty
+                  phrase="Компетенций ещё нет"
+                  hint="Сначала соберите каркас в чате"
+                  ctaLabel={gatherFramework ? "Собрать каркас" : undefined}
+                  onCta={gatherFramework}
+                />
+              ) : (
+                <CompetencyMap course={course} />
+              )
+            ) : null}
+            {tab === "lectures" ? (
+              course.lectures.length === 0 ? (
+                <TabEmpty
+                  phrase="Лекций ещё нет"
+                  hint="Соберите комплект после утверждения каркаса"
+                  ctaLabel={gatherKit ? "Собрать комплект" : undefined}
+                  onCta={gatherKit}
+                />
+              ) : (
+                <LectureDeck course={course} />
+              )
+            ) : null}
+            {tab === "seminars" ? (
+              course.seminars.length === 0 ? (
+                <TabEmpty
+                  phrase="Семинаров ещё нет"
+                  hint="Соберите комплект после утверждения каркаса"
+                  ctaLabel={gatherKit ? "Собрать комплект" : undefined}
+                  onCta={gatherKit}
+                />
+              ) : (
+                <Seminars course={course} />
+              )
+            ) : null}
+            {tab === "tests" ? (
+              course.assessments.length === 0 ? (
+                <TabEmpty
+                  phrase="Тестов ещё нет"
+                  hint="Соберите комплект после утверждения каркаса"
+                  ctaLabel={gatherKit ? "Собрать комплект" : undefined}
+                  onCta={gatherKit}
+                />
+              ) : (
+                <Tests course={course} />
+              )
+            ) : null}
             {tab === "checks" ? <AuditPanel course={course} /> : null}
           </>
         )}
@@ -101,10 +203,26 @@ export function CourseWorkspace({ course, tab }: CourseWorkspaceProps) {
   );
 }
 
-function LockedContentState() {
+function LockedContentState({
+  frameworkReady,
+  onApprove,
+  onGoApprove,
+}: {
+  frameworkReady: boolean;
+  onApprove?: () => void;
+  onGoApprove?: () => void;
+}) {
+  const canApprove = Boolean(frameworkReady && onApprove);
+  const go = canApprove ? onApprove : onGoApprove;
+  const label = canApprove ? "Утвердить каркас" : "К утверждению";
   return (
-    <div className="hero-empty compact">
-      <h2>Сначала утвердите каркас</h2>
+    <div className="tab-empty">
+      <p className="tab-empty-phrase">Сначала утвердите каркас</p>
+      {go ? (
+        <button type="button" className="primary tab-empty-cta" onClick={go}>
+          {label}
+        </button>
+      ) : null}
     </div>
   );
 }

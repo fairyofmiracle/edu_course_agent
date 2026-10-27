@@ -24,7 +24,7 @@ import {
   isFrameworkApproved,
   isKitComplete,
 } from "@/lib/framework-check";
-import { FRAMEWORK_PROMPT } from "@/lib/agent/service-prompts";
+import { FRAMEWORK_PROMPT, KIT_PROMPT } from "@/lib/agent/service-prompts";
 import { briefGaps } from "@/lib/course-validation";
 import { userFacingError } from "@/lib/user-error";
 import {
@@ -530,7 +530,7 @@ function StudioSession({
               Снять утверждение
             </button>
           ) : frameworkReady ? (
-            <button type="button" className="primary framework-action" title="Каркас готов к утверждению" onClick={approveFramework}>
+            <button type="button" id="framework-approve" className="primary framework-action" title="Каркас готов к утверждению" onClick={approveFramework}>
               Утвердить каркас
             </button>
           ) : briefReady ? (
@@ -573,7 +573,6 @@ function StudioSession({
           <button type="button" onClick={reset}>
             Новый курс
           </button>
-          <CourseTabs tab={tab} approved={contentOpen} onTabChange={setTab} />
         </>
       )}
       onSample={loadSample}
@@ -615,7 +614,32 @@ function StudioSession({
             <p className="pane-label">Документ</p>
             <h2>Документ программы</h2>
           </header>
-          <CourseWorkspace course={course} tab={tab} />
+          <CourseTabs tab={tab} approved={contentOpen} onTabChange={setTab} />
+          <CourseWorkspace
+            course={course}
+            tab={tab}
+            frameworkReady={frameworkReady}
+            onApproveFramework={approveFramework}
+            onGoApprove={() => {
+              setTab("overview");
+              setChatOpen(true);
+              window.setTimeout(() => {
+                document.getElementById("framework-approve")?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "nearest",
+                });
+              }, 50);
+            }}
+            onGatherFramework={() => {
+              setChatOpen(true);
+              if (briefReady && !chatPending) send(FRAMEWORK_PROMPT);
+            }}
+            onGatherKit={() => {
+              setChatOpen(true);
+              if (frameworkApproved && !kitComplete && !chatPending) send(KIT_PROMPT);
+            }}
+            onOpenChat={() => setChatOpen(true)}
+          />
         </div>
         ) : null}
       </div>

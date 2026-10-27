@@ -123,6 +123,24 @@ button {
   background: var(--paper);
 }
 
+.boot-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--paper);
+  opacity: 1;
+  transition: opacity 0.4s ease;
+  pointer-events: auto;
+}
+
+.boot-overlay--leave {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .boot-stack {
   display: flex;
   flex-direction: column;
@@ -1315,6 +1333,10 @@ button.primary {
 
   .boot-nib {
     display: none;
+  }
+
+  .boot-overlay {
+    transition: none;
   }
 
   .voice-wave i {

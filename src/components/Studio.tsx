@@ -88,31 +88,73 @@ export function Studio({
 }) {
   const isClient = useIsClient();
   const BOOT_SEEN_KEY = "edu-course-boot-seen";
-  const [introDone, setIntroDone] = useState(false);
+  const [bootSkipped, setBootSkipped] = useState(false);
+  const [showBoot, setShowBoot] = useState(true);
+  const [bootFading, setBootFading] = useState(false);
+
+  // Cold-start only: revisit in the same tab skips splash.
   useEffect(() => {
     try {
       if (window.sessionStorage.getItem(BOOT_SEEN_KEY) === "1") {
-        setIntroDone(true);
-        return;
+        setBootSkipped(true);
+        setShowBoot(false);
       }
     } catch {
       // sessionStorage may be blocked — show boot once this mount
     }
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const timer = window.setTimeout(() => {
+  }, []);
+
+  // Keep splash until studio is mounted and the first paint settles, then fade out.
+  useEffect(() => {
+    if (!isClient || bootSkipped || !showBoot || bootFading) return;
+    let cancelled = false;
+    let fadeTimer = 0;
+
+    const waitPaint = () =>
+      new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => resolve());
+        });
+      });
+
+    (async () => {
+      try {
+        if (document.fonts?.ready) {
+          await document.fonts.ready;
+        }
+      } catch {
+        // ignore font readiness errors
+      }
+      await waitPaint();
+      // Yield so layout/styles of StudioSession can apply under the overlay.
+      await new Promise<void>((resolve) => {
+        fadeTimer = window.setTimeout(resolve, 0);
+      });
+      if (cancelled) return;
       try {
         window.sessionStorage.setItem(BOOT_SEEN_KEY, "1");
       } catch {
         // ignore
       }
-      setIntroDone(true);
-    }, reduce ? 400 : 1100);
-    return () => window.clearTimeout(timer);
-  }, []);
-  if (!isClient || !introDone) {
-    const opening = isClient
-      ? resolveStudioOpen({ courseId, sample, fresh }, window.localStorage)
-      : null;
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (reduce) {
+        setShowBoot(false);
+      } else {
+        setBootFading(true);
+        // Fallback if transitionend never fires (e.g. display quirks).
+        fadeTimer = window.setTimeout(() => {
+          if (!cancelled) setShowBoot(false);
+        }, 500);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (fadeTimer) window.clearTimeout(fadeTimer);
+    };
+  }, [isClient, bootSkipped, showBoot, bootFading]);
+
+  if (!isClient) {
     return (
       <div className="boot" aria-label="Методий">
         <div className="boot-stack">
@@ -120,20 +162,44 @@ export function Studio({
             <span className="boot-word">Методий</span>
             <span className="boot-nib" aria-hidden="true" />
           </p>
-          {opening ? <p className="boot-line">{bootCaption(opening, { courseId, sample, fresh })}</p> : null}
         </div>
       </div>
     );
   }
+
   const open = resolveStudioOpen({ courseId, sample, fresh }, window.localStorage);
+  const openingCaption = bootCaption(open, { courseId, sample, fresh });
+
   return (
-    <StudioSession
-      initialCourse={open.course}
-      initialMessages={open.messages}
-      initialSessionId={open.rotateSession ? newSessionId() : loadSessionId()}
-      persist={open.persist}
-      localNotice={open.notice}
-    />
+    <>
+      <StudioSession
+        initialCourse={open.course}
+        initialMessages={open.messages}
+        initialSessionId={open.rotateSession ? newSessionId() : loadSessionId()}
+        persist={open.persist}
+        localNotice={open.notice}
+      />
+      {showBoot && !bootSkipped ? (
+        <div
+          className={`boot boot-overlay${bootFading ? " boot-overlay--leave" : ""}`}
+          aria-label="Методий"
+          aria-busy={!bootFading}
+          onTransitionEnd={(event) => {
+            if (event.propertyName !== "opacity") return;
+            if (!bootFading) return;
+            setShowBoot(false);
+          }}
+        >
+          <div className="boot-stack">
+            <p className="boot-write">
+              <span className="boot-word">Методий</span>
+              <span className="boot-nib" aria-hidden="true" />
+            </p>
+            <p className="boot-line">{openingCaption}</p>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
 

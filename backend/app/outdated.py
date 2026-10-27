@@ -12,6 +12,9 @@ MARKERS = (
     ("angularjs", re.compile(r"angular\s*js", re.I), "AngularJS"),
     ("centos6", re.compile(r"centos\s*[67](?!\d)", re.I), "CentOS 6 или 7"),
     ("tensorflow1", re.compile(r"tensorflow\s*1(?!\d)", re.I), "TensorFlow 1"),
+    ("nodejs-old", re.compile(r"node(?:\.js)?\s*(?:10|12|14)(?!\d)", re.I), "Node.js 10/12/14"),
+    ("jquery1", re.compile(r"jquery\s*1(?:\.\d+)?(?!\d)", re.I), "jQuery 1"),
+    ("bootstrap3", re.compile(r"bootstrap\s*3(?!\d)", re.I), "Bootstrap 3"),
 )
 
 

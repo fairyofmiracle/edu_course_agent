@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { FRAMEWORK_PROMPT, KIT_PROMPT, moduleKitPrompt } from "@/lib/agent/service-prompts";
+import { FRAMEWORK_PROMPT, KIT_PROMPT, moduleKitPrompt, adaptHoursPrompt, adaptAudiencePrompt, refreshOutdatedPrompt } from "@/lib/agent/service-prompts";
 import { getLanguageModel } from "@/lib/agent/model";
 import { buildSystemPrompt } from "@/lib/agent/prompts";
 import { createCourseTools } from "@/lib/agent/tools";
@@ -19,6 +19,9 @@ describe("ход агента без вызова модели", () => {
     expect(modular).toContain("M2");
     expect(modular).toContain("Алгоритмы");
     expect(modular).toContain("set_assessment");
+    expect(adaptHoursPrompt(72)).toContain("72");
+    expect(adaptAudiencePrompt("аналитики")).toContain("аналитики");
+    expect(refreshOutdatedPrompt(["Python 2"])).toContain("Python 2");
     const prompt = buildSystemPrompt(SAMPLE_COURSE, "я".repeat(12_001), 2);
     expect(prompt).toContain("Текущий документ");
     expect(prompt.endsWith("…") || prompt.includes("…")).toBe(true);

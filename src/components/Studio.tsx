@@ -25,7 +25,7 @@ import {
   isFrameworkApproved,
   isKitComplete,
 } from "@/lib/framework-check";
-import { FRAMEWORK_PROMPT, KIT_PROMPT, moduleKitPrompt } from "@/lib/agent/service-prompts";
+import { FRAMEWORK_PROMPT, KIT_PROMPT, moduleKitPrompt, adaptHoursPrompt, adaptAudiencePrompt, refreshOutdatedPrompt } from "@/lib/agent/service-prompts";
 import { briefGaps } from "@/lib/course-validation";
 import { userFacingError } from "@/lib/user-error";
 import {
@@ -727,6 +727,21 @@ function StudioSession({
               setChatOpen(true);
               if (!frameworkApproved || chatPending) return;
               send(moduleKitPrompt(moduleId, title));
+            }}
+            onAdaptHours={(hours) => {
+              setChatOpen(true);
+              if (chatPending) return;
+              send(adaptHoursPrompt(hours));
+            }}
+            onAdaptAudience={(audience) => {
+              setChatOpen(true);
+              if (chatPending) return;
+              send(adaptAudiencePrompt(audience));
+            }}
+            onRefreshOutdated={(labels) => {
+              setChatOpen(true);
+              if (chatPending) return;
+              send(refreshOutdatedPrompt(labels));
             }}
             onOpenChat={() => setChatOpen(true)}
           />

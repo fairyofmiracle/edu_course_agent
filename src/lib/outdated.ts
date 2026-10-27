@@ -56,6 +56,24 @@ const MARKERS: Array<{ id: string; pattern: RegExp; label: string; note: string 
     label: "TensorFlow 1",
     note: "Первая ветка снята с поддержки.",
   },
+  {
+    id: "nodejs-old",
+    pattern: /node(?:\.js)?\s*(?:10|12|14)(?!\d)/i,
+    label: "Node.js 10/12/14",
+    note: "Эти ветки сняты с поддержки. Для практики нужна текущая LTS.",
+  },
+  {
+    id: "jquery1",
+    pattern: /jquery\s*1(?:\.\d+)?(?!\d)/i,
+    label: "jQuery 1",
+    note: "Первая ветка давно не развивается. Для нового набора лучше актуальный стек.",
+  },
+  {
+    id: "bootstrap3",
+    pattern: /bootstrap\s*3(?!\d)/i,
+    label: "Bootstrap 3",
+    note: "Bootstrap 3 снят с поддержки.",
+  },
 ];
 
 function places(course: CourseDocument) {

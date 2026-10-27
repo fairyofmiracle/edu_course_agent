@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { CompetencyMap } from "@/components/CompetencyMap";
 import { SourceChecks } from "@/components/SourceChecks";
 import { StackFreshnessPanel } from "@/components/StackFreshness";
+import { findOutdated } from "@/lib/outdated";
 import { LectureDeck } from "@/components/LectureDeck";
 import { NavIcon } from "@/components/NavIcon";
 import { MermaidBlock } from "@/components/MermaidBlock";
@@ -55,6 +56,9 @@ type CourseWorkspaceProps = {
   onGatherKit?: () => void;
   onOpenChat?: () => void;
   onRebuildModule?: (moduleId: string, title: string) => void;
+  onAdaptHours?: (hours: number) => void;
+  onAdaptAudience?: (audience: string) => void;
+  onRefreshOutdated?: (labels: string[]) => void;
 };
 
 function TabEmpty({
@@ -120,6 +124,9 @@ export function CourseWorkspace({
   onGatherFramework,
   onGatherKit,
   onRebuildModule,
+  onAdaptHours,
+  onAdaptAudience,
+  onRefreshOutdated,
   onOpenChat,
 }: CourseWorkspaceProps) {
   const contentOpen = isFrameworkApproved(course) || hasBuiltMaterials(course);
@@ -138,7 +145,7 @@ export function CourseWorkspace({
           />
         ) : (
           <>
-            {tab === "overview" ? <Overview course={course} /> : null}
+            {tab === "overview" ? <Overview course={course} onAdaptHours={onAdaptHours} onAdaptAudience={onAdaptAudience} /> : null}
             {tab === "structure" ? (
               course.modules.length === 0 ? (
                 <TabEmpty
@@ -199,7 +206,7 @@ export function CourseWorkspace({
                 <Tests course={course} />
               )
             ) : null}
-            {tab === "checks" ? <AuditPanel course={course} /> : null}
+            {tab === "checks" ? <AuditPanel course={course} onRefreshOutdated={onRefreshOutdated} /> : null}
           </>
         )}
       </div>
@@ -276,7 +283,7 @@ function ReferenceList({
   );
 }
 
-function AuditPanel({ course }: { course: CourseDocument }) {
+function AuditPanel({ course, onRefreshOutdated }: { course: CourseDocument; onRefreshOutdated?: (labels: string[]) => void }) {
   const report = auditCourse(course);
   const groups: { status: AuditStatus; title: string }[] = [
     { status: "fail", title: "Не выполнено" },
@@ -317,6 +324,36 @@ function AuditPanel({ course }: { course: CourseDocument }) {
       </details>
       <ReferenceList references={course.brief.references} title="Источники" />
       <SourceChecks course={course} />
+      
+      {(() => {
+        const hits = findOutdated(course);
+        if (hits.length === 0) return null;
+        const labels = [...new Set(hits.map((h) => h.label))];
+        return (
+          <article className="outdated-panel">
+            <h3>Устаревшие технологии</h3>
+            <ul className="audit-list">
+              {hits.map((hit) => (
+                <li key={`${hit.id}:${hit.place}`} className="warning">
+                  <strong>{hit.label}:</strong> {hit.note}
+                  <span>{hit.place}</span>
+                </li>
+              ))}
+            </ul>
+            {onRefreshOutdated ? (
+              <div className="pane-actions" style={{ marginTop: 8 }}>
+                <button
+                  type="button"
+                  title="Заменить устаревшие технологии в каркасе через чат"
+                  onClick={() => onRefreshOutdated(labels)}
+                >
+                  Обновить устаревшее
+                </button>
+              </div>
+            ) : null}
+          </article>
+        );
+      })()}
       <StackFreshnessPanel course={course} />
     </div>
   );
@@ -467,7 +504,7 @@ function ModuleBoard({ course, onRebuildModule }: { course: CourseDocument; onRe
   );
 }
 
-function Overview({ course }: { course: CourseDocument }) {
+function Overview({ course, onAdaptHours, onAdaptAudience }: { course: CourseDocument; onAdaptHours?: (hours: number) => void; onAdaptAudience?: (audience: string) => void }) {
   const { brief } = course;
   const gaps = briefGaps(course);
   return (
@@ -479,6 +516,40 @@ function Overview({ course }: { course: CourseDocument }) {
         <h2>О программе</h2>
         <p className="about-label">Целевая аудитория</p>
         <p className="about-audience">{brief.audience.trim() || "Аудитория ещё не названа"}</p>
+        {(onAdaptHours || onAdaptAudience) && (brief.durationHours > 0 || course.modules.length > 0) ? (
+          <div className="pane-actions adapt-actions" style={{ margin: "10px 0 4px", display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {onAdaptHours
+              ? [16, 36, 72]
+                  .filter((h) => h !== brief.durationHours)
+                  .slice(0, 3)
+                  .map((h) => (
+                    <button
+                      key={h}
+                      type="button"
+                      title={`Пересобрать каркас под ${h} академических часов`}
+                      onClick={() => onAdaptHours(h)}
+                    >
+                      Объём {h} ч
+                    </button>
+                  ))
+              : null}
+            {onAdaptAudience ? (
+              <button
+                type="button"
+                title="Адаптировать формулировки под другую целевую аудиторию"
+                onClick={() =>
+                  onAdaptAudience(
+                    brief.audience.trim()
+                      ? "начинающие специалисты без опыта в теме курса"
+                      : "начинающие специалисты без опыта",
+                  )
+                }
+              >
+                Другая аудитория
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <dl className="meta-grid">
           <div>
             <dt>Объём</dt>

@@ -275,7 +275,7 @@ def coerce_structure_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
             if not math.isfinite(workload_weight) or workload_weight <= 0:
                 workload_weight = None
         except (TypeError, ValueError):
-            workload_weight = None        
+            workload_weight = None
         coerced.append(
             {
                 "id": raw.get("id") or f"m{index + 1}",

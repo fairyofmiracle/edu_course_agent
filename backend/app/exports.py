@@ -142,56 +142,160 @@ def _add_table(doc: Document, headers: list[str], rows: list[list[str]]) -> None
 
 
 def build_docx(course: CourseDocument) -> bytes:
+    """Программа в .docx ближе к двум шаблонам АЦР (ПК и общеразвивающая)."""
     from docx import Document
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.shared import Pt
 
+    from .kit_content import issued_document
+
     brief = course.brief
+    kind = brief.program_kind
     doc = Document()
     style = doc.styles["Normal"]
     style.font.name = "Times New Roman"
     style.font.size = Pt(12)
 
-    for line in (
-        "Автономная некоммерческая организация дополнительного профессионального образования",
-        "«Академия Информационных Технологий»",
-        _program_title(brief.program_kind),
-        f"«{brief.title or 'Без названия'}»",
-        f"Объём: {hours(brief.duration_hours)} академических часов",
-        f"Категория обучающихся: {brief.audience or '____________________'}",
-        f"Форма обучения: {FORMAT_LABELS.get(brief.format, brief.format)}",
-        f"Итоговая аттестация: {brief.attestation_form or '____________________'}, {hours(brief.attestation_hours)} ч.",
-        "Реквизиты приказа организации: ____________________",
-        "Преподаватель: ____________________",
-        "Подпись: ____________________",
-    ):
+    def center(line: str) -> None:
         paragraph = doc.add_paragraph(line)
         paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-    doc.add_heading("1. Общая характеристика", level=1)
-    for goal in brief.goals or ["Цель не заполнена."]:
-        doc.add_paragraph(goal, style="List Bullet")
-    doc.add_heading("Нормативные основания", level=2)
-    for line in _basis_lines(course):
-        doc.add_paragraph(line, style="List Bullet")
+    def bullets(lines: list[str]) -> None:
+        for line in lines:
+            doc.add_paragraph(line, style="List Bullet")
 
-    doc.add_heading("1.1. Компетенции", level=2)
-    nodes = course.competencies.nodes
-    _add_table(
-        doc,
-        ["Компетенция", "Трудовая функция", "Знания", "Умения"],
+    titles = {module.id: module.title for module in course.modules}
+    contact = sum(
+        module.lecture_hours + module.practice_hours + module.lab_hours
+        for module in course.modules
+    )
+    self_study = sum(module.self_study_hours for module in course.modules)
+    module_total = sum(module.hours for module in course.modules)
+
+    # --- Титул (оба шаблона) ---
+    for line in (
+        "Автономная некоммерческая организация",
+        "дополнительного профессионального образования",
+        "«Академия Информационных Технологий»",
+        "ОГРН: ____________________  ИНН/КПП: ____________________",
+        "Российская Федерация, Республика Ингушетия, г. Магас",
+        "",
+        "УТВЕРЖДЕНО",
+        "Приказом № ____-ОБР от «___» __________ 20__ г.",
+        "",
+        _program_title(kind),
+        f"«{brief.title or 'Без названия'}»",
+        "",
+        "Магас",
+        "20__",
+    ):
+        center(line)
+
+    center("")
+    center("Реквизиты приказа организации: ____________________")
+    center("Преподаватель: ____________________")
+    center("Подпись: ____________________")
+
+    # --- 1. Общая характеристика ---
+    if kind == "general":
+        doc.add_heading("Пояснительная записка", level=1)
+        doc.add_heading("1.1. Актуальность программы", level=2)
+        bullets(brief.goals or ["Цель не заполнена."])
+        doc.add_heading("1.2. Категории обучающихся", level=2)
+        doc.add_paragraph(brief.audience or "____________________")
+        if brief.level:
+            doc.add_paragraph(f"Уровень освоения: {brief.level}.")
+        doc.add_heading("1.3. Цель и задачи программы", level=2)
+        bullets(brief.goals or ["Цель не заполнена."])
+        doc.add_heading("1.4. Сроки реализации и объём", level=2)
+    else:
+        doc.add_heading("1. Общая характеристика программы", level=1)
+        doc.add_heading("1.1. Цель реализации программы", level=2)
+        bullets(brief.goals or ["Цель не заполнена."])
+        doc.add_heading("1.2. Требования к слушателям", level=2)
+        doc.add_paragraph(brief.audience or "____________________")
+        if brief.level:
+            doc.add_paragraph(f"Входной уровень: {brief.level}.")
+        doc.add_heading("1.3. Форма обучения", level=2)
+        doc.add_paragraph(FORMAT_LABELS.get(brief.format, brief.format or "____________________"))
+        doc.add_heading("1.4. Объём программы", level=2)
+
+    bullets(
         [
-            [
-                node.name,
-                node.labor_function_code or "—",
-                "; ".join(node.knowledge) or "—",
-                "; ".join(node.skills) or "—",
-            ]
-            for node in nodes
+            f"Трудоёмкость: {hours(brief.duration_hours)} академических часов.",
+            f"Контактная работа: {hours(contact)} ч.",
+            f"Самостоятельная работа слушателей (СРС): {hours(self_study)} ч.",
+            (
+                f"Итоговая аттестация: "
+                f"{brief.attestation_form or '____________________'}, "
+                f"{hours(brief.attestation_hours)} ч."
+            ),
+            f"Сумма модулей: {hours(module_total)} ч. "
+            f"(вместе с аттестацией = {hours(module_total + brief.attestation_hours)} ч.).",
         ]
-        or [["—", "—", "—", "—"]],
     )
 
+    doc.add_heading(
+        "1.5. Выдаваемый документ" if kind != "general" else "1.5. Документ по итогам обучения",
+        level=2,
+    )
+    issued = issued_document(course) or (
+        "Выдаваемый документ: ____________________"
+    )
+    doc.add_paragraph(issued)
+
+    doc.add_heading("1.6. Нормативные основания", level=2)
+    bullets(_basis_lines(course))
+
+    # --- Карта компетенций / ЗУН ---
+    if kind == "qualification":
+        heading_comp = "1.7. Планируемые результаты обучения (компетенции)"
+    else:
+        heading_comp = "1.7. Планируемые результаты обучения"
+    doc.add_heading(heading_comp, level=2)
+    nodes = course.competencies.nodes
+    if kind == "qualification":
+        _add_table(
+            doc,
+            [
+                "Компетенция",
+                "Трудовая функция",
+                "Знания",
+                "Умения",
+                "Навыки",
+                "Модули",
+            ],
+            [
+                [
+                    node.name,
+                    node.labor_function_code or "—",
+                    "; ".join(node.knowledge) or "—",
+                    "; ".join(node.skills) or "—",
+                    "; ".join(node.abilities) or "—",
+                    "; ".join(titles.get(mid, mid) for mid in node.module_ids) or "—",
+                ]
+                for node in nodes
+            ]
+            or [["—", "—", "—", "—", "—", "—"]],
+        )
+    else:
+        _add_table(
+            doc,
+            ["Результат / компетенция", "Знания", "Умения", "Навыки", "Модули"],
+            [
+                [
+                    node.name,
+                    "; ".join(node.knowledge) or "—",
+                    "; ".join(node.skills) or "—",
+                    "; ".join(node.abilities) or "—",
+                    "; ".join(titles.get(mid, mid) for mid in node.module_ids) or "—",
+                ]
+                for node in nodes
+            ]
+            or [["—", "—", "—", "—", "—"]],
+        )
+
+    # --- 2. Учебный план ---
     doc.add_heading("2. Учебный план", level=1)
     plan_rows = [
         [
@@ -216,10 +320,103 @@ def build_docx(course: CourseDocument) -> bytes:
             "0",
         ]
     )
+    plan_rows.append(
+        [
+            "",
+            "Итого",
+            hours(module_total + brief.attestation_hours),
+            hours(sum(m.lecture_hours for m in course.modules)),
+            hours(sum(m.practice_hours for m in course.modules)),
+            hours(sum(m.lab_hours for m in course.modules)),
+            hours(self_study),
+        ]
+    )
     _add_table(doc, ["№", "Наименование", "Всего", "ЛК", "ПР", "ЛБ", "СРС"], plan_rows)
+
+    # --- 2.1 Учебно-тематический план ---
+    doc.add_heading("2.1. Учебно-тематический план", level=2)
+    topic_rows: list[list[str]] = []
+    for module_index, module in enumerate(course.modules, start=1):
+        plan = list(module.plan or [])
+        if not plan and module.topics:
+            # fallback: topics without hour split still appear
+            for topic in module.topics:
+                topic_rows.append(
+                    [
+                        str(module_index),
+                        module.title,
+                        topic,
+                        hours(0),
+                        hours(0),
+                        hours(0),
+                        hours(0),
+                        hours(0),
+                    ]
+                )
+            continue
+        if not plan:
+            topic_rows.append(
+                [
+                    str(module_index),
+                    module.title,
+                    module.title,
+                    hours(module.hours),
+                    hours(module.lecture_hours),
+                    hours(module.practice_hours),
+                    hours(module.lab_hours),
+                    hours(module.self_study_hours),
+                ]
+            )
+            continue
+        for topic in plan:
+            topic_hours = (
+                topic.lecture_hours
+                + topic.practice_hours
+                + topic.lab_hours
+                + topic.self_study_hours
+            )
+            topic_rows.append(
+                [
+                    str(module_index),
+                    module.title,
+                    topic.title,
+                    hours(topic_hours),
+                    hours(topic.lecture_hours),
+                    hours(topic.practice_hours),
+                    hours(topic.lab_hours),
+                    hours(topic.self_study_hours),
+                ]
+            )
+    _add_table(
+        doc,
+        ["№ мод.", "Модуль", "Тема", "Всего", "ЛК", "ПР", "ЛБ", "СРС"],
+        topic_rows or [["—", "—", "—", "—", "—", "—", "—", "—"]],
+    )
+
+    doc.add_heading("2.2. Результаты обучения по модулям", level=2)
+    for module in course.modules:
+        doc.add_heading(module.title, level=3)
+        for outcome in module.learning_outcomes:
+            doc.add_paragraph(outcome, style="List Bullet")
+        linked = [
+            node.name
+            for node in nodes
+            if module.id in (node.module_ids or [])
+            or module.id in (getattr(module, "competency_ids", None) or [])
+        ]
+        # also via module.competency_ids
+        by_id = {node.id: node.name for node in nodes}
+        for cid in module.competency_ids or []:
+            name = by_id.get(cid)
+            if name and name not in linked:
+                linked.append(name)
+        if linked:
+            doc.add_paragraph("Связанные компетенции: " + "; ".join(linked))
+
     doc.add_heading("Паспорт результата", level=2)
     doc.add_paragraph(
-        "Часы, вид программы и состав модулей считает код. Формулировки лекций в этот расчёт не входят."
+        "Часы, вид программы и состав модулей считает код. "
+        "Формулировки лекций в этот расчёт не входят."
     )
     doc.add_heading("Почему план такой", level=2)
     doc.add_paragraph(
@@ -229,12 +426,7 @@ def build_docx(course: CourseDocument) -> bytes:
     for row in module_rationales(course.as_api()):
         doc.add_paragraph(row["text"], style="List Bullet")
 
-    doc.add_heading("2.1. Результаты обучения", level=2)
-    for module in course.modules:
-        doc.add_heading(module.title, level=3)
-        for outcome in module.learning_outcomes:
-            doc.add_paragraph(outcome, style="List Bullet")
-
+    # --- Приложения ---
     doc.add_heading("Приложение 1. Оценочные материалы", level=1)
     questions = [
         (assessment.module_id, question)
@@ -243,10 +435,11 @@ def build_docx(course: CourseDocument) -> bytes:
     ]
     if not questions:
         doc.add_paragraph("Вопросы заполняются после утверждения каркаса.")
-    titles = {module.id: module.title for module in course.modules}
     for index, (module_id, question) in enumerate(questions, start=1):
         doc.add_paragraph(f"{index}. {question.stem}")
         doc.add_paragraph(f"Модуль: {titles.get(module_id, module_id)}")
+        if question.competency_id:
+            doc.add_paragraph(f"Компетенция: {question.competency_id}")
         for option in question.options or []:
             doc.add_paragraph(option, style="List Bullet")
         doc.add_paragraph(f"Ключ: {question.answer}")
@@ -263,6 +456,8 @@ def build_docx(course: CourseDocument) -> bytes:
     for module_id, task in tasks:
         doc.add_heading(f"{task.title} · {hours(task.time_min)} мин", level=2)
         doc.add_paragraph(f"Модуль: {titles.get(module_id, module_id)}")
+        if task.competency_id:
+            doc.add_paragraph(f"Компетенция: {task.competency_id}")
         doc.add_paragraph(task.prompt)
         for step in task.steps:
             doc.add_paragraph(step, style="List Number")
@@ -273,6 +468,7 @@ def build_docx(course: CourseDocument) -> bytes:
     buffer = BytesIO()
     doc.save(buffer)
     return buffer.getvalue()
+
 
 
 def _rgb(value: str):

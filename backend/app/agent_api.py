@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .agent import approve_framework, course_report, run_turn, strengthen_framework
+from .brief_guard import PROFANITY_REPLY, contains_profanity
 from .gateway_queue import QueueFull, cancel_queued_job, job_snapshot, submit_chat_job
 from .audit import audit_course_document
 from .catalog import is_incomplete_brief
@@ -75,6 +76,26 @@ def chat_job_cancel(job_id: str) -> dict[str, Any]:
     operation_id="chatTurn",
 )
 async def chat_turn(request: ChatTurnRequest) -> dict[str, Any]:
+    # Early refuse: every user turn (incl. mid-dialog), before Redis/LLM.
+    last_user = str(request.userTexts[-1] or "") if request.userTexts else ""
+    if not last_user and request.messages:
+        for msg in reversed(request.messages):
+            if isinstance(msg, dict) and msg.get("role") == "user":
+                content = msg.get("content")
+                last_user = content if isinstance(content, str) else ""
+                break
+    if last_user and contains_profanity(last_user):
+        return {
+            "course": request.course.as_api(),
+            "assistant": PROFANITY_REPLY,
+            "mode": "intake",
+            "steps": ["profanity_refuse_api"],
+            "patches": [],
+            "calls": [],
+            "modelMessages": list(request.messages),
+            "usage": None,
+        }
+
     messages = list(request.messages)
     if not messages or messages[-1].get("role") != "user":
         messages.append({"role": "user", "content": request.userTexts[-1]})

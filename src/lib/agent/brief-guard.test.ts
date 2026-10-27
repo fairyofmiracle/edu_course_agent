@@ -15,7 +15,7 @@ describe("guardBrief", () => {
     expect(brief.durationHours).toBeUndefined();
     expect(brief.programKind).toBeUndefined();
     expect(dropped).toEqual(["durationHours", "programKind"]);
-    expect(brief.title).toBe("Сделайте курс по кибербезопасности для студентов колледжа");
+    expect(brief.title).toBe("Курс по кибербезопасности для студентов колледжа");
   });
 
   it("принимает часы и тип из ответа методиста", () => {

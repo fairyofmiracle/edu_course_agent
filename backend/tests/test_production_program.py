@@ -97,3 +97,30 @@ def test_model_lecture_is_kept_when_gaps_are_filled() -> None:
     filled = fill_missing_kit(course)
     kept = filled.lectures[0]
     assert any(phrase in bullet for slide in kept.slides for bullet in slide.bullets)
+
+
+def test_acr_docx_has_dual_template_sections() -> None:
+    """Оба шаблона АЦР: титул, УТП, ЗУН/навыки, выдаваемый документ, пустые реквизиты."""
+    general = assemble_local_course([CASE1])
+    qualification = assemble_local_course([CASE2])
+
+    general_xml = _docx_text(general)
+    qual_xml = _docx_text(qualification)
+
+    for document in (general_xml, qual_xml):
+        assert "УТВЕРЖДЕНО" in document
+        assert "Магас" in document
+        assert "Учебно-тематический план" in document
+        assert "Навыки" in document
+        assert "Контактная работа" in document
+        assert "Реквизиты приказа организации: ____________________" in document
+        assert "Преподаватель: ____________________" in document
+        assert "Подпись: ____________________" in document
+
+    assert "ОБЩЕРАЗВИВАЮЩАЯ" in general_xml
+    assert "сертификат" in general_xml.lower()
+    assert "Пояснительная записка" in general_xml
+
+    assert "ПОВЫШЕНИЯ КВАЛИФИКАЦИИ" in qual_xml
+    assert "удостоверение" in qual_xml.lower()
+    assert "Трудовая функция" in qual_xml

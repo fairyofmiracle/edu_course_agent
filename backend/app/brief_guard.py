@@ -385,7 +385,7 @@ OFFTOPIC = re.compile(
     re.IGNORECASE,
 )
 COURSE_FRAME = re.compile(
-    r"(?:программ\w*|курс\w*|повышен\w*\s+квалификац\w*|"
+    r"(?:программ\w*|курс\w*|основы|введение|интенсив\w*|практикум\w*|стажировк\w*|повышен\w*\s+квалификац\w*|"
     r"общеразвивающ\w*|обучен\w*|слушател\w*|академ\w*\s*час)",
     re.IGNORECASE,
 )
@@ -428,7 +428,7 @@ def letter_ratio(text: str) -> float:
 
 TITLE_MARKER = re.compile(
     r"(?:"
-    r"программ\w*|курс\w*|повышен\w*\s+квалификац\w*|"
+    r"программ\w*|курс\w*|основы|введение|интенсив\w*|практикум\w*|стажировк\w*|повышен\w*\s+квалификац\w*|"
     r"общеразвивающ\w*|обучен\w*|слушател\w*|академ\w*\s*час|"
     r"(?:курс|программ\w*)\s+по\s+|"
     r"(?:назван\w*|тема)\s*[:—-]|"
@@ -455,8 +455,15 @@ def is_garbage_title(text: str) -> bool:
     if len(re.findall(r"[!?.]{2,}", cleaned)) >= 2 and letter_ratio(cleaned) < 0.7:
         return True
     # Single vague token / slang without course frame — not a program title.
+    # Two tokens like «Основы Python» are valid short titles.
     words = re.findall(r"[A-Za-zА-Яа-яЁё0-9+#.]+", cleaned)
-    if len(words) <= 2 and not TITLE_MARKER.search(cleaned):
+    if len(words) <= 1 and not TITLE_MARKER.search(cleaned):
+        return True
+    if (
+        len(words) == 2
+        and not TITLE_MARKER.search(cleaned)
+        and letter_ratio(cleaned) < 0.55
+    ):
         return True
     if WEAK_TITLE_LEAD.search(cleaned) and not TITLE_MARKER.search(cleaned):
         return True
@@ -873,25 +880,39 @@ def guard_brief(
         ),
         "",
     )
-    if is_offtopic_request(first):
+    # Protect established title after intake: do not clear it just because an early
+    # history message looked offtopic. Decide destructive pops from the LAST turn.
+    established = str(current.get("title") or "").strip()
+    last_turn = last or (texts[-1] if texts else "")
+    if is_offtopic_request(last_turn) and not established:
         brief.pop("title", None)
         brief.pop("goals", None)
-    elif not current.get("title", "").strip() and not brief.get("title", "").strip():
-        title = title_from_request(first)
+    elif not established and not brief.get("title", "").strip():
+        title = title_from_request(first if first else last_turn)
         if title:
             brief["title"] = title
     candidate = str(brief.get("title") or "").strip()
+    # Never accept profanity in a new title. If course already has a clean title,
+    # drop only a bad *incoming* candidate — keep established.
+    if candidate and contains_profanity(candidate):
+        brief.pop("title", None)
+        dropped.append("title")
+        candidate = ""
     if candidate and (
         is_offtopic_request(candidate)
-        or contains_profanity(candidate)
         or (
             is_garbage_title(candidate)
             and not has_title_markers(candidate)
             and not any(has_title_markers(item) for item in texts)
         )
     ):
-        brief.pop("title", None)
-        dropped.append("title")
+        # Protect established title
+        if established and candidate != established:
+            brief.pop("title", None)  # reject bad patch; current stays via merge
+            dropped.append("title")
+        elif not established:
+            brief.pop("title", None)
+            dropped.append("title")
 
     # drop profane goals
     goals = list(brief.get("goals") or [])

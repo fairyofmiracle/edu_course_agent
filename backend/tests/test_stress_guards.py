@@ -82,6 +82,8 @@ def test_dirty_title_gryazi_rejected():
     assert title_from_request("грязь") == ""
     assert is_garbage_title("Грязь") is True
     assert title_from_request("курс по «Excel для бухгалтерии»") != ""
+    assert is_garbage_title("Основы Python") is False
+    assert is_garbage_title("грязь") is True
 
 
 def test_profanity_blocks_title_and_flag():
@@ -123,3 +125,62 @@ def test_data_analysis_not_from_weak_excel():
     c3.brief.audience = "аналитики"
     assert is_data_analysis(c3) is True
     assert needs_profile_confirm(c3) is False
+
+
+def test_profanity_refused_mid_dialog_run_turn():
+    """Swear after a titled brief must refuse and leave course untouched."""
+    import asyncio
+
+    from backend.app.agent import run_turn
+    from backend.app.brief_guard import PROFANITY_REPLY
+    from backend.app.models import empty_course
+
+    course = empty_course()
+    course.brief.title = "Python для аналитиков"
+    course.brief.duration_hours = 72
+    title_before = course.brief.title
+
+    result = asyncio.run(
+        run_turn(
+            course,
+            user_texts=["сделай модуль про блядский pandas"],
+            model_messages=[
+                {"role": "user", "content": "курс Python 72 часа"},
+                {"role": "assistant", "content": "Каркас готов"},
+                {"role": "user", "content": "сделай модуль про блядский pandas"},
+            ],
+        )
+    )
+    assert result["steps"] == ["profanity_refuse"]
+    assert result["assistant"] == PROFANITY_REPLY
+    assert result["patches"] == []
+    assert result["course"].brief.title == title_before
+
+
+def test_guard_brief_keeps_established_title_on_later_offtopic():
+    """Later offtopic turn must not wipe an already good title."""
+    from backend.app.brief_guard import guard_brief
+
+    current = {
+        "title": "Основы Python",
+        "durationHours": 36,
+        "programKind": "upskilling",
+        "goals": ["Научиться писать скрипты"],
+        "constraints": [],
+        "audience": "начинающие",
+        "attestationStatus": "unset",
+        "attestationForm": "",
+        "attestationHours": 0,
+    }
+    brief, dropped = guard_brief(
+        {"title": "борщ дома"},
+        current,
+        [
+            "курс Основы Python 36 часов",
+            "дай рецепт борща",
+        ],
+    )
+    # Bad incoming title dropped; established current is not in patch as empty wipe signal
+    assert "title" not in brief or brief.get("title") != "борщ дома"
+    assert current["title"] == "Основы Python"
+

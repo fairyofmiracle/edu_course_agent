@@ -78,14 +78,21 @@ _WEAK_DATA_HINT = re.compile(
 )
 
 
+_ANALYSIS_PYTHON = re.compile(
+    r"анализ\w*\s+данн.*(?:python|питон)|(?:python|питон).*анализ\w*\s+данн",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
 def is_data_analysis(course: CourseDocument) -> bool:
-    """Только явный pandas/SQL/ML + Excel или банк; слабые маркеры → generic."""
+    """pandas/SQL/ML или «анализ данных + Python» плюс Excel/банк; офис — нет."""
     if is_teacher_ai(course):
         return False
     text = _brief_profile_text(course)
     if _OFFICE_NOT_DS.search(text):
         return False
-    if not _STRONG_DS.search(text):
+    strong = bool(_STRONG_DS.search(text) or _ANALYSIS_PYTHON.search(text))
+    if not strong:
         return False
     workplace = any(
         token in text and f"без {token}" not in text for token in ("excel", "банк")
@@ -94,7 +101,7 @@ def is_data_analysis(course: CourseDocument) -> bool:
 
 
 def needs_profile_confirm(course: CourseDocument) -> bool:
-    """Excel/данные/аналитика без pandas/SQL — спросить профиль."""
+    """Excel/данные/аналитика без явного DS-стека — спросить профиль."""
     if is_teacher_ai(course) or is_data_analysis(course):
         return False
     text = _brief_profile_text(course)
@@ -102,7 +109,7 @@ def needs_profile_confirm(course: CourseDocument) -> bool:
         return False
     if not _WEAK_DATA_HINT.search(text):
         return False
-    return not _STRONG_DS.search(text)
+    return not (_STRONG_DS.search(text) or _ANALYSIS_PYTHON.search(text))
 
 
 def is_internship(course: CourseDocument) -> bool:

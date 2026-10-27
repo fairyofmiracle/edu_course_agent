@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { FRAMEWORK_PROMPT, KIT_PROMPT } from "@/lib/agent/service-prompts";
+import { FRAMEWORK_PROMPT, KIT_PROMPT, moduleKitPrompt } from "@/lib/agent/service-prompts";
 import { getLanguageModel } from "@/lib/agent/model";
 import { buildSystemPrompt } from "@/lib/agent/prompts";
 import { createCourseTools } from "@/lib/agent/tools";
@@ -15,6 +15,10 @@ describe("ход агента без вызова модели", () => {
   it("собирает промпт, шаг и отказ без ключа", () => {
     expect(FRAMEWORK_PROMPT).toContain("каркас");
     expect(KIT_PROMPT).toContain("set_lecture");
+    const modular = moduleKitPrompt("M2", "Алгоритмы");
+    expect(modular).toContain("M2");
+    expect(modular).toContain("Алгоритмы");
+    expect(modular).toContain("set_assessment");
     const prompt = buildSystemPrompt(SAMPLE_COURSE, "я".repeat(12_001), 2);
     expect(prompt).toContain("Текущий документ");
     expect(prompt.endsWith("…") || prompt.includes("…")).toBe(true);

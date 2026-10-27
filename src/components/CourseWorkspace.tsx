@@ -5,6 +5,7 @@ import { CompetencyMap } from "@/components/CompetencyMap";
 import { SourceChecks } from "@/components/SourceChecks";
 import { StackFreshnessPanel } from "@/components/StackFreshness";
 import { LectureDeck } from "@/components/LectureDeck";
+import { NavIcon } from "@/components/NavIcon";
 import { MermaidBlock } from "@/components/MermaidBlock";
 import { auditCourse, type AuditStatus } from "@/lib/course-audit";
 import { isOfficialPublication } from "@/lib/legal-basis";
@@ -34,14 +35,14 @@ export type WorkspaceTab =
 
 const CONTENT_TABS: WorkspaceTab[] = ["lectures", "seminars", "tests"];
 
-const WORKSPACE_TABS: { id: WorkspaceTab; label: string; hint: string }[] = [
-  { id: "overview", label: "Обзор", hint: "Шаблон, аудитория и проверка часов. Каркас утверждают здесь." },
-  { id: "structure", label: "План", hint: "Модули и разбивка часов по неделям. Календарные даты сюда не ставятся." },
-  { id: "competencies", label: "Компетенции", hint: "Чему научатся: знания, умения и навыки по каждой компетенции." },
-  { id: "lectures", label: "Лекции", hint: "Черновик модели. Штамп паспорта от формулировок слайдов не зависит." },
-  { id: "seminars", label: "Семинары", hint: "Файлы заданий: открыть просмотр или скачать." },
-  { id: "tests", label: "Тесты", hint: "Файлы проверки: открыть просмотр или скачать." },
-  { id: "checks", label: "Проверка", hint: "Часы, связи, комплект, источники и оценивание каждого результата." },
+const WORKSPACE_TABS: { id: WorkspaceTab; label: string; hint: string; icon: "overview" | "plan" | "competencies" | "lectures" | "seminars" | "tests" | "checks" }[] = [
+  { id: "overview", label: "Обзор", hint: "Шаблон, аудитория и проверка часов. Каркас утверждают здесь.", icon: "overview" },
+  { id: "structure", label: "План", hint: "Модули и разбивка часов по неделям. Календарные даты сюда не ставятся.", icon: "plan" },
+  { id: "competencies", label: "Компетенции", hint: "Чему научатся: знания, умения и навыки по каждой компетенции.", icon: "competencies" },
+  { id: "lectures", label: "Лекции", hint: "Черновик модели. Штамп паспорта от формулировок слайдов не зависит.", icon: "lectures" },
+  { id: "seminars", label: "Семинары", hint: "Файлы заданий: открыть просмотр или скачать.", icon: "seminars" },
+  { id: "tests", label: "Тесты", hint: "Файлы проверки: открыть просмотр или скачать.", icon: "tests" },
+  { id: "checks", label: "Проверка", hint: "Часы, связи, комплект, источники и оценивание каждого результата.", icon: "checks" },
 ];
 
 type CourseWorkspaceProps = {
@@ -53,6 +54,7 @@ type CourseWorkspaceProps = {
   onGatherFramework?: () => void;
   onGatherKit?: () => void;
   onOpenChat?: () => void;
+  onRebuildModule?: (moduleId: string, title: string) => void;
 };
 
 function TabEmpty({
@@ -101,6 +103,7 @@ export function CourseTabs({
           title={item.hint}
           onClick={() => onTabChange(item.id)}
         >
+          <NavIcon name={item.icon} />
           <span>{item.label}</span>
         </button>
       ))}
@@ -116,6 +119,7 @@ export function CourseWorkspace({
   onGoApprove,
   onGatherFramework,
   onGatherKit,
+  onRebuildModule,
   onOpenChat,
 }: CourseWorkspaceProps) {
   const contentOpen = isFrameworkApproved(course) || hasBuiltMaterials(course);
@@ -144,7 +148,7 @@ export function CourseWorkspace({
                   onCta={gatherFramework}
                 />
               ) : (
-                <Structure course={course} />
+                <Structure course={course} onRebuildModule={onRebuildModule} />
               )
             ) : null}
             {tab === "competencies" ? (
@@ -375,7 +379,7 @@ function kitOf(course: CourseDocument, moduleId: string) {
   };
 }
 
-function ModuleBoard({ course }: { course: CourseDocument }) {
+function ModuleBoard({ course, onRebuildModule }: { course: CourseDocument; onRebuildModule?: (moduleId: string, title: string) => void }) {
   const [moduleId, setModuleId] = useState(course.modules[0]?.id ?? "");
   const selected = course.modules.find((item) => item.id === moduleId) ?? course.modules[0];
   if (!selected) return null;
@@ -420,6 +424,17 @@ function ModuleBoard({ course }: { course: CourseDocument }) {
       <article className="module-detail">
         <p className="kicker">Модуль</p>
         <h3>{selected.title}</h3>
+        {onRebuildModule && isFrameworkApproved(course) ? (
+          <div className="pane-actions" style={{ margin: "8px 0 12px" }}>
+            <button
+              type="button"
+              title="Пересобрать лекции, семинар и тест только для этого модуля"
+              onClick={() => onRebuildModule(selected.id, selected.title)}
+            >
+              Пересобрать материалы модуля
+            </button>
+          </div>
+        ) : null}
         <p className="muted">
           {selected.hours} ч
           {selected.competencyIds.length
@@ -685,14 +700,14 @@ function WeekPlan({ course }: { course: CourseDocument }) {
   );
 }
 
-function Structure({ course }: { course: CourseDocument }) {
+function Structure({ course, onRebuildModule }: { course: CourseDocument; onRebuildModule?: (moduleId: string, title: string) => void }) {
   if (course.modules.length === 0) {
     return null;
   }
   return (
     <div className="structure">
       <WeekPlan course={course} />
-      <ModuleBoard course={course} />
+      <ModuleBoard course={course} onRebuildModule={onRebuildModule} />
     </div>
   );
 }

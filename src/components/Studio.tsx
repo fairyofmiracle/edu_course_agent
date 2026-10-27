@@ -5,6 +5,7 @@ import { useChat } from "@ai-sdk/react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ChatPanel } from "@/components/ChatPanel";
 import { CourseTabs, CourseWorkspace, type WorkspaceTab } from "@/components/CourseWorkspace";
+import { NavIcon } from "@/components/NavIcon";
 import { SiteFrame } from "@/components/SiteFrame";
 import {
   CourseConflictError,
@@ -24,7 +25,7 @@ import {
   isFrameworkApproved,
   isKitComplete,
 } from "@/lib/framework-check";
-import { FRAMEWORK_PROMPT, KIT_PROMPT } from "@/lib/agent/service-prompts";
+import { FRAMEWORK_PROMPT, KIT_PROMPT, moduleKitPrompt } from "@/lib/agent/service-prompts";
 import { briefGaps } from "@/lib/course-validation";
 import { userFacingError } from "@/lib/user-error";
 import {
@@ -650,8 +651,12 @@ function StudioSession({
       }
       actions={() => (
         <>
-          <a href="/courses">Мои курсы</a>
+          <a href="/courses">
+            <NavIcon name="courses" />
+            Мои курсы
+          </a>
           <button type="button" onClick={reset}>
+            <NavIcon name="plus" />
             Новый курс
           </button>
           <CourseTabs tab={tab} approved={contentOpen} onTabChange={setTab} />
@@ -717,6 +722,11 @@ function StudioSession({
             onGatherKit={() => {
               setChatOpen(true);
               if (frameworkApproved && !kitComplete && !chatPending) send(KIT_PROMPT);
+            }}
+            onRebuildModule={(moduleId, title) => {
+              setChatOpen(true);
+              if (!frameworkApproved || chatPending) return;
+              send(moduleKitPrompt(moduleId, title));
             }}
             onOpenChat={() => setChatOpen(true)}
           />

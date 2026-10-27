@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { applyTheme, readTheme, storeTheme, type Theme } from "@/lib/theme";
+import { NavIcon } from "@/components/NavIcon";
 import { LAW_273, ORDER_266, ORDER_499, ORDER_629 } from "@/lib/legal-basis";
 
 export function SiteFrame({
@@ -156,6 +157,7 @@ export function SiteFrame({
             aria-pressed={panel === "faq"}
             onClick={() => setPanel((current) => (current === "faq" ? null : "faq"))}
           >
+            <NavIcon name="help" />
             Инструкция
           </button>
           <div className="nav-user">

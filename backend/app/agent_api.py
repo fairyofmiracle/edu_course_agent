@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .agent import approve_framework, course_report, run_turn, strengthen_framework
-from .gateway_queue import cancel_queued_job, job_snapshot, submit_chat_job
+from .gateway_queue import QueueFull, cancel_queued_job, job_snapshot, submit_chat_job
 from .audit import audit_course_document
 from .catalog import is_incomplete_brief
 from .cloud import CloudRuClient
@@ -80,7 +80,10 @@ async def chat_turn(request: ChatTurnRequest) -> dict[str, Any]:
         messages.append({"role": "user", "content": request.userTexts[-1]})
     payload = request.model_dump(mode="json", by_alias=True)
     payload["messages"] = messages
-    queued = submit_chat_job(payload)
+    try:
+        queued = submit_chat_job(payload)
+    except QueueFull as error:
+        raise HTTPException(status_code=429, detail=str(error)) from error
     if queued is not None:
         return JSONResponse(status_code=202, content=queued)
     try:
@@ -144,7 +147,8 @@ async def run_case(request: RunRequest) -> dict[str, Any]:
     async def turn(text: str) -> None:
         nonlocal course, messages
         # Budget is per turn; reset before the pre-check so prior turns do not block demos.
-        client.begin_turn()
+        if hasattr(client, "begin_turn"):
+            client.begin_turn()
         if not client.budget_left():
             transcript.append(
                 {

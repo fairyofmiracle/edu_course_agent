@@ -370,6 +370,99 @@ def drop_empty_fields(patch: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+
+GARBAGE_TITLE = re.compile(
+    r"^(?:asdf|qwerty|lorem|test|xxx|zzz|foo|bar)\b",
+    re.IGNORECASE,
+)
+OFFTOPIC = re.compile(
+    r"(?:"
+    r"рецепт\w*|борщ\w*|калорий\w*|ингредиент\w*|"
+    r"напиши\s+(?:подробн\w*\s+)?(?:рецепт|функци\w*|код)|"
+    r"функци\w*\s+на\s+python|"
+    r"def\s+\w+\s*\("
+    r")",
+    re.IGNORECASE,
+)
+COURSE_FRAME = re.compile(
+    r"(?:программ\w*|курс\w*|повышен\w*\s+квалификац\w*|"
+    r"общеразвивающ\w*|обучен\w*|слушател\w*|академ\w*\s*час)",
+    re.IGNORECASE,
+)
+URGENT_DEADLINE = re.compile(
+    r"(?:"
+    r"срочн\w*|"
+    r"за\s+(?:1|один)\s+день|"
+    r"за\s+день\b|"
+    r"к\s+завтра|"
+    r"сегодня\s+нужн"
+    r")",
+    re.IGNORECASE,
+)
+VOLUME_CLARIFIED = re.compile(
+    r"(?:"
+    r"объ[её]м\s+обучен|"
+    r"срок\s+сборк|"
+    r"оставить\s+\d+|"
+    r"сократить\s+(?:до|объ)|"
+    r"реально\s+за|"
+    r"собрать\s+программу\s+быстр|"
+    r"часы\s+для\s+слушател"
+    r")",
+    re.IGNORECASE,
+)
+VOLUME_CLARIFY_NOTE = (
+    "Уточнить: указанные часы — объём обучения слушателей или "
+    "срок сборки программы?"
+)
+GENERIC_GOAL = re.compile(r"^освоить\s+программу\b", re.IGNORECASE)
+
+
+def letter_ratio(text: str) -> float:
+    chars = [ch for ch in text if not ch.isspace()]
+    if not chars:
+        return 0.0
+    letters = sum(1 for ch in chars if ch.isalpha())
+    return letters / len(chars)
+
+
+def is_garbage_title(text: str) -> bool:
+    cleaned = (text or "").strip()
+    if len(cleaned) < 3:
+        return True
+    if GARBAGE_TITLE.search(cleaned):
+        return True
+    if letter_ratio(cleaned) < 0.45:
+        return True
+    if len(re.findall(r"[!?.]{2,}", cleaned)) >= 2 and letter_ratio(cleaned) < 0.7:
+        return True
+    return False
+
+
+def is_offtopic_request(text: str) -> bool:
+    blob = (text or "").strip()
+    if not blob:
+        return False
+    if COURSE_FRAME.search(blob):
+        return False
+    return bool(OFFTOPIC.search(blob))
+
+
+def deadline_volume_conflict(texts: list[str], hours: float | int | None) -> bool:
+    try:
+        value = float(hours or 0)
+    except (TypeError, ValueError):
+        value = 0.0
+    if value < 80:
+        return False
+    blob = " ".join(texts or [])
+    if not URGENT_DEADLINE.search(blob):
+        return False
+    if VOLUME_CLARIFIED.search(blob):
+        return False
+    return True
+
+
 def title_from_request(text: str) -> str:
     text = repair_typos(text)
     quoted = re.search(r"«([^»]{3,160})»", text)
@@ -408,7 +501,10 @@ def title_from_request(text: str) -> str:
     title = re.split(r"\s[—–-]\s|[.,;:\n]", cleaned)[0].strip()
     if title:
         title = title[0].upper() + title[1:]
-    return title[:160]
+    title = title[:160]
+    if is_garbage_title(title) or is_offtopic_request(text):
+        return ""
+    return title
 
 
 def _trim_audience(value: str) -> str:
@@ -696,20 +792,40 @@ def guard_brief(
             brief.pop("attestationHours", None)
             brief.pop("attestationStatus", None)
 
-    if not current.get("title", "").strip() and not brief.get("title", "").strip():
-        first = next(
-            (
-                text
-                for text in user_texts
-                if text.strip() and not SERVICE_PROMPT.search(text.strip())
-            ),
-            "",
-        )
+    first = next(
+        (
+            text
+            for text in user_texts
+            if text.strip() and not SERVICE_PROMPT.search(text.strip())
+        ),
+        "",
+    )
+    if is_offtopic_request(first):
+        brief.pop("title", None)
+        brief.pop("goals", None)
+    elif not current.get("title", "").strip() and not brief.get("title", "").strip():
         title = title_from_request(first)
         if title:
             brief["title"] = title
+    candidate = str(brief.get("title") or "").strip()
+    if candidate and (is_garbage_title(candidate) or is_offtopic_request(candidate)):
+        brief.pop("title", None)
+        dropped.append("title")
+
     if not brief.get("goals") and not current.get("goals"):
-        title = brief.get("title") or current.get("title")
-        if title:
-            brief["goals"] = [f"Освоить программу «{title}»"]
+        title = str(brief.get("title") or current.get("title") or "").strip()
+        if title and not GENERIC_GOAL.search(title) and not is_garbage_title(title):
+            brief["goals"] = [f"Подготовить слушателей по теме «{title}»"]
+
+    hours = brief.get("durationHours", current.get("durationHours", 0))
+    constraints = list(brief.get("constraints") or current.get("constraints") or [])
+    if deadline_volume_conflict(user_texts, hours):
+        if VOLUME_CLARIFY_NOTE not in constraints:
+            constraints.append(VOLUME_CLARIFY_NOTE)
+        brief["constraints"] = constraints[:12]
+    else:
+        cleaned = [item for item in constraints if item != VOLUME_CLARIFY_NOTE]
+        if cleaned != constraints:
+            brief["constraints"] = cleaned[:12]
     return brief, dropped
+

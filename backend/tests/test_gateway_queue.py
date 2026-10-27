@@ -7,7 +7,7 @@ import backend.app.agent as agent_module
 import backend.app.agent_api as agent_api_module
 from backend.app.agent import run_turn
 from backend.app.cloud import TurnStopped
-from backend.app.gateway_queue import MemoryGateway, ModelGate, execute_chat_job
+from backend.app.gateway_queue import MemoryGateway, ModelGate, QueueFull, execute_chat_job
 from backend.app.main import app
 from backend.app.models import empty_course
 
@@ -148,3 +148,27 @@ def test_model_gate_budget_is_per_turn() -> None:
     # Fresh turn — must enter even if store.spent still high from job1 metrics.
     gate2.enter()
     gate2.leave()
+
+
+def test_queue_rejects_when_full(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("backend.app.gateway_queue.queue_limit", lambda: 2)
+    store = MemoryGateway()
+    store.enqueue()
+    store.enqueue()
+    with pytest.raises(QueueFull):
+        store.enqueue()
+
+
+def test_chat_turn_returns_429_when_queue_full(monkeypatch: pytest.MonkeyPatch) -> None:
+    def submit(_payload):
+        raise QueueFull("Очередь к модели переполнена (40 ожидают). Подождите и повторите.")
+
+    monkeypatch.setattr(agent_api_module, "submit_chat_job", submit)
+    course = empty_course()
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/chat/turn",
+            json={"course": course.as_api(), "userTexts": ["привет"], "messages": []},
+        )
+        assert response.status_code == 429
+        assert "переполнена" in response.json()["detail"]

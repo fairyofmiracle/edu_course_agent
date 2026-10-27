@@ -29,6 +29,18 @@ STALE_SECONDS = 16 * 60
 BEAT_SECONDS = 20
 
 
+class QueueFull(RuntimeError):
+    """Очередь ходов переполнена — клиенту 429, без fallback в API."""
+
+
+def queue_limit() -> int:
+    raw = setting("GATEWAY_MAX_QUEUE") or "40"
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return 40
+
+
 def concurrency_limit() -> int:
     raw = setting("GATEWAY_CONCURRENCY") or "2"
     try:
@@ -93,6 +105,10 @@ class MemoryGateway:
     def enqueue(self) -> str:
         with self._lock:
             self._sweep()
+            if len(self.wait) >= queue_limit():
+                raise QueueFull(
+                    f"Очередь к модели переполнена ({queue_limit()} ожидают). Подождите и повторите."
+                )
             job_id = str(uuid.uuid4())
             self.jobs[job_id] = {"id": job_id, "status": "queued", "error": "", "result": None}
             self.wait.append(job_id)
@@ -240,6 +256,11 @@ class RedisGateway:
 
     def enqueue(self) -> str:
         self._sweep()
+        waiting = int(self.redis.llen(WAIT_KEY) or 0)
+        if waiting >= queue_limit():
+            raise QueueFull(
+                f"Очередь к модели переполнена ({queue_limit()} ожидают). Подождите и повторите."
+            )
         job_id = str(uuid.uuid4())
         self._write({"id": job_id, "status": "queued", "error": "", "result": None})
         self.redis.rpush(WAIT_KEY, job_id)
@@ -474,6 +495,8 @@ def submit_chat_job(payload: dict[str, Any]) -> dict[str, Any] | None:
         job_id = store.enqueue()
         chat_turn_task.apply_async(args=[job_id, payload], task_id=job_id)
         return store.snapshot(job_id, with_result=False)
+    except QueueFull:
+        raise
     except Exception:
         log.warning("ход остался в процессе API", exc_info=True)
         if job_id:

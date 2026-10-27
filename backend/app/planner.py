@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any, Literal
 
+from .brief_guard import VOLUME_CLARIFY_NOTE, is_offtopic_request
 from .domain import framework_fingerprint, framework_items
 from .catalog import block_count, is_data_analysis, is_internship
 from .kit_content import has_stub_lectures, has_stub_questions, outcome_gaps
@@ -140,6 +141,12 @@ def missing_brief_lines(course: CourseDocument) -> list[str]:
         missing.append("форма итоговой аттестации")
     if not brief.format_named and (brief.program_kind == "unset" or brief.duration_hours <= 0):
         missing.append("форма обучения")
+    constraints = list(brief.constraints or [])
+    if any(item == VOLUME_CLARIFY_NOTE for item in constraints):
+        missing.append("уточнить объём обучения или срок сборки")
+    title = (brief.title or "").strip()
+    if title and is_offtopic_request(title):
+        missing.append("образовательный бриф курса")
     return list(dict.fromkeys(missing))
 
 
@@ -163,6 +170,12 @@ QUESTION_LABELS = {
     "входной уровень слушателей": "какой входной уровень: курс, навыки, что уже умеют",
     "форма итоговой аттестации": "как хотите принимать итоговую аттестацию",
     "форма обучения": "форма обучения: очно, очно-заочно или стажировка",
+    "уточнить объём обучения или срок сборки": (
+        "400 часов — это объём обучения слушателей. Собрать программу можно за день. Что важнее: оставить объём или ужать под срок?"
+    ),
+    "образовательный бриф курса": (
+        "Я собираю программы курсов повышения квалификации и ДПО. Рецепты и код вне курса не делаю — опишите тему, аудиторию и часы"
+    )
 }
 
 

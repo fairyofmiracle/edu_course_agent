@@ -310,7 +310,9 @@ def generic_module_titles(course: CourseDocument) -> list[str]:
     matching = [
         item
         for item in course.brief.goals
-        if item.strip() and headings_match_subject(course, [item])
+        if item.strip()
+        and headings_match_subject(course, [item])
+        and not item.strip().lower().startswith("освоить программу")
     ]
     if matching:
         titles = matching + [item for item in titles if item not in matching]

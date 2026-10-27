@@ -1,5 +1,5 @@
 from backend.app.domain import allocate_integer, apply_patch, balance_modules
-from backend.app.models import empty_course
+from backend.app.models import empty_course, CourseDocument
 from backend.app.tools import execute_tool
 
 def test_hours_are_distributed_by_workload() -> None:
@@ -439,3 +439,242 @@ def test_balance_modules_uses_workload_weights() -> None:
     ]
 
     assert sum(module["hours"] for module in result) == 34
+
+def test_balance_modules_preserves_fixed_hours() -> None:
+    """Фиксированные часы сохраняются, остаток распределяется по весам."""
+
+    modules = [
+        {
+            "id": "m1",
+            "title": "Введение",
+            "hours": 2,
+            "fixedHours": 4,
+            "workloadWeight": 1,
+            "topics": ["Знакомство с курсом"],
+            "learningOutcomes": ["Знает цели курса"],
+        },
+        {
+            "id": "m2",
+            "title": "Основы",
+            "hours": 2,
+            "workloadWeight": 2,
+            "topics": ["Основные понятия"],
+            "learningOutcomes": ["Понимает основные понятия"],
+        },
+        {
+            "id": "m3",
+            "title": "Практикум",
+            "hours": 2,
+            "workloadWeight": 1,
+            "topics": ["Практические задания"],
+            "learningOutcomes": ["Выполняет задания"],
+        },
+    ]
+
+    result = balance_modules(
+        modules,
+        duration_hours=36,
+        attestation_hours=2,
+    )
+
+    assert [module["hours"] for module in result] == [
+        4.0,
+        20.0,
+        10.0,
+    ]
+
+    assert sum(module["hours"] for module in result) == 34
+
+def test_fixed_hours_survive_course_model() -> None:
+    """Фиксированные часы сохраняются при сериализации курса."""
+
+    course = empty_course()
+
+    data = course.as_api()
+
+    data["modules"] = [
+        {
+            "id": "m1",
+            "title": "Введение",
+            "hours": 4,
+            "fixedHours": 4,
+            "workloadWeight": 1,
+            "topics": ["Знакомство с курсом"],
+            "learningOutcomes": ["Понимает цели курса"],
+        }
+    ]
+
+    restored = CourseDocument.model_validate(data)
+
+    module = restored.as_api()["modules"][0]
+
+    assert module["fixedHours"] == 4
+    assert module["workloadWeight"] == 1
+    assert module["hours"] == 4
+
+import pytest
+
+
+def test_fixed_hours_exceed_available_budget():
+    """Фиксированные часы не могут превышать бюджет курса."""
+
+    modules = [
+        {
+            "id": "m1",
+            "title": "Модуль 1",
+            "hours": 25,
+            "fixedHours": 25,
+        },
+        {
+            "id": "m2",
+            "title": "Модуль 2",
+            "hours": 5,
+        },
+    ]
+
+    with pytest.raises(ValueError, match="превышают доступный бюджет"):
+        balance_modules(
+            modules,
+            duration_hours=20,
+            attestation_hours=2,
+        )
+
+
+def test_all_modules_have_fixed_hours():
+    """Если все часы фиксированы, алгоритм не меняет их."""
+
+    modules = [
+        {
+            "id": "m1",
+            "title": "Модуль 1",
+            "hours": 2,
+            "fixedHours": 4,
+        },
+        {
+            "id": "m2",
+            "title": "Модуль 2",
+            "hours": 2,
+            "fixedHours": 6,
+        },
+    ]
+
+    result = balance_modules(
+        modules,
+        duration_hours=12,
+        attestation_hours=2,
+    )
+
+    assert [module["hours"] for module in result] == [4, 6]
+    assert sum(module["hours"] for module in result) == 10
+
+
+def test_all_fixed_modules_with_remaining_hours():
+    """Нельзя оставить часы нераспределёнными."""
+
+    modules = [
+        {
+            "id": "m1",
+            "title": "Модуль 1",
+            "hours": 4,
+            "fixedHours": 4,
+        },
+        {
+            "id": "m2",
+            "title": "Модуль 2",
+            "hours": 6,
+            "fixedHours": 6,
+        },
+    ]
+
+    with pytest.raises(ValueError, match="нераспределённых часов"):
+        balance_modules(
+            modules,
+            duration_hours=20,
+            attestation_hours=2,
+        )
+
+def test_fixed_hours_with_zero_available_budget():
+    """Нельзя выделить фиксированные часы при нулевом бюджете."""
+
+    modules = [
+        {
+            "id": "m1",
+            "title": "Введение",
+            "hours": 4,
+            "fixedHours": 4,
+        }
+    ]
+
+    with pytest.raises(ValueError, match="превышают доступный бюджет"):
+        balance_modules(
+            modules,
+            duration_hours=2,
+            attestation_hours=2,
+        )
+
+# def test_fixed_hours_zero_is_preserved():
+#     """Нулевые фиксированные часы не перераспределяются."""
+
+#     modules = [
+#         {
+#             "id": "m1",
+#             "title": "Введение",
+#             "hours": 5,
+#             "fixedHours": 0,
+#         },
+#         {
+#             "id": "m2",
+#             "title": "Практика",
+#             "hours": 5,
+#             "workloadWeight": 1,
+#         },
+#     ]
+
+#     result = balance_modules(
+#         modules,
+#         duration_hours=12,
+#         attestation_hours=2,
+#     )
+
+#     assert [module["hours"] for module in result] == [0, 10]
+
+
+def test_fixed_hours_survive_rebalancing():
+    """Повторное распределение не меняет фиксированные часы."""
+
+    modules = [
+        {
+            "id": "m1",
+            "title": "Введение",
+            "hours": 2,
+            "fixedHours": 4,
+        },
+        {
+            "id": "m2",
+            "title": "Основы",
+            "hours": 2,
+            "workloadWeight": 2,
+        },
+        {
+            "id": "m3",
+            "title": "Практика",
+            "hours": 2,
+            "workloadWeight": 1,
+        },
+    ]
+
+    first_result = balance_modules(
+        modules,
+        duration_hours=36,
+        attestation_hours=2,
+    )
+
+    second_result = balance_modules(
+        first_result,
+        duration_hours=36,
+        attestation_hours=2,
+    )
+
+    assert second_result == first_result
+    assert second_result[0]["hours"] == 4
+    assert second_result[0]["fixedHours"] == 4

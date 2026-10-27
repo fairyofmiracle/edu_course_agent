@@ -158,6 +158,23 @@ class CourseModule(ApiModel):
         gt=0,
         description="Относительная трудоёмкость модуля для распределения часов.",
     )
+    fixed_hours: float | None = Field(
+        default=None,
+        alias="fixedHours",
+        ge=0,
+        description=(
+            "Фиксированная продолжительность модуля, "
+            "явно заданная методистом. "
+            "Не изменяется при автоматическом распределении часов."
+        ),
+    )
+
+    @field_validator("fixed_hours")
+    @classmethod
+    def fixed_hours_use_half_step(cls, value: float | None) -> float | None:
+        if value is None:
+            return None
+        return half_hour_step(value)    
     lecture_hours: float = Field(default=0, alias="lectureHours")
     practice_hours: float = Field(default=0, alias="practiceHours")
     lab_hours: float = Field(default=0, alias="labHours")

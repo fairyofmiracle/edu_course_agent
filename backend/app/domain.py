@@ -144,25 +144,80 @@ def _fill_plan(module: dict[str, Any]) -> dict[str, Any]:
 
 
 def balance_modules(
-    modules: list[dict[str, Any]], duration_hours: float, attestation_hours: float
+    modules: list[dict[str, Any]],
+    duration_hours: float,
+    attestation_hours: float,
 ) -> list[dict[str, Any]]:
     if not modules:
         return []
+
     filled = [_fill_plan(module) for module in modules]
     target = academic_hours(max(0, duration_hours - attestation_hours))
-    if target <= 0:
-        return filled
-    weights = [
-        float(m.get("workloadWeight") or m.get("hours") or 1)
-        for m in filled
+
+    # Индексы модулей с фиксированными часами.
+    fixed_indices = [
+        index
+        for index, module in enumerate(filled)
+        if module.get("fixedHours") is not None
     ]
 
-    hours = allocate_integer(
-        target,
-        weights,
-        keep_zero=False,
+    # Сумма фиксированных часов.
+    fixed_total = sum(
+        academic_hours(filled[index]["fixedHours"])
+        for index in fixed_indices
     )
-    return [_fill_plan({**module, "hours": hours[index]}) for index, module in enumerate(filled)]
+
+    if fixed_total > target:
+        raise ValueError(
+            f"Фиксированные часы модулей ({fixed_total}) "
+            f"превышают доступный бюджет ({target})"
+        )
+
+    remaining = target - fixed_total
+
+    # Модули, часы которых можно перераспределять.
+    flexible_indices = [
+        index
+        for index in range(len(filled))
+        if index not in fixed_indices
+    ]
+
+    if not flexible_indices and remaining > 0:
+        raise ValueError(
+            f"Все модули имеют фиксированные часы, "
+            f"но осталось нераспределённых часов: {remaining}"
+        )
+
+    # Начинаем с фиксированных значений.
+    hours = [0.0] * len(filled)
+
+    for index in fixed_indices:
+        hours[index] = academic_hours(filled[index]["fixedHours"])
+
+    # Остаток распределяем по весам.
+    if flexible_indices:
+        weights = [
+            float(
+                filled[index].get("workloadWeight")
+                or filled[index].get("hours")
+                or 1
+            )
+            for index in flexible_indices
+        ]
+
+        allocated = allocate_integer(
+            remaining,
+            weights,
+            keep_zero=False,
+        )
+
+        for index, allocated_hours in zip(flexible_indices, allocated):
+            hours[index] = allocated_hours
+
+    return [
+        _fill_plan({**module, "hours": hours[index]})
+        for index, module in enumerate(filled)
+    ]
 
 
 def _link_competencies(course: dict[str, Any]) -> None:

@@ -756,12 +756,7 @@ function LinkIcon() {
 }
 
 function NoteIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M7 5.5h10a1.5 1.5 0 0 1 1.5 1.5v8.2L14.2 19.5H7A1.5 1.5 0 0 1 5.5 18V7A1.5 1.5 0 0 1 7 5.5z" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M14 19.2V15h4.2M8.5 9.5h6M8.5 12.5h4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
+  return <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/overview.png)" }} aria-hidden="true" />;
 }
 
 function TemplateIcon() {

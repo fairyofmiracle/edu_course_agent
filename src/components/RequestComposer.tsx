@@ -12,7 +12,7 @@ import {
   type CourseLevel,
 } from "@/lib/course-schema";
 
-import { FRAMEWORK_PROMPT, KIT_PROMPT } from "@/lib/agent/service-prompts";
+import { KIT_PROMPT } from "@/lib/agent/service-prompts";
 import { appendTranscript } from "@/lib/transcript";
 import { userFacingError } from "@/lib/user-error";
 
@@ -129,7 +129,18 @@ export function RequestComposer({
   const [formError, setFormError] = useState("");
   const [recording, setRecording] = useState(false);
   const [voiceNote, setVoiceNote] = useState("");
+  const fieldRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const growField = (element: HTMLTextAreaElement | null) => {
+    if (!element) return;
+    element.style.height = "auto";
+    element.style.height = `${element.scrollHeight}px`;
+  };
+
+  useEffect(() => {
+    growField(fieldRef.current);
+  }, [input]);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const voiceTimer = useRef<number | null>(null);
@@ -482,20 +493,62 @@ export function RequestComposer({
 
       <div className="chat-dock">
         {mode === "free" ? (
-          <textarea
-            id="course-request"
-            className="chat-field"
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            placeholder="Сообщение"
-            rows={2}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                sendFree();
-              }
-            }}
-          />
+          <div className="chat-compose">
+            {recording ? (
+              <span className="voice-wave" aria-hidden="true">
+                {Array.from({ length: 28 }, (_, index) => (
+                  <i key={index} style={{ animationDelay: `${(index % 7) * 0.08}s` }} />
+                ))}
+              </span>
+            ) : null}
+            <textarea
+              id="course-request"
+              ref={fieldRef}
+              className="chat-field"
+              hidden={recording}
+              value={input}
+              onChange={(event) => {
+                setInput(event.target.value);
+                growField(event.currentTarget);
+              }}
+              placeholder="Сообщение"
+              rows={1}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  sendFree();
+                }
+              }}
+            />
+            <div className="chat-compose-actions">
+              <button
+                type="button"
+                className="dock-icon"
+                title={recording ? "Стоп запись" : "Голос"}
+                aria-label={recording ? "Стоп запись" : "Голос"}
+                aria-pressed={recording}
+                onClick={() => void toggleVoice()}
+                disabled={busyFile || pending}
+              >
+                <MicIcon />
+              </button>
+              {pending ? (
+                <button type="button" className="dock-send" aria-label="Стоп" title="Стоп" onClick={onStop}>
+                  <StopIcon />
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  className="dock-send"
+                  aria-label="Отправить"
+                  title="Отправить"
+                  disabled={recording || !input.trim()}
+                >
+                  <SendIcon />
+                </button>
+              )}
+            </div>
+          </div>
         ) : null}
         <div className="chat-dock-bar">
           <button
@@ -507,17 +560,6 @@ export function RequestComposer({
             disabled={busyFile || recording}
           >
             <FileIcon />
-          </button>
-          <button
-            type="button"
-            className="dock-icon"
-            title={recording ? "Стоп запись" : "Голос"}
-            aria-label={recording ? "Стоп запись" : "Голос"}
-            aria-pressed={recording}
-            onClick={() => void toggleVoice()}
-            disabled={busyFile || pending}
-          >
-            <MicIcon />
           </button>
           <button
             type="button"
@@ -551,21 +593,23 @@ export function RequestComposer({
             <TemplateIcon />
           </button>
           <span className="dock-spacer" />
-          {pending ? (
-            <button type="button" className="dock-send" aria-label="Стоп" title="Стоп" onClick={onStop}>
-              <StopIcon />
-            </button>
-          ) : (
-            <button
-              type="submit"
-              className="dock-send"
-              aria-label={mode === "template" ? "Собрать по шаблону" : "Отправить"}
-              title={mode === "template" ? "Собрать по шаблону" : "Отправить"}
-              disabled={recording || (mode === "free" ? !input.trim() : !templateReady)}
-            >
-              <SendIcon />
-            </button>
-          )}
+          {mode === "template" ? (
+            pending ? (
+              <button type="button" className="dock-send" aria-label="Стоп" title="Стоп" onClick={onStop}>
+                <StopIcon />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                className="dock-send"
+                aria-label="Собрать по шаблону"
+                title="Собрать по шаблону"
+                disabled={!templateReady}
+              >
+                <SendIcon />
+              </button>
+            )
+          ) : null}
           <input
             ref={fileRef}
             type="file"
@@ -580,19 +624,15 @@ export function RequestComposer({
         </div>
       </div>
 
-      {stage === "framework" || (stage === "kit" && !kitComplete) ? (
+      {frameworkApproved && !kitComplete ? (
         <button
           type="button"
-          className="dock-quiet"
+          className="dock-accent"
           disabled={pending}
-          title={
-            stage === "kit"
-              ? "Добавить тесты, задания и лекции к утверждённому каркасу"
-              : "Заполнить недостающие части каркаса"
-          }
-          onClick={() => onSend(frameworkApproved ? KIT_PROMPT : FRAMEWORK_PROMPT)}
+          title="Добавить тесты, задания и лекции к утверждённому каркасу"
+          onClick={() => onSend(KIT_PROMPT)}
         >
-          {stage === "kit" ? "Собрать комплект" : "Дособрать каркас"}
+          Собрать комплект
         </button>
       ) : null}
 
@@ -674,22 +714,11 @@ function MicIcon() {
 }
 
 function FileIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M7 4.5h7l4 4V19a1.5 1.5 0 0 1-1.5 1.5h-9.5A1.5 1.5 0 0 1 5.5 19V6A1.5 1.5 0 0 1 7 4.5z" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M14 4.5V9h4.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  );
+  return <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/file.png)" }} aria-hidden="true" />;
 }
 
 function LinkIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M10 13.5l4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      <path d="M8.5 15.5l-1.2 1.2a3.2 3.2 0 0 1-4.5-4.5l2.4-2.4a3.2 3.2 0 0 1 4.5 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      <path d="M15.5 8.5l1.2-1.2a3.2 3.2 0 0 1 4.5 4.5l-2.4 2.4a3.2 3.2 0 0 1-4.5 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
+  return <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/link.png)" }} aria-hidden="true" />;
 }
 
 function NoteIcon() {
@@ -702,17 +731,13 @@ function NoteIcon() {
 }
 
 function TemplateIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M6 6.5h12M6 12h12M6 17.5h7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
+  return <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/template.png)" }} aria-hidden="true" />;
 }
 
 function SendIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 17V7M8 10.5L12 6.5l4 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M12 17V7M8 10.5 12 6.5l4 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

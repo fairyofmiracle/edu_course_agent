@@ -3,12 +3,12 @@ export const THEME_KEY = "edu-course-theme";
 export type Theme = "light" | "dark";
 
 export function readTheme(storage: Pick<Storage, "getItem">): Theme {
-  return storage.getItem(THEME_KEY) === "dark" ? "dark" : "light";
+  return storage.getItem(THEME_KEY) === "light" ? "light" : "dark";
 }
 
 export function applyTheme(theme: Theme) {
   if (typeof document === "undefined") return;
-  if (theme === "dark") document.documentElement.dataset.theme = "dark";
+  if (theme === "light") document.documentElement.dataset.theme = "light";
   else delete document.documentElement.dataset.theme;
 }
 

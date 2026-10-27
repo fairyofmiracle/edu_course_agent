@@ -14,7 +14,6 @@ from .kit_content import (
     is_stub_competency_node,
     lecture_for_module,
     project_seminar,
-    chart_slide,
     slides_for_topic,
 )
 from .models import CourseDocument
@@ -426,8 +425,6 @@ def coerce_lecture_arguments(
         cleaned_slides = [
             item for item in cleaned_slides if item.get("title") != "Часы модуля" and not item.get("table")
         ]
-        if not any(item.get("mermaid") for item in cleaned_slides):
-            cleaned_slides.append(chart_slide(module))
         if len(cleaned_slides) > 12:
             visuals = [item for item in cleaned_slides if item.get("mermaid")]
             body = [item for item in cleaned_slides if item not in visuals]

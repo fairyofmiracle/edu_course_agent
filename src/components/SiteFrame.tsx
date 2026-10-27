@@ -10,25 +10,32 @@ export function SiteFrame({
   actions,
   title,
   subtitle,
-  sample,
+  crumb,
+  onSample,
   note,
   chatOpen = true,
+  onOpenChat,
   activity = null,
   tools = null,
+  menu = true,
   children,
 }: {
   actions?: () => ReactNode;
   title?: string;
   subtitle?: string;
-  sample?: ReactNode;
+  crumb?: { href: string; label: string };
+  onSample?: () => void;
   note?: string;
   chatOpen?: boolean;
+  onOpenChat?: () => void;
   activity?: { ratio: number; label: string } | null;
   tools?: ReactNode;
+  menu?: boolean;
   children: ReactNode;
 }) {
-  const [theme, setTheme] = useState<Theme>("light");
+  const [theme, setTheme] = useState<Theme>("dark");
   const [panel, setPanel] = useState<"faq" | "account" | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [methodistName, setMethodistName] = useState(DEFAULT_METHODIST_NAME);
 
   useEffect(() => {
@@ -50,17 +57,52 @@ export function SiteFrame({
   };
 
   return (
-    <div className="studio" data-chat={chatOpen ? "open" : "closed"}>
+    <div className="studio" data-chat={chatOpen ? "open" : "closed"} data-menu={menuOpen ? "open" : "closed"} data-nav={menu ? "on" : "off"}>
       <header className="site-header">
+        {menu ? (
+          <button
+            type="button"
+            className="nav-burger"
+            aria-label={menuOpen ? "Закрыть меню" : "Меню"}
+            aria-expanded={menuOpen}
+            onClick={() => {
+              setPanel(null);
+              setMenuOpen((open) => !open);
+            }}
+          >
+            <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/burger.png)" }} />
+          </button>
+        ) : null}
         <div className="site-brand">
           {title ? (
             <div className="site-heading">
+              {crumb ? (
+                <p className="site-crumb">
+                  <a href={crumb.href}>{crumb.label}</a>
+                </p>
+              ) : null}
               <h1 className="site-title">{title}</h1>
               {subtitle ? <p className="site-subtitle">{subtitle}</p> : null}
             </div>
           ) : null}
         </div>
-        {tools ? <div className="site-tools">{tools}</div> : null}
+        {tools ? <div className="site-tools site-tools-header">{tools}</div> : null}
+        {onOpenChat ? (
+          <button
+            type="button"
+            className="header-chat"
+            aria-label="Ассистент"
+            title="Ассистент"
+            onClick={() => {
+              setPanel(null);
+              onOpenChat();
+            }}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 8.5h12v7.2a1.5 1.5 0 0 1-1.5 1.5H10l-3.2 2.3V17H7.5A1.5 1.5 0 0 1 6 15.5v-7Z" fill="none" stroke="currentColor" strokeWidth="1.6" />
+            </svg>
+          </button>
+        ) : null}
         {activity ? (
           <div
             className="work-line"
@@ -74,16 +116,27 @@ export function SiteFrame({
           </div>
         ) : null}
       </header>
-      <nav className="site-nav" aria-label="Меню студии">
+      {menuOpen ? (
+        <button type="button" className="nav-scrim" aria-label="Закрыть меню" onClick={() => setMenuOpen(false)} />
+      ) : null}
+      <nav
+        className="site-nav"
+        aria-label="Меню студии"
+        onClick={(event) => {
+          const target = event.target as HTMLElement;
+          if (target.closest("a, button")) setMenuOpen(false);
+          if (target.closest(".nav-sections")) setPanel(null);
+        }}
+      >
         <Link className="nav-brand" href="/">
           <span className="nav-brand-text">
             <strong>Методий</strong>
             <small>студия методиста</small>
           </span>
         </Link>
+        {tools ? <div className="site-tools site-tools-nav">{tools}</div> : null}
         <div className="top-actions">{actions?.()}</div>
         <div className="nav-foot">
-          {sample}
           {note ? (
             <p className="nav-note" aria-live="polite">
               {note}
@@ -100,7 +153,7 @@ export function SiteFrame({
           </button>
           <div className="nav-user">
             <span className="nav-avatar" aria-hidden="true">
-              {initials(methodistName)}
+              <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/user.png)" }} />
             </span>
             <span className="nav-user-text">
               <strong>{methodistName.trim() || DEFAULT_METHODIST_NAME}</strong>
@@ -128,6 +181,7 @@ export function SiteFrame({
             <SideTab
               panel={panel}
               name={methodistName}
+              onSample={onSample}
               onPanel={setPanel}
               onName={(next) => {
                 setMethodistName(next);
@@ -152,12 +206,6 @@ function ThemeButton({ theme, onToggle }: { theme: Theme; onToggle: () => void }
   );
 }
 
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean).slice(0, 2);
-  const letters = parts.map((part) => part[0] ?? "").join("");
-  return letters.toUpperCase() || "М";
-}
-
 const DEFAULT_METHODIST_NAME = "Методист Методистов";
 const METHODIST_NAME_KEY = "edu-course-methodist-name";
 
@@ -175,12 +223,14 @@ function storeMethodistName(storage: Pick<Storage, "setItem" | "removeItem">, na
 function SideTab({
   panel,
   name,
+  onSample,
   onPanel,
   onName,
 }: {
   panel: "faq" | "account";
   name: string;
-  onPanel: (panel: "faq" | "account") => void;
+  onSample?: () => void;
+  onPanel: (panel: "faq" | "account" | null) => void;
   onName: (name: string) => void;
 }) {
   return (
@@ -206,7 +256,19 @@ function SideTab({
           <h2>Инструкция</h2>
           <p>Напишите в чате, для кого программа и сколько в ней часов.</p>
           <p>Лекции, семинары и тесты открываются после «Утвердить каркас».</p>
-          <p>Офлайн-пример показывает готовую программу без модели.</p>
+          {onSample ? (
+            <button
+              type="button"
+              className="instruction-sample"
+              title="Готовая программа без модели. В проход проверяющего не входит."
+              onClick={() => {
+                onSample();
+                onPanel(null);
+              }}
+            >
+              Пример без модели
+            </button>
+          ) : null}
           <h3>С чем сверяем</h3>
           <p>Общеразвивающая программа опирается на приказ № 629. Повышение квалификации — на 273-ФЗ и приказ № 266.</p>
           <ul className="order-list">
@@ -242,44 +304,13 @@ function SideTab({
 }
 
 function SettingsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <path
-        d="M9.3 3.1h5.4l.5 2.3 2.1.8 2-1.2 2 3.6-1.5 1.8.2 2.2 1.5 1.8-2 3.6-2-1.2-2.1.8-.5 2.3H9.3l-.5-2.3-2.1-.8-2 1.2-2-3.6 1.5-1.8-.2-2.2L2.5 8.6l2-3.6 2 1.2 2.1-.8.5-2.3Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/settings.png)" }} aria-hidden="true" />;
 }
 
 function MoonIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M15.5 3.2a8.2 8.2 0 1 0 5.3 12.6A7.2 7.2 0 0 1 15.5 3.2Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-      />
-    </svg>
-  );
+  return <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/moon.png)" }} aria-hidden="true" />;
 }
 
 function SunIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <path
-        d="M12 3.2v2.2M12 18.6v2.2M3.2 12h2.2M18.6 12h2.2M5.8 5.8l1.6 1.6M16.6 16.6l1.6 1.6M18.2 5.8l-1.6 1.6M7.4 16.6l-1.6 1.6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
+  return <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/sun.png)" }} aria-hidden="true" />;
 }

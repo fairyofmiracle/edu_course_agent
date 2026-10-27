@@ -1,3 +1,16 @@
+const PICTURES = {
+  courses: "/icons/courses.png",
+  plus: "/icons/plus.png",
+  overview: "/icons/overview.png",
+  plan: "/icons/plan.png",
+  competencies: "/icons/competencies.png",
+  lectures: "/icons/lectures.png",
+  seminars: "/icons/seminars.png",
+  tests: "/icons/tests.png",
+  checks: "/icons/checks.png",
+  help: "/icons/help.png",
+} as const;
+
 const PATHS = {
   courses:
     "M5 7.5h10.5v11H5zM8.5 7.5V5.5H19v11h-3.5",
@@ -13,6 +26,10 @@ const PATHS = {
 } as const;
 
 export function NavIcon({ name }: { name: keyof typeof PATHS }) {
+  if (name in PICTURES) {
+    const src = PICTURES[name as keyof typeof PICTURES];
+    return <span className="nav-icon nav-glyph" style={{ ["--glyph" as string]: `url(${src})` }} />;
+  }
   const path = PATHS[name];
   const circle = name === "help";
   return (

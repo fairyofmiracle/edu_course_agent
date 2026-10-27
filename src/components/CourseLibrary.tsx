@@ -49,21 +49,11 @@ function asUiMessages(value: unknown): UIMessage[] {
 }
 
 function CopyIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="8" y="8" width="10" height="11" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M6 15V5h10" fill="none" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  );
+  return <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/copy.png)" }} aria-hidden="true" />;
 }
 
 function TrashIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M9 9v8M12 9v8M15 9v8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      <path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-    </svg>
-  );
+  return <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/trash.png)" }} aria-hidden="true" />;
 }
 
 export function CourseCatalog() {
@@ -198,6 +188,7 @@ export function CourseCatalog() {
   return (
     <SiteFrame
       title="Мои курсы"
+      menu={false}
       actions={() => (
         <Link href="/?new=1">
           <NavIcon name="plus" />
@@ -206,6 +197,10 @@ export function CourseCatalog() {
       )}
     >
       <section className="catalog-page">
+        <Link className="catalog-add" href="/?new=1">
+          <NavIcon name="plus" />
+          Добавить курс
+        </Link>
         <p className="kicker">{note}</p>
         <input
           className="catalog-search"

@@ -4,7 +4,7 @@ import json
 import time
 from typing import Any
 
-from .brief_guard import repair_typos
+from .brief_guard import repair_typos, volume_from_text
 from .cloud import CloudRuClient, TurnStopped
 from .domain import apply_patch, framework_fingerprint, framework_items, rebalance_course
 from .catalog import (
@@ -361,7 +361,14 @@ async def run_turn(
         )
         planned.append(key)
         if step.get("tool") == "update_brief":
-            if skip_brief_extraction:
+            local_hours = (
+                volume_from_text([last_text])
+                if is_duration_edit_request(last_text)
+                else None
+            )
+            if local_hours:
+                arguments = {"durationHours": local_hours}
+            elif skip_brief_extraction:
                 arguments = {}
             else:
                 try:
@@ -390,6 +397,12 @@ async def run_turn(
                     patches.append(output)
             if references:
                 course = apply_reference_hints(course, references, user_texts)
+            if local_hours and any(item.get("type") != "tool_error" for item in patches):
+                assistant_text = (
+                    f"Объём программы теперь {local_hours} академических часов. "
+                    "Проверьте, что сумма модулей сходится с этим объёмом."
+                )
+                break
             continue
         if step.get("kind") == "reply":
             assistant_text = spoken_reply(course, str(step.get("task") or ""))

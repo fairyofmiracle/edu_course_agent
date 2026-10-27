@@ -57,6 +57,17 @@ import {
   saveMessages,
 } from "@/lib/storage";
 
+function bootCaption(
+  open: ReturnType<typeof resolveStudioOpen>,
+  query: { courseId?: string; sample?: boolean; fresh?: boolean },
+) {
+  if (query.fresh) return "Открываем новый курс";
+  if (query.sample && !query.courseId?.trim()) return "Открываем пример";
+  const title = open.course.brief.title.trim();
+  if (!title) return "Открываем студию";
+  return `Открываем курс «${title}»`;
+}
+
 function useIsClient() {
   return useSyncExternalStore(
     () => () => undefined,
@@ -75,8 +86,27 @@ export function Studio({
   fresh?: boolean;
 }) {
   const isClient = useIsClient();
-  if (!isClient) {
-    return <div className="boot">Открываю студию…</div>;
+  const [introDone, setIntroDone] = useState(false);
+  useEffect(() => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const timer = window.setTimeout(() => setIntroDone(true), reduce ? 400 : 3600);
+    return () => window.clearTimeout(timer);
+  }, []);
+  if (!isClient || !introDone) {
+    const opening = isClient
+      ? resolveStudioOpen({ courseId, sample, fresh }, window.localStorage)
+      : null;
+    return (
+      <div className="boot" aria-label="Методий">
+        <div className="boot-stack">
+          <p className="boot-write">
+            <span className="boot-word">Методий</span>
+            <span className="boot-nib" aria-hidden="true" />
+          </p>
+          {opening ? <p className="boot-line">{bootCaption(opening, { courseId, sample, fresh })}</p> : null}
+        </div>
+      </div>
+    );
   }
   const open = resolveStudioOpen({ courseId, sample, fresh }, window.localStorage);
   return (
@@ -88,6 +118,17 @@ export function Studio({
       localNotice={open.notice}
     />
   );
+}
+
+function courseSubtitle(course: CourseDocument) {
+  const title = course.brief.title.trim();
+  const goal = course.brief.goals.find((item) => item.trim() && item.trim() !== title)?.trim();
+  if (goal) return goal;
+  const parts = [
+    course.brief.audience.trim(),
+    course.brief.durationHours > 0 ? `${course.brief.durationHours} ак. ч` : "",
+  ].filter(Boolean);
+  return parts.join(" · ");
 }
 
 function StudioSession({
@@ -107,6 +148,9 @@ function StudioSession({
   const [extraReferences, setExtraReferences] = useState("");
   const [tab, setTab] = useState<WorkspaceTab>("overview");
   const [chatOpen, setChatOpen] = useState(true);
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 720px)").matches) setChatOpen(false);
+  }, []);
   const [sessionId, setSessionId] = useState(initialSessionId);
   const [backendReady, setBackendReady] = useState(!hasBackendStorage());
   const [saveState, setSaveState] = useState<
@@ -167,8 +211,6 @@ function StudioSession({
   const chatPending = status === "submitted" || status === "streaming";
   const chatElapsed = useElapsed(chatPending);
   const activity = chatPending ? workProgress(stage, chatElapsed) : null;
-  const missingChecks = checks.filter((item) => !item.ok).map((item) => item.label);
-
   useEffect(() => {
     if (!contentOpen && (tab === "lectures" || tab === "seminars" || tab === "tests")) {
       setTab("overview");
@@ -331,7 +373,7 @@ function StudioSession({
   }, [error, messages]);
 
   const send = (text: string, brief?: Partial<CourseBrief>) => {
-    let latest = foldCourseFromMessages(messages, storedCourse);
+    let latest = foldCourseFromMessages(messages, courseRef.current);
     if (brief && Object.keys(brief).length > 0) {
       latest = applyPatch(latest, { type: "update_brief", brief });
       setStoredCourse(latest);
@@ -430,8 +472,10 @@ function StudioSession({
         course.brief.title.trim() ||
         (course.modules.length === 0 ? "Новая образовательная программа" : "Без названия")
       }
-      subtitle={course.brief.goals.find((goal) => goal.trim())?.trim() || ""}
+      crumb={{ href: "/courses", label: "Мои курсы" }}
+      subtitle={courseSubtitle(course)}
       chatOpen={chatOpen}
+      onOpenChat={() => setChatOpen(true)}
       activity={activity}
       tools={
         <>
@@ -476,25 +520,15 @@ function StudioSession({
               </button>
             </div>
           </details>
-          {frameworkApproved ? (
-            <button type="button" onClick={revokeFramework}>
+          {course.frameworkApproved ? (
+            <button type="button" className="framework-action" onClick={revokeFramework}>
               Снять утверждение
             </button>
-          ) : (
-            <button
-              type="button"
-              className="primary"
-              disabled={!frameworkReady}
-              title={
-                frameworkReady
-                  ? "Каркас готов к утверждению"
-                  : `Сначала исправьте: ${missingChecks.slice(0, 3).join("; ")}`
-              }
-              onClick={approveFramework}
-            >
+          ) : frameworkReady ? (
+            <button type="button" className="primary framework-action" title="Каркас готов к утверждению" onClick={approveFramework}>
               Утвердить каркас
             </button>
-          )}
+          ) : null}
         </>
       }
       note={
@@ -531,16 +565,7 @@ function StudioSession({
           <CourseTabs tab={tab} approved={contentOpen} onTabChange={setTab} />
         </>
       )}
-      sample={
-        <button
-          type="button"
-          className="footer-sample"
-          title="Готовая программа без модели. В проход проверяющего не входит."
-          onClick={loadSample}
-        >
-          Пример без модели
-        </button>
-      }
+      onSample={loadSample}
     >
       <div
         className={`studio-body${showDocument ? "" : " chat-only"}${
@@ -552,7 +577,7 @@ function StudioSession({
           status={status}
           error={error}
           extraReferences={extraReferences}
-          frameworkApproved={frameworkApproved}
+          frameworkApproved={course.frameworkApproved}
           kitComplete={kitComplete}
           stage={stage}
           onReferencesChange={setExtraReferences}

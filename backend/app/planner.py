@@ -186,11 +186,14 @@ def spoken_reply(course: CourseDocument, task: str = "") -> str:
         if not item.get("ok")
     ]
     if failed:
-        return f"Каркас ещё не сходится: {'; '.join(failed)}. Проверьте часы."
+        return (
+            f"Каркас ещё не сходится: {'; '.join(failed)}. "
+            "Проверьте эти пункты. Утвердить каркас можно, когда данные будут на месте."
+        )
     folded = task.casefold()
     if "итог" in folded or "собрано" in folded:
         return "Комплект собран. Проверьте документ перед выгрузкой."
-    return "Проверьте часы и утвердите каркас."
+    return "Проверьте данные и, если вас всё устраивает, утвердите каркас."
 
 
 def plan_step(
@@ -272,7 +275,7 @@ def plan_step(
                 "update_brief",
             ]
         else:
-            tools = ["revise_section", "update_brief", "set_structure"]
+            tools = ["revise_section", "update_brief", "set_structure", "set_competency_map"]
         return {
             "kind": "auto",
             "tools": tools,
@@ -385,8 +388,8 @@ def plan_step(
     return {
         "kind": "reply",
         "task": (
-            f"Попроси проверить каркас. Не пройдены: {', '.join(failed)}."
+            f"Каркас ещё не сходится: {', '.join(failed)}. Проверьте эти пункты. Утвердить каркас можно, когда данные будут на месте."
             if failed
-            else "Попроси проверить часы и утвердить каркас."
+            else "Проверьте данные и, если вас всё устраивает, утвердите каркас."
         ),
     }

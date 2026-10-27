@@ -837,21 +837,17 @@ def slides_for_topic(topic: str, course: CourseDocument | None = None) -> dict[s
             continue
         if any(key in blob for key in keys):
             return {"title": slide["title"], "bullets": list(slide["bullets"])}
-    audience = "слушатель"
     subject = topic
     if course is not None:
         from .reference_outline import subject_name
 
-        audience = (course.brief.audience or "слушатель").rstrip(" .")
         subject = subject_name(course)
     return {
         "title": topic[:80],
         "bullets": [
-            f"На занятии разбираем: {topic}.",
-            f"Это часть программы «{subject}» для аудитории: {audience}.",
-            "Сначала показываем один понятный пример.",
-            "Потом слушатель повторяет приём на своей задаче.",
-            "Тема закрыта, если результат можно показать и объяснить.",
+            f"{topic}.",
+            f"Тема урока «{subject}».",
+            "Понятие, короткий пример и что с ним делают.",
         ],
     }
 
@@ -885,22 +881,12 @@ def lecture_for_module(
     module: CourseModule, course: CourseDocument | None = None
 ) -> dict[str, Any]:
     topics = list(module.topics[:6]) if module.topics else [module.title]
-    outcome = module.learning_outcomes[0] if module.learning_outcomes else module.title
-    follow = (
-        module.learning_outcomes[1]
-        if len(module.learning_outcomes) > 1
-        else "Сначала один пример, потом слушатель повторяет приём на своей задаче."
-    )
     opener = {
         "title": module.title[:80],
-        "bullets": [
-            outcome[:240],
-            follow[:240],
-            "Дальше разбираем темы занятия по порядку.",
-        ],
+        "bullets": [item[:240] for item in topics[:5]],
     }
-    slides = [opener, *[slides_for_topic(item, course) for item in topics], chart_slide(module)]
-    outline = [module.title, *topics, "Ход занятия"]
+    slides = [opener, *[slides_for_topic(item, course) for item in topics]]
+    outline = [module.title, *topics]
     return {
         "moduleId": module.id,
         "durationMin": max(30, min(90, (module.lecture_hours or 1) * 45)),

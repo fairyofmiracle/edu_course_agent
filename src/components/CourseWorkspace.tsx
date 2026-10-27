@@ -510,9 +510,11 @@ function Overview({ course }: { course: CourseDocument }) {
       ) : null}
       <section className="about-card">
         <h2>О программе</h2>
-        <p className="about-label">Целевая аудитория</p>
-        <p className="about-audience">{brief.audience.trim() || "Аудитория ещё не названа"}</p>
         <dl className="meta-grid">
+          <div>
+            <dt>Целевая аудитория</dt>
+            <dd>{brief.audience.trim() || "—"}</dd>
+          </div>
           <div>
             <dt>Объём</dt>
             <dd>{brief.durationHours ? `${brief.durationHours} ч` : "—"}</dd>

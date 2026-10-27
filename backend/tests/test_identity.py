@@ -117,7 +117,8 @@ def test_jwt_secret_generates_dev_secret_without_env(monkeypatch: pytest.MonkeyP
     from backend.app import identity as identity_mod
 
     identity_mod._generated_jwt_secret = None
-    first = identity_mod.jwt_secret()
+    with pytest.warns(UserWarning, match="STUDIO_JWT_SECRET"):
+        first = identity_mod.jwt_secret()
     second = identity_mod.jwt_secret()
     assert first == second
     assert len(first) >= 32

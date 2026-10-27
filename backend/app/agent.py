@@ -4,7 +4,7 @@ import json
 import time
 from typing import Any
 
-from .brief_guard import is_offtopic_request, repair_typos, volume_from_text
+from .brief_guard import contains_profanity, is_offtopic_request, PROFANITY_REPLY, repair_typos, volume_from_text
 from .cloud import CloudRuClient, TurnStopped
 from .domain import apply_patch, framework_fingerprint, framework_items, rebalance_course
 from .catalog import (
@@ -300,6 +300,17 @@ async def run_turn(
         client.begin_turn()
     user_texts = [repair_typos(text) for text in user_texts]
     last_text = user_texts[-1] if user_texts else ""
+    if last_text and contains_profanity(last_text):
+        return {
+            "course": course,
+            "assistant": PROFANITY_REPLY,
+            "mode": "intake",
+            "steps": ["profanity_refuse"],
+            "patches": [],
+            "calls": [],
+            "modelMessages": model_messages,
+            "usage": getattr(client, "usage", None),
+        }
     if last_text and is_offtopic_request(last_text):
         refuse = (
             "Я собираю программы курсов повышения квалификации и ДПО. "

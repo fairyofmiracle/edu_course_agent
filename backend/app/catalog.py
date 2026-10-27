@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from typing import Any
 
 from .kit_content import course_text, is_intro_python, is_teacher_ai
@@ -58,15 +60,49 @@ def _brief_profile_text(course: CourseDocument) -> str:
     return " ".join(part for part in parts if part).lower()
 
 
+# Strong DS stack only — Excel/данные/аналитика alone must stay generic
+# (own-s1 Excel→бухгалтерия) and not auto-pick «ИИ для аналитиков».
+_OFFICE_NOT_DS = re.compile(
+    r"бухгалтер|кадров|кадры|1с|зуп|офисн|делопроизвод",
+    re.IGNORECASE,
+)
+_STRONG_DS = re.compile(
+    r"pandas|dataframe|jupyter|"
+    r"(?<![a-zа-яё0-9_])sql(?![a-zа-яё0-9_])|"
+    r"машинн\w*\s+обучен|machine\s+learning|(?<![a-zа-яё])ml(?![a-zа-яё])",
+    re.IGNORECASE,
+)
+_WEAK_DATA_HINT = re.compile(
+    r"анализ\w*\s+данн|данн\w*|аналитик|статистик|excel|эксель",
+    re.IGNORECASE,
+)
+
+
 def is_data_analysis(course: CourseDocument) -> bool:
+    """Только явный pandas/SQL/ML + Excel или банк; слабые маркеры → generic."""
     if is_teacher_ai(course):
         return False
     text = _brief_profile_text(course)
-    topic = any(token in text for token in ("pandas", "анализ данных", "sql", "статистик"))
+    if _OFFICE_NOT_DS.search(text):
+        return False
+    if not _STRONG_DS.search(text):
+        return False
     workplace = any(
         token in text and f"без {token}" not in text for token in ("excel", "банк")
     )
-    return topic and workplace
+    return workplace
+
+
+def needs_profile_confirm(course: CourseDocument) -> bool:
+    """Excel/данные/аналитика без pandas/SQL — спросить профиль."""
+    if is_teacher_ai(course) or is_data_analysis(course):
+        return False
+    text = _brief_profile_text(course)
+    if _OFFICE_NOT_DS.search(text):
+        return False
+    if not _WEAK_DATA_HINT.search(text):
+        return False
+    return not _STRONG_DS.search(text)
 
 
 def is_internship(course: CourseDocument) -> bool:

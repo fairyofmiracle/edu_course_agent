@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any, Literal
 
-from .brief_guard import VOLUME_CLARIFY_NOTE, is_offtopic_request
+from .brief_guard import VOLUME_CLARIFY_NOTE, is_offtopic_request, is_garbage_title, contains_profanity, PROFANITY_REPLY
 from .domain import framework_fingerprint, framework_items
 from .catalog import block_count, is_data_analysis, is_internship
 from .kit_content import has_stub_lectures, has_stub_questions, outcome_gaps
@@ -124,6 +124,9 @@ def audience_has_level(audience: str) -> bool:
 def missing_brief_lines(course: CourseDocument) -> list[str]:
     brief = course.brief
     missing: list[str] = []
+    title = (brief.title or "").strip()
+    if not title or is_garbage_title(title):
+        missing.append("название программы")
     if brief.program_kind == "unset":
         missing.append("тип программы")
     if brief.duration_hours <= 0:
@@ -144,10 +147,16 @@ def missing_brief_lines(course: CourseDocument) -> list[str]:
     constraints = list(brief.constraints or [])
     if any(item == VOLUME_CLARIFY_NOTE for item in constraints):
         missing.append("уточнить объём обучения или срок сборки")
-    title = (brief.title or "").strip()
     if title and is_offtopic_request(title):
         missing.append("образовательный бриф курса")
+    try:
+        from .catalog import needs_profile_confirm
+        if needs_profile_confirm(course):
+            missing.append("подтвердить профиль программы")
+    except Exception:
+        pass
     return list(dict.fromkeys(missing))
+
 
 
 DURATION_EDIT_REQUEST = re.compile(
@@ -191,6 +200,8 @@ def intake_questions(course: CourseDocument) -> str:
 
 def spoken_reply(course: CourseDocument, task: str = "") -> str:
     """Фраза методисту. Текст шага планировщика в чат не попадает."""
+    if task and contains_profanity(task):
+        return PROFANITY_REPLY
     if missing_brief_lines(course):
         return intake_questions(course)
     failed = [

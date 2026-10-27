@@ -74,3 +74,52 @@ def test_strip_ethics_outside_teacher():
     titles = [m.title for m in cleaned.modules]
     assert "Технология сварки" in titles
     assert not any("этик" in t.lower() for t in titles)
+
+def test_dirty_title_gryazi_rejected():
+    from backend.app.brief_guard import title_from_request, is_garbage_title
+
+    assert title_from_request("делаем грязь") == ""
+    assert title_from_request("грязь") == ""
+    assert is_garbage_title("Грязь") is True
+    assert title_from_request("курс по «Excel для бухгалтерии»") != ""
+
+
+def test_profanity_blocks_title_and_flag():
+    from backend.app.brief_guard import title_from_request, contains_profanity, PROFANITY_REPLY
+
+    assert contains_profanity("сделайте курс по блядской аналитике")
+    assert contains_profanity("make a fucking Excel course")
+    assert title_from_request("курс повышения квалификации по fucking Excel") == ""
+    assert title_from_request("программа ДПО: сука как работать в Excel") == ""
+    assert "Переформ" in PROFANITY_REPLY
+
+
+def test_data_analysis_not_from_weak_excel():
+    from backend.app.catalog import is_data_analysis, needs_profile_confirm, profile_name
+    from backend.app.models import empty_course
+
+    # own-s1 style: Excel бухгалтерия → generic, not data_analysis
+    c = empty_course()
+    c.brief.title = "Excel для бухгалтерии"
+    c.brief.goals = ["сводные таблицы", "отчёты"]
+    c.brief.audience = "бухгалтеры"
+    assert is_data_analysis(c) is False
+    assert needs_profile_confirm(c) is False  # office track excluded
+    assert profile_name(c) != "data_analysis"
+
+    # weak: Excel + аналитика without pandas/SQL → confirm, not auto DA
+    c2 = empty_course()
+    c2.brief.title = "Курс по Excel для аналитиков"
+    c2.brief.goals = ["работа с данными", "статистика"]
+    c2.brief.audience = "аналитики банка"
+    assert is_data_analysis(c2) is False
+    assert needs_profile_confirm(c2) is True
+    assert profile_name(c2) != "data_analysis"
+
+    # strong: pandas + excel → data_analysis (hunt H_PANDAS_EXCEL)
+    c3 = empty_course()
+    c3.brief.title = "Pandas и Excel для банка"
+    c3.brief.goals = ["pandas", "сводные"]
+    c3.brief.audience = "аналитики"
+    assert is_data_analysis(c3) is True
+    assert needs_profile_confirm(c3) is False

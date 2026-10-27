@@ -21,7 +21,7 @@ VOLUME = re.compile(
 )
 SERVICE_PROMPT = re.compile(r"^(Собери |Каркас утверждён)")
 LEAD = re.compile(
-    r"^(?:сделайте|нужна|нужен|прошу)\s+",
+    r"^(?:сделайте|сделаем|делаем|давайте|давай|хочу|нужна|нужен|нужно|прошу)\s+",
     re.IGNORECASE,
 )
 AUDIENCE = re.compile(
@@ -426,6 +426,22 @@ def letter_ratio(text: str) -> float:
     return letters / len(chars)
 
 
+TITLE_MARKER = re.compile(
+    r"(?:"
+    r"программ\w*|курс\w*|повышен\w*\s+квалификац\w*|"
+    r"общеразвивающ\w*|обучен\w*|слушател\w*|академ\w*\s*час|"
+    r"(?:курс|программ\w*)\s+по\s+|"
+    r"(?:назван\w*|тема)\s*[:—-]|"
+    r"«[^»]{3,160}»"
+    r")",
+    re.IGNORECASE,
+)
+WEAK_TITLE_LEAD = re.compile(
+    r"^(?:делаем|сделаем|давайте|давай|хочу|нужно|прошу)\b",
+    re.IGNORECASE,
+)
+
+
 def is_garbage_title(text: str) -> bool:
     cleaned = (text or "").strip()
     if len(cleaned) < 3:
@@ -434,9 +450,21 @@ def is_garbage_title(text: str) -> bool:
         return True
     if letter_ratio(cleaned) < 0.45:
         return True
+    if contains_profanity(cleaned):
+        return True
     if len(re.findall(r"[!?.]{2,}", cleaned)) >= 2 and letter_ratio(cleaned) < 0.7:
         return True
+    # Single vague token / slang without course frame — not a program title.
+    words = re.findall(r"[A-Za-zА-Яа-яЁё0-9+#.]+", cleaned)
+    if len(words) <= 2 and not TITLE_MARKER.search(cleaned):
+        return True
+    if WEAK_TITLE_LEAD.search(cleaned) and not TITLE_MARKER.search(cleaned):
+        return True
     return False
+
+
+def has_title_markers(text: str) -> bool:
+    return bool(TITLE_MARKER.search(text or ""))
 
 
 def is_offtopic_request(text: str) -> bool:
@@ -461,6 +489,45 @@ def deadline_volume_conflict(texts: list[str], hours: float | int | None) -> boo
     if VOLUME_CLARIFIED.search(blob):
         return False
     return True
+
+
+
+# Soft RU+EN swear filter: block title/goals and refuse to assemble a course.
+PROFANITY_REPLY = (
+    "Переформулируйте запрос без грубостей — из мата программу не собираю."
+)
+_PROFANITY = re.compile(
+    r"(?:"
+    r"\b(?:"
+    r"бля(?:д|т|ть|ди|дск)?\w*"
+    r"|сука\w*"
+    r"|хуй\w*|хуя\w*|хуе\w*|хуё\w*"
+    r"|пизд\w*"
+    r"|еба\w*|ёба\w*|ебл\w*|ёбл\w*|ебу\w*|ёбу\w*|ебан\w*|ёбан\w*"
+    r"|муда\w*|мудил\w*"
+    r"|гавно\w*|говно\w*"
+    r"|залуп\w*"
+    r"|пидор\w*|пидар\w*"
+    r"|долбо[её]б\w*"
+    r"|у[её]б\w*"
+    r")"
+    r"|"
+    r"\b(?:"
+    r"fuck\w*|fucking|motherfuck\w*"
+    r"|shit\w*|bullshit"
+    r"|asshole\w*|dickhead\w*"
+    r"|bitch\w*"
+    r"|cunt\w*"
+    r"|bastard\w*"
+    r"|wtf\b"
+    r")"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def contains_profanity(text: str) -> bool:
+    return bool(_PROFANITY.search(text or ""))
 
 
 def title_from_request(text: str) -> str:
@@ -502,7 +569,13 @@ def title_from_request(text: str) -> str:
     if title:
         title = title[0].upper() + title[1:]
     title = title[:160]
-    if is_garbage_title(title) or is_offtopic_request(text):
+    if is_offtopic_request(text) or contains_profanity(text) or contains_profanity(title):
+        return ""
+    # Short extracted topic ("Python") is OK when the request already framed a course.
+    if is_garbage_title(title) and not has_title_markers(text):
+        return ""
+    # Do not mint a title from raw chat without DPO/course markers.
+    if not has_title_markers(text) and not has_title_markers(title):
         return ""
     return title
 
@@ -808,9 +881,24 @@ def guard_brief(
         if title:
             brief["title"] = title
     candidate = str(brief.get("title") or "").strip()
-    if candidate and (is_garbage_title(candidate) or is_offtopic_request(candidate)):
+    if candidate and (
+        is_offtopic_request(candidate)
+        or contains_profanity(candidate)
+        or (
+            is_garbage_title(candidate)
+            and not has_title_markers(candidate)
+            and not any(has_title_markers(item) for item in texts)
+        )
+    ):
         brief.pop("title", None)
         dropped.append("title")
+
+    # drop profane goals
+    goals = list(brief.get("goals") or [])
+    clean_goals = [g for g in goals if not contains_profanity(str(g))]
+    if len(clean_goals) != len(goals):
+        brief["goals"] = clean_goals
+        dropped.append("goals")
 
     if not brief.get("goals") and not current.get("goals"):
         title = str(brief.get("title") or current.get("title") or "").strip()

@@ -615,17 +615,6 @@ export function RequestComposer({
             <NoteIcon />
             <span className="dock-caption">Материал</span>
           </button>
-          <button
-            type="button"
-            className="dock-icon dock-labeled"
-            title="Шаблон"
-            aria-label="Шаблон"
-            aria-pressed={mode === "template"}
-            onClick={() => setMode(mode === "template" ? "free" : "template")}
-          >
-            <TemplateIcon />
-            <span className="dock-caption">Шаблон</span>
-          </button>
           <span className="dock-spacer" />
           {mode === "template" ? (
             pending ? (
@@ -759,9 +748,6 @@ function NoteIcon() {
   return <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/overview.png)" }} aria-hidden="true" />;
 }
 
-function TemplateIcon() {
-  return <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/template.png)" }} aria-hidden="true" />;
-}
 
 function SendIcon() {
   return (

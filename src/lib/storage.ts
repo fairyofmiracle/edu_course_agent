@@ -58,7 +58,7 @@ export function saveCourse(course: CourseDocument, messages: UIMessage[] = []): 
   const courseOk = writeStorage(storage, COURSE_KEY, JSON.stringify(course));
   const messagesOk = writeStorage(storage, MESSAGES_KEY, JSON.stringify(messages));
   const library = rememberCourse(course, messages, storage);
-  if (courseOk && messagesOk && library === "saved") return { ok: true };
+  if (courseOk && messagesOk && (library === "saved" || library === "skipped")) return { ok: true };
   if (!courseOk) return { ok: false, message: STORAGE_FULL };
   if (library === "failed") return { ok: false, message: LIST_MISSED };
   return { ok: false, message: LIST_ONLY };

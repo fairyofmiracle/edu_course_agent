@@ -233,6 +233,17 @@ function StudioSession({
   const [tab, setTab] = useState<WorkspaceTab>("overview");
   const [chatOpen, setChatOpen] = useState(true);
 
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("new") && !url.searchParams.has("fresh")) return;
+    url.searchParams.delete("new");
+    url.searchParams.delete("fresh");
+    const qs = url.searchParams.toString();
+    window.history.replaceState({}, "", qs ? `${url.pathname}?${qs}` : url.pathname);
+  }, []);
+
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
@@ -439,6 +450,10 @@ function StudioSession({
 
   useEffect(() => {
     if (!backendReady || !hasBackendStorage() || !persist) return;
+    if (isCourseEmpty(course) && messages.length === 0) {
+      setSaveState("local");
+      return;
+    }
     const timer = window.setTimeout(() => {
       setSaveState("saving");
       void saveCourseToBackend(course, messages, "autosave", versionRef.current)

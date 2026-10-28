@@ -23,7 +23,7 @@ import {
   type CourseSummary,
   type HoursFilter,
 } from "@/lib/course-library";
-import { courseDocumentSchema } from "@/lib/course-schema";
+import { courseDocumentSchema, displayCourseTitle, DEFAULT_COURSE_TITLE } from "@/lib/course-schema";
 import { dropStoredCourse, newSessionId, saveCourse } from "@/lib/storage";
 import type { UIMessage } from "ai";
 
@@ -262,7 +262,7 @@ export function CourseCatalog() {
                               }}
                             >
                               <strong className="catalog-theme">
-                                {item.title.trim() || "Новая программа"}
+                                {displayCourseTitle(item.title)}
                               </strong>
                               <span className="catalog-hours">
                                 {item.durationHours ? `${item.durationHours} ч` : "Часы не заданы"}

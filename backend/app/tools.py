@@ -99,11 +99,42 @@ def course_tools() -> list[dict[str, Any]]:
         ),
         _function(
             "set_competency_map",
-            "Записывает карту компетенций со знаниями, умениями и навыками.",
+            "Записывает карту компетенций с знаниями, умениями и навыками. "
+            "У каждой компетенции обязателен bloomLevel: remember|understand|apply|analyze|evaluate|create "
+            "(Знать/Понимать/Применять/Анализировать/Оценивать/Создавать). "
+            "Распределяй уровни Bloom по узлам — не складывай всё в apply.",
             {
                 "type": "object",
                 "properties": {
-                    "nodes": {"type": "array", "items": object_schema},
+                    "nodes": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string"},
+                                "name": {"type": "string"},
+                                "bloomLevel": {
+                                    "type": "string",
+                                    "enum": [
+                                        "remember",
+                                        "understand",
+                                        "apply",
+                                        "analyze",
+                                        "evaluate",
+                                        "create",
+                                    ],
+                                },
+                                "moduleIds": {"type": "array", "items": {"type": "string"}},
+                                "description": {"type": "string"},
+                                "knowledge": {"type": "array", "items": {"type": "string"}},
+                                "skills": {"type": "array", "items": {"type": "string"}},
+                                "abilities": {"type": "array", "items": {"type": "string"}},
+                                "laborFunctionCode": {"type": "string"},
+                            },
+                            "required": ["id", "name", "bloomLevel", "knowledge", "skills", "abilities"],
+                            "additionalProperties": True,
+                        },
+                    },
                     "edges": {"type": "array", "items": object_schema},
                 },
                 "required": ["nodes"],
@@ -172,13 +203,106 @@ _BLOOM = {
     "analyse": "analyze",
     "evaluate": "evaluate",
     "create": "create",
+    # UI labels (infinitive) + nouns / stems the model often returns
+    "знать": "remember",
     "знание": "remember",
+    "знания": "remember",
+    "запомнить": "remember",
+    "запоминать": "remember",
+    "recall": "remember",
+    "понимать": "understand",
     "понимание": "understand",
+    "объяснить": "understand",
+    "объяснять": "understand",
+    "применять": "apply",
     "применение": "apply",
+    "использовать": "apply",
+    "анализировать": "analyze",
     "анализ": "analyze",
+    "оценивать": "evaluate",
     "оценка": "evaluate",
+    "создавать": "create",
     "создание": "create",
+    "разработать": "create",
+    "разрабатывать": "create",
 }
+
+_BLOOM_ORDER = ("remember", "understand", "apply", "analyze", "evaluate", "create")
+
+_BLOOM_HINTS: list[tuple[str, tuple[str, ...]]] = [
+    ("create", ("созда", "разработ", "спроектир", "сконструир", "изобрет", "предлож новый", "design", "create")),
+    ("evaluate", ("оцен", "обоснов", "критер", "критик", "выбрать лучш", "сопостав качеств", "evaluate", "judge")),
+    ("analyze", ("анализ", "сравн", "классиф", "выяв", "разбер", "дифференц", "диагност", "analyze")),
+    ("apply", ("примен", "использова", "расчет", "расчёт", "выполн", "реализ", "практик", "внедр", "apply", "implement")),
+    ("understand", ("поня", "объясн", "интерпрет", "опис смысл", "трактов", "understand", "explain")),
+    ("remember", ("знат", "термин", "перечисл", "назов", "определ понят", "вспомн", "основн понят", "remember", "recall")),
+]
+
+
+def _normalize_bloom_token(raw: Any) -> str | None:
+    token = str(raw or "").strip().lower().replace("ё", "е")
+    if not token:
+        return None
+    # "Bloom: apply" / "уровень apply" / "3. apply"
+    token = re.sub(r"^\d+[.)\-:\s]+", "", token).strip()
+    if token in _BLOOM:
+        return _BLOOM[token]
+    for key, level in _BLOOM.items():
+        if key in token or token in key:
+            return level
+    return None
+
+
+def _infer_bloom_level(
+    name: str,
+    knowledge: list[str],
+    skills: list[str],
+    abilities: list[str],
+    index: int,
+) -> str:
+    blob = " ".join([name, *knowledge, *skills, *abilities]).lower().replace("ё", "е")
+    for level, hints in _BLOOM_HINTS:
+        if any(h in blob for h in hints):
+            return level
+    # No silent all-to-apply: spread across Bloom so the matrix is honest
+    return _BLOOM_ORDER[index % len(_BLOOM_ORDER)]
+
+
+def _resolve_bloom_level(
+    raw_level: Any,
+    name: str,
+    knowledge: list[str],
+    skills: list[str],
+    abilities: list[str],
+    index: int,
+) -> str:
+    mapped = _normalize_bloom_token(raw_level)
+    if mapped:
+        return mapped
+    return _infer_bloom_level(name, knowledge, skills, abilities, index)
+
+
+
+def _diversify_bloom_levels(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """If the model collapsed every node onto one Bloom level, re-infer from wording."""
+    if len(nodes) < 3:
+        return nodes
+    levels = [str(n.get("bloomLevel") or "") for n in nodes]
+    if len(set(levels)) > 1:
+        return nodes
+    out: list[dict[str, Any]] = []
+    for index, node in enumerate(nodes):
+        row = dict(node)
+        row["bloomLevel"] = _infer_bloom_level(
+            str(row.get("name") or ""),
+            list(row.get("knowledge") or []),
+            list(row.get("skills") or []),
+            list(row.get("abilities") or []),
+            index,
+        )
+        out.append(row)
+    return out
+
 
 
 def _text_list(value: Any, fallback: str) -> list[str]:
@@ -198,16 +322,27 @@ def _text_list(value: Any, fallback: str) -> list[str]:
 
 def _clean_competency_node(raw: dict[str, Any], index: int, drop_labor_code: bool) -> dict[str, Any]:
     name = str(raw.get("name") or f"Компетенция {index + 1}").strip()[:180] or f"Компетенция {index + 1}"
-    bloom = _BLOOM.get(str(raw.get("bloomLevel") or "").strip().lower(), "apply")
     module_ids = raw.get("moduleIds") if isinstance(raw.get("moduleIds"), list) else []
+    raw_knowledge = _text_list(raw.get("knowledge"), "")
+    raw_skills = _text_list(raw.get("skills"), "")
+    raw_abilities = _text_list(raw.get("abilities"), "")
+    raw_knowledge = [x for x in raw_knowledge if x]
+    raw_skills = [x for x in raw_skills if x]
+    raw_abilities = [x for x in raw_abilities if x]
+    bloom = _resolve_bloom_level(
+        raw.get("bloomLevel"), name, raw_knowledge, raw_skills, raw_abilities, index
+    )
+    knowledge = raw_knowledge or [f"Знать основы: {name}"[:240]]
+    skills = raw_skills or [f"Уметь применять: {name}"[:240]]
+    abilities = raw_abilities or [f"Владеть приёмом: {name}"[:240]]
     node: dict[str, Any] = {
         "id": _short_id(raw.get("id"), f"c{index + 1}"),
         "name": name,
         "bloomLevel": bloom,
         "moduleIds": [_short_id(item, f"m{i + 1}") for i, item in enumerate(module_ids[:24])],
-        "knowledge": _text_list(raw.get("knowledge"), f"Знает основу: {name}"),
-        "skills": _text_list(raw.get("skills"), f"Умеет применить: {name}"),
-        "abilities": _text_list(raw.get("abilities"), f"Владеет приёмом: {name}"),
+        "knowledge": knowledge,
+        "skills": skills,
+        "abilities": abilities,
     }
     description = str(raw.get("description") or "").strip()
     if description:
@@ -530,6 +665,7 @@ def execute_tool(
             for index, raw in enumerate(arguments.get("nodes") or [])
             if isinstance(raw, dict)
         ]
+        nodes = _diversify_bloom_levels(nodes)
         edges = []
         for edge in arguments.get("edges") or []:
             if isinstance(edge, dict) and edge.get("from") and edge.get("to"):

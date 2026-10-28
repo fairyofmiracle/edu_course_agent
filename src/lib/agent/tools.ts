@@ -39,10 +39,115 @@ const bloom = z.enum([
   "create",
 ]);
 
+type BloomValue = z.infer<typeof bloom>;
+
+const BLOOM_ORDER: BloomValue[] = [
+  "remember",
+  "understand",
+  "apply",
+  "analyze",
+  "evaluate",
+  "create",
+];
+
+const BLOOM_ALIASES: Record<string, BloomValue> = {
+  remember: "remember",
+  understand: "understand",
+  apply: "apply",
+  analyze: "analyze",
+  analyse: "analyze",
+  evaluate: "evaluate",
+  create: "create",
+  знать: "remember",
+  знание: "remember",
+  знания: "remember",
+  запомнить: "remember",
+  запоминать: "remember",
+  recall: "remember",
+  понимать: "understand",
+  понимание: "understand",
+  объяснить: "understand",
+  объяснять: "understand",
+  применять: "apply",
+  применение: "apply",
+  использовать: "apply",
+  анализировать: "analyze",
+  анализ: "analyze",
+  оценивать: "evaluate",
+  оценка: "evaluate",
+  создавать: "create",
+  создание: "create",
+  разработать: "create",
+  разрабатывать: "create",
+};
+
+const BLOOM_HINTS: Array<[BloomValue, string[]]> = [
+  ["create", ["созда", "разработ", "спроектир", "сконструир", "изобрет", "предлож новый", "design", "create"]],
+  ["evaluate", ["оцен", "обоснов", "критер", "критик", "выбрать лучш", "evaluate", "judge"]],
+  ["analyze", ["анализ", "сравн", "классиф", "выяв", "разбер", "дифференц", "диагност", "analyze"]],
+  ["apply", ["примен", "использова", "расчет", "расчёт", "выполн", "реализ", "практик", "внедр", "apply", "implement"]],
+  ["understand", ["поня", "объясн", "интерпрет", "опис смысл", "трактов", "understand", "explain"]],
+  ["remember", ["знат", "термин", "перечисл", "назов", "определ понят", "вспомн", "основн понят", "remember", "recall"]],
+];
+
+function normalizeBloomToken(raw: unknown): BloomValue | null {
+  let token = String(raw ?? "")
+    .trim()
+    .toLowerCase()
+    .replaceAll("ё", "е");
+  if (!token) return null;
+  token = token.replace(/^\d+[.)\-:\s]+/, "").trim();
+  if (token in BLOOM_ALIASES) return BLOOM_ALIASES[token];
+  for (const [key, level] of Object.entries(BLOOM_ALIASES)) {
+    if (token.includes(key) || key.includes(token)) return level;
+  }
+  return null;
+}
+
+function inferBloomLevel(
+  name: string,
+  knowledge: string[],
+  skills: string[],
+  abilities: string[],
+  index: number,
+): BloomValue {
+  const blob = [name, ...knowledge, ...skills, ...abilities].join(" ").toLowerCase().replaceAll("ё", "е");
+  for (const [level, hints] of BLOOM_HINTS) {
+    if (hints.some((h) => blob.includes(h))) return level;
+  }
+  return BLOOM_ORDER[index % BLOOM_ORDER.length];
+}
+
+export function resolveBloomLevel(
+  raw: unknown,
+  name: string,
+  knowledge: string[],
+  skills: string[],
+  abilities: string[],
+  index: number,
+): BloomValue {
+  return normalizeBloomToken(raw) ?? inferBloomLevel(name, knowledge, skills, abilities, index);
+}
+
+
+function diversifyBloomLevels<T extends { bloomLevel: BloomValue; name: string; knowledge: string[]; skills: string[]; abilities: string[] }>(
+  nodes: T[],
+): T[] {
+  if (nodes.length < 3) return nodes;
+  const levels = new Set(nodes.map((n) => n.bloomLevel));
+  if (levels.size > 1) return nodes;
+  return nodes.map((node, index) => ({
+    ...node,
+    bloomLevel: inferBloomLevel(node.name, node.knowledge, node.skills, node.abilities, index),
+  }));
+}
+
+
 const looseNode = z.object({
   id: z.string().min(1).max(40),
   name: z.string().min(1).max(180),
-  bloomLevel: bloom.default("apply"),
+  // optional: do not silent-default everything to apply
+  bloomLevel: z.union([bloom, z.string()]).optional(),
   moduleIds: z.array(z.string()).max(12).default([]),
   description: z.string().max(400).optional(),
   knowledge: z.array(z.string()).max(6).default([]),
@@ -164,12 +269,26 @@ function shortId(value: string, fallback: string) {
 
 function withZun(node: z.infer<typeof looseNode>, index: number) {
   const fallback = node.name;
+  const knowledge = node.knowledge.length ? node.knowledge : [`Знать: ${fallback}`];
+  const skills = node.skills.length ? node.skills : [`Уметь применять: ${fallback}`];
+  const abilities = node.abilities.length ? node.abilities : [`Владеть: ${fallback}`];
+  // Resolve from model-provided lists only (empty arrays when omitted) so template
+  // fallbacks like «Уметь применять» never force bloomLevel=apply.
+  const bloomLevel = resolveBloomLevel(
+    node.bloomLevel,
+    node.name,
+    node.knowledge,
+    node.skills,
+    node.abilities,
+    index,
+  );
   return {
     ...node,
     id: shortId(node.id, `c${index + 1}`),
-    knowledge: node.knowledge.length ? node.knowledge : [`Знает: ${fallback}`],
-    skills: node.skills.length ? node.skills : [`Умеет применить: ${fallback}`],
-    abilities: node.abilities.length ? node.abilities : [`Владеет: ${fallback}`],
+    bloomLevel,
+    knowledge,
+    skills,
+    abilities,
     moduleIds: node.moduleIds.map((id) => shortId(id, id)).filter(Boolean),
   };
 }
@@ -223,7 +342,7 @@ function courseTools(allowContent: boolean, course?: CourseDocument, guard?: Bri
     }),
     set_competency_map: tool({
       description:
-        "Записывает карту компетенций, 3–8 узлов. У каждого knowledge, skills, abilities. Если забыл ЗУН — сервер подставит. laborFunctionCode только из входного профстандарта.",
+        "Записывает карту компетенций, 3–8 узлов. У каждого knowledge, skills, abilities и bloomLevel (remember|understand|apply|analyze|evaluate|create — Знать/Понимать/Применять/Анализировать/Оценивать/Создавать). Распределяй уровни Bloom по узлам, не складывай всё в apply. Связи модулей через moduleIds. laborFunctionCode только для программ повышения квалификации.",
       inputSchema: looseCompetencyMap,
       execute: async (raw): Promise<CoursePatch | { type: "tool_error"; message: string }> => {
         const parsed = looseCompetencyMap.safeParse(raw);
@@ -236,7 +355,7 @@ function courseTools(allowContent: boolean, course?: CourseDocument, guard?: Bri
         return {
           type: "set_competency_map",
           competencies: {
-            nodes: parsed.data.nodes.map(withZun),
+            nodes: diversifyBloomLevels(parsed.data.nodes.map(withZun)),
             edges: parsed.data.edges.map((edge) => ({
               from: shortId(edge.from, edge.from),
               to: shortId(edge.to, edge.to),

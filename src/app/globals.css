@@ -3587,7 +3587,7 @@ html[data-theme="light"] .hours-gap {
   .site-nav .nav-sections .journal-tab,
   .nav-help {
     margin: 0;
-    min-height: 40px;
+    min-height: var(--touch-min, 44px);
     padding: 8px 16px;
     border: 0;
     border-radius: 0;
@@ -3674,7 +3674,7 @@ html[data-theme="light"] .hours-gap {
 }
 
 .tab-empty-cta {
-  min-height: 40px;
+  min-height: var(--touch-min, 44px);
   padding: 0 16px;
   border: 0;
   border-radius: 12px;
@@ -3967,7 +3967,7 @@ html[data-theme="light"] .composer textarea::placeholder {
 }
 
 .passport-secondary {
-  min-height: 40px;
+  min-height: var(--touch-min, 44px);
   padding: 0 16px;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -4603,44 +4603,98 @@ button,
   }
 }
 
-/* --- plan-a + bloom-matrix --- */
-.structure-plan-a {
+
+/* --- modules-first plan + bloom-matrix --- */
+.structure-modules-first {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
-.week-plan-strip .week-strip {
+.plan-tempo-head {
   display: flex;
-  gap: 10px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding: 4px 2px 10px;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-}
-
-.week-strip-card {
-  flex: 0 0 min(260px, 78vw);
-  scroll-snap-align: start;
-  min-height: 0;
-  background: var(--panel);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.week-strip-card.active {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
-}
-
-.week-card-select {
-  display: flex;
-  align-items: baseline;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
+  gap: 10px 16px;
+  padding: 4px 0 2px;
+}
+
+.plan-tempo-line {
+  margin: 0;
+  flex: 1 1 220px;
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.week-hours-stepper {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
+  flex: 0 0 auto;
+}
+
+.week-hours-stepper .stepper-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-min, 44px);
+  height: var(--touch-min, 44px);
+  min-width: var(--touch-min, 44px);
+  min-height: var(--touch-min, 44px);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.week-hours-stepper .stepper-btn:hover {
+  border-color: var(--accent);
+}
+
+.week-hours-stepper .week-hours-value {
+  min-width: 5.5rem;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.module-first-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.module-first-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.module-first-card.open {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.module-first-card.hours-bad {
+  border-color: color-mix(in srgb, #c44 45%, var(--line));
+}
+
+.module-first-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px 12px;
+  align-items: start;
   width: 100%;
-  min-height: var(--touch-min);
-  padding: 4px 2px 6px;
+  min-height: var(--touch-min, 44px);
+  padding: 12px 14px;
   border: 0;
   background: transparent;
   color: inherit;
@@ -4648,107 +4702,59 @@ button,
   cursor: pointer;
 }
 
-.week-card-select .kicker {
-  margin: 0;
-}
-
-.week-card-sum {
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.week-strip-card ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.week-strip-card li {
-  border-top: 1px solid var(--line);
-  padding: 0;
-}
-
-.week-piece {
-  display: block;
-  width: 100%;
-  min-height: var(--touch-min);
-  padding: 8px 4px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.week-piece strong {
-  display: block;
-  line-height: 1.35;
-}
-
-.week-piece span {
-  display: block;
+.module-first-num {
   margin-top: 2px;
   color: var(--ink-soft);
   font-size: 13px;
 }
 
-.week-piece.active,
-.week-piece:hover {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-}
-
-.sticky-module-panel {
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
-  padding-top: 4px;
-  background: linear-gradient(to bottom, transparent, var(--paper) 12px);
-}
-
-.module-chip-row {
+.module-first-main {
   display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding: 0 0 10px;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
-.module-chip {
-  flex: 0 0 auto;
-  scroll-snap-align: start;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  grid-template-rows: auto auto;
-  gap: 2px 8px;
-  min-width: min(220px, 72vw);
-  min-height: var(--touch-min);
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--panel);
-  color: var(--ink);
-  text-align: left;
-  cursor: pointer;
+.module-first-main strong {
+  font-size: 15px;
+  line-height: 1.35;
 }
 
-.module-chip .kit-marks {
-  grid-column: 2 / -1;
-}
-
-.module-chip.active {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
-}
-
-.module-chip.related:not(.active) {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
-}
-
-.module-chip .hours {
-  color: var(--ink-soft);
+.module-first-meta {
   font-size: 13px;
+  line-height: 1.35;
+}
+
+.module-week-ruler {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.module-week-ruler .week-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 16%, transparent);
+}
+
+.module-week-ruler .week-dot.on {
+  background: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.module-first-body {
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--line);
+}
+
+.module-first-body .pane-actions {
+  margin: 12px 0;
+}
+
+.module-first-body h4 {
+  margin: 12px 0 6px;
 }
 
 .module-schema {
@@ -4756,6 +4762,43 @@ button,
   border-top: 1px solid var(--line);
   padding-top: 10px;
 }
+
+.module-schema summary {
+  min-height: var(--touch-min, 44px);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  .structure-modules-first {
+    gap: 10px;
+  }
+  .plan-tempo-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .week-hours-stepper {
+    justify-content: space-between;
+  }
+  .module-first-head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .module-first-head .kit-marks {
+    grid-column: 2;
+  }
+}
+
+@media (max-width: 420px) {
+  .plan-tempo-line {
+    font-size: 13px;
+  }
+  .module-first-main strong {
+    font-size: 14px;
+  }
+}
+
 
 .module-schema summary {
   cursor: pointer;
@@ -4978,11 +5021,4 @@ button,
   }
 }
 
-@media (max-width: 420px) {
-  .week-strip-card {
-    flex-basis: min(240px, 86vw);
-  }
-  .module-chip {
-    min-width: min(200px, 84vw);
-  }
-}
+

@@ -612,7 +612,11 @@ def title_from_request(text: str) -> str:
         return ""
     quoted = re.search(r"«([^»]{3,160})»", text)
     if quoted:
-        return quoted.group(1).strip()
+        # Specialty / profile quotes are not the course title
+        # (e.g. специальности «Информационные системы…»).
+        prefix = text[max(0, quoted.start() - 48) : quoted.start()].casefold()
+        if not re.search(r"специальност|направлени|профил", prefix):
+            return quoted.group(1).strip()
     cleaned = LEAD.sub("", text.strip())
     about = re.search(
         r"(?:курс|программ\w*)\s+по\s+([^.,]{3,80})",

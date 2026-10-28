@@ -5,11 +5,13 @@ from pathlib import Path
 _db = Path(tempfile.gettempdir()) / "edu-course-agent-test.db"
 os.environ["DATABASE_URL"] = f"sqlite:///{_db.as_posix()}"
 os.environ["REDIS_URL"] = ""
-# Fixed test-only secret so jwt_secret() does not emit the missing-env UserWarning.
-# Intentionally not a production value; tests that clear the env expect the warning.
+# Isolate identity from host/docker prod env so pytest is deterministic.
+# Do not read or write the on-disk .env; only process env for this session.
 _test_jwt = "edu-course-agent-pytest-only-jwt-secret"
-if len(os.environ.get("STUDIO_JWT_SECRET", "").strip()) < 16:
-    os.environ["STUDIO_JWT_SECRET"] = _test_jwt
+os.environ["STUDIO_JWT_SECRET"] = _test_jwt
+os.environ.pop("STUDIO_API_TOKEN", None)
+os.environ.pop("STUDIO_ENV", None)
+os.environ.pop("ENVIRONMENT", None)
 
 
 def pytest_sessionstart(session) -> None:

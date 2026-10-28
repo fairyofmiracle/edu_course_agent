@@ -103,4 +103,5 @@ export const CHECKS_LABEL: Record<AuditStatus | "empty", string> = {
   warning: "вручную",
   fail: "ошибки",
   empty: "пусто",
+  disabled: "выкл.",
 };

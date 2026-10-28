@@ -4,10 +4,11 @@ import { frameworkItems } from "@/lib/framework-check";
 import { ORDER_266, citesRepealedOrder499, isOfficialPublication, missingLegalBasis } from "@/lib/legal-basis";
 import { moduleRationales } from "@/lib/module-rationale";
 import { findOutdated } from "@/lib/outdated";
+import { meaningHits } from "@/lib/meaning-audit";
 import { referenceNotes, verbatimSpans } from "@/lib/verbatim";
 
-export type AuditStatus = "pass" | "warning" | "fail";
-export type AuditSection = "framework" | "content" | "sources" | "freshness" | "case";
+export type AuditStatus = "pass" | "warning" | "fail" | "disabled";
+export type AuditSection = "framework" | "content" | "sources" | "freshness" | "case" | "meaning";
 export type OpenCaseId = 1 | 2 | 3 | 4 | 5;
 
 export type AuditItem = {
@@ -496,14 +497,45 @@ function listUnique(values: string[]): string[] {
   return [...new Set(values)];
 }
 
+
+function meaningItems(course: CourseDocument): AuditItem[] {
+  const hits = meaningHits(course);
+  const items: AuditItem[] = hits.map((hit) => ({
+    id: hit.id,
+    label: hit.label,
+    status: hit.severity,
+    section: "meaning",
+    details: hit.details,
+    moduleId: hit.moduleId,
+  }));
+  if (hits.length === 0) {
+    items.push({
+      id: "meaning.clear",
+      label: "Пустых и шаблонных блоков не найдено",
+      status: "pass",
+      section: "meaning",
+      details: "Детерминированный чеклист: пустое, шаблонные фразы, дубли.",
+    });
+  }
+  items.push({
+    id: "meaning.llm",
+    label: "LLM-ревью смысла",
+    status: "disabled",
+    section: "meaning",
+    details:
+      "Опционально: кнопка «LLM-ревью» во вкладке Проверка. Без ключа шлюза — disabled, выгрузку не блокирует.",
+  });
+  return items;
+}
+
 export function auditCourse(course: CourseDocument, caseId?: OpenCaseId): CourseAudit {
-  const items = [...genericItems(course), ...(caseId ? caseItems(course, caseId) : [])];
+  const items = [...genericItems(course), ...meaningItems(course), ...(caseId ? caseItems(course, caseId) : [])];
   const summary = items.reduce<Record<AuditStatus, number>>(
     (totals, entry) => {
       totals[entry.status] += 1;
       return totals;
     },
-    { pass: 0, warning: 0, fail: 0 },
+    { pass: 0, warning: 0, fail: 0, disabled: 0 },
   );
   return { caseId, summary, items };
 }

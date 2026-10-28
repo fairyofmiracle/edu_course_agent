@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CompetencyMap } from "@/components/CompetencyMap";
 import { SourceChecks } from "@/components/SourceChecks";
 import { StackFreshnessPanel } from "@/components/StackFreshness";
@@ -288,12 +288,17 @@ const AUDIT_TOPICS: { section: AuditSection; title: string }[] = [
   { section: "content", title: "Покрытие тестами" },
   { section: "sources", title: "Нормативка" },
   { section: "freshness", title: "Технологии" },
+  { section: "meaning", title: "Смысл" },
 ];
 
 function topicStatus(items: { status: AuditStatus }[]): AuditStatus | "empty" {
   if (items.length === 0) return "empty";
   if (items.some((item) => item.status === "fail")) return "fail";
   if (items.some((item) => item.status === "warning")) return "warning";
+  if (items.every((item) => item.status === "disabled")) return "disabled";
+  if (items.some((item) => item.status === "disabled") && items.every((item) => item.status === "pass" || item.status === "disabled")) {
+    return "pass";
+  }
   return "pass";
 }
 
@@ -301,6 +306,7 @@ function statusBadge(status: AuditStatus | "empty") {
   if (status === "pass") return { className: "ready", label: "готово" };
   if (status === "warning") return { className: "partial", label: "вручную" };
   if (status === "fail") return { className: "empty", label: "ошибки" };
+  if (status === "disabled") return { className: "partial", label: "выкл." };
   return { className: "empty", label: "пусто" };
 }
 
@@ -418,6 +424,9 @@ function AuditPanel({ course, onRefreshOutdated }: { course: CourseDocument; onR
               </>
             ) : null}
 
+            
+            {topic.section === "meaning" ? <MeaningLlmReview course={course} /> : null}
+
             {topic.section === "freshness" ? (
               <>
                 {outdatedHits.length > 0 ? (
@@ -451,6 +460,76 @@ function AuditPanel({ course, onRefreshOutdated }: { course: CourseDocument; onR
         );
       })}
     </div>
+  );
+}
+
+
+function MeaningLlmReview({ course }: { course: CourseDocument }) {
+  const [state, setState] = useState<
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "disabled"; details: string }
+    | { status: "pass" | "warning" | "fail"; notes: string[]; details?: string }
+    | { status: "error"; details: string }
+  >({ status: "idle" });
+
+  const run = useCallback(async () => {
+    setState({ status: "loading" });
+    try {
+      const response = await fetch("/api/backend/api/audit/meaning-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ course }),
+      });
+      if (!response.ok) {
+        setState({ status: "error", details: `HTTP ${response.status}` });
+        return;
+      }
+      const data = (await response.json()) as {
+        status: "disabled" | "pass" | "warning" | "fail";
+        notes?: string[];
+        details?: string;
+      };
+      if (data.status === "disabled") {
+        setState({ status: "disabled", details: data.details || "LLM недоступен — ревью пропущено." });
+        return;
+      }
+      setState({
+        status: data.status,
+        notes: data.notes || [],
+        details: data.details,
+      });
+    } catch (error) {
+      setState({
+        status: "error",
+        details: error instanceof Error ? error.message : "Сеть недоступна",
+      });
+    }
+  }, [course]);
+
+  return (
+    <article className="audit-card warning" style={{ marginTop: 8 }}>
+      <h3>LLM-ревью смысла</h3>
+      <p className="muted">
+        Кратко: связность с ЦА, пробелы, противоречия. Без ключа шлюза — disabled, выгрузку не блокирует.
+      </p>
+      <div className="pane-actions" style={{ marginTop: 8 }}>
+        <button type="button" onClick={() => void run()} disabled={state.status === "loading"}>
+          {state.status === "loading" ? "Ревью…" : "Запросить LLM-ревью"}
+        </button>
+      </div>
+      {state.status === "disabled" ? <p className="muted">{state.details}</p> : null}
+      {state.status === "error" ? <p className="voice-error">{state.details}</p> : null}
+      {state.status === "pass" || state.status === "warning" || state.status === "fail" ? (
+        <ul className="audit-list">
+          {(state.notes.length ? state.notes : [state.details || "Замечаний нет."]).map((note) => (
+            <li key={note} className={state.status}>
+              {note}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </article>
   );
 }
 

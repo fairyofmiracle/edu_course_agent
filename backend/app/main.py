@@ -17,6 +17,8 @@ from .legal_basis import is_official_publication
 from .contracts import (
     AuditCourse,
     AuditReport,
+    MeaningReviewRequest,
+    MeaningReviewResponse,
     HealthResponse,
     RegulatoryCheckRequest,
     RegulatoryCheckResponse,
@@ -180,6 +182,84 @@ def health() -> HealthResponse:
 def audit(course: AuditCourse) -> AuditReport:
     return AuditReport.model_validate(audit_course(course.model_dump(by_alias=True)))
 
+
+
+@app.post(
+    "/api/audit/meaning-review",
+    response_model=MeaningReviewResponse,
+    tags=["audit"],
+    summary="Опциональное LLM-ревью смысла",
+    description=(
+        "Краткие замечания по связности с ЦА, пробелам и противоречиям. "
+        "Без ключа шлюза возвращает status=disabled и не считается ошибкой выгрузки."
+    ),
+    operation_id="meaningReview",
+)
+async def meaning_review(request: MeaningReviewRequest) -> MeaningReviewResponse:
+    from .cloud import CloudRuClient
+
+    course = request.course.model_dump(by_alias=True)
+    try:
+        client = CloudRuClient()
+    except Exception:
+        return MeaningReviewResponse(
+            status="disabled",
+            notes=[],
+            details="Шлюз недоступен — LLM-ревью смысла пропущено.",
+        )
+    if not client.api_key:
+        return MeaningReviewResponse(
+            status="disabled",
+            notes=[],
+            details="Ключ LLM не задан — ревью смысла выключено (disabled, не ошибка).",
+        )
+
+    brief = course.get("brief") or {}
+    modules = course.get("modules") or []
+    sketch_parts = [
+        f"Название: {brief.get('title') or ''}",
+        f"Аудитория: {brief.get('audience') or ''}",
+        f"Цели: {'; '.join(brief.get('goals') or [])}",
+    ]
+    for module in modules[:6]:
+        sketch_parts.append(
+            f"Модуль {module.get('title')}: темы {', '.join((module.get('topics') or [])[:4])}; "
+            f"результаты {', '.join((module.get('learningOutcomes') or [])[:3])}"
+        )
+    sketch = "\n".join(sketch_parts)[:3500]
+    system = (
+        "Ты методист-ревьюер ДПО/АЦР. Дай 3–6 коротких замечаний по смыслу программы: "
+        "связность с целевой аудиторией, пробелы, противоречия часов/тем. "
+        "Ответь обычным текстом, каждый пункт с новой строки, без JSON и без выдуманных НПА."
+    )
+    try:
+        client.begin_turn()
+        message = await client.complete(
+            system=system,
+            messages=[{"role": "user", "content": sketch}],
+            tools=[],
+            tool_choice="none",
+            max_tokens=500,
+            timeout=60,
+            attempts=2,
+        )
+        content = str(message.get("content") or "").strip()
+        notes = [line.strip(" -•\t") for line in content.splitlines() if line.strip()]
+        notes = [n for n in notes if len(n) > 8][:8]
+        if not notes:
+            return MeaningReviewResponse(
+                status="pass",
+                notes=["Замечаний по смыслу модель не сформулировала."],
+                details="Ответ модели пуст или слишком краток.",
+            )
+        status = "warning" if notes else "pass"
+        return MeaningReviewResponse(status=status, notes=notes, details="LLM-ревью выполнено.")
+    except Exception as error:
+        return MeaningReviewResponse(
+            status="disabled",
+            notes=[],
+            details=f"LLM-ревью недоступно: {error}. Выгрузку не блокирует.",
+        )
 
 @app.post(
     "/api/regulatory/check",

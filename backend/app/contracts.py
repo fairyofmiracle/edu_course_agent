@@ -87,8 +87,8 @@ class AuditCourse(ContractModel):
 class AuditItem(BaseModel):
     id: str
     label: str
-    status: Literal["pass", "warning", "fail"]
-    section: Literal["framework", "content", "sources", "freshness"]
+    status: Literal["pass", "warning", "fail", "disabled"]
+    section: Literal["framework", "content", "sources", "freshness", "meaning"]
     details: str | None = None
 
 
@@ -98,6 +98,7 @@ class AuditSummary(BaseModel):
     passed: int = Field(alias="pass")
     warning: int
     fail: int
+    disabled: int = 0
 
 
 class AuditReport(BaseModel):
@@ -183,3 +184,13 @@ class StackFreshnessResponse(BaseModel):
     state: Literal["empty", "ready"]
     source: str
     hits: list[StackFreshnessHit]
+
+
+class MeaningReviewRequest(ContractModel):
+    course: AuditCourse = Field(default_factory=AuditCourse)
+
+
+class MeaningReviewResponse(ContractModel):
+    status: Literal["disabled", "pass", "warning", "fail"]
+    notes: list[str] = Field(default_factory=list)
+    details: str = ""

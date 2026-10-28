@@ -422,6 +422,7 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     task_acks_late=True,
     task_reject_on_worker_lost=True,
+    worker_hijack_root_logger=False,
     broker_connection_retry_on_startup=True,
 )
 
@@ -538,6 +539,8 @@ def cancel_queued_job(job_id: str) -> dict[str, Any] | None:
 
 @worker_ready.connect
 def _beat_when_worker_is_up(**_kwargs: Any) -> None:
+    configure_logging(force=True)
+
     def loop() -> None:
         while True:
             try:

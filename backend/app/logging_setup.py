@@ -43,20 +43,12 @@ class ContextFilter(logging.Filter):
         return True
 
 
-_configured = False
-
-
-def configure_logging() -> None:
+def configure_logging(*, force: bool = False) -> None:
     """LOG_FORMAT=json|text. Не логировать ключи, Authorization, текст брифа."""
-    global _configured
-    if _configured:
-        return
     fmt = (os.getenv("LOG_FORMAT") or "json").strip().lower()
     level_name = (os.getenv("LOG_LEVEL") or "INFO").strip().upper()
     level = getattr(logging, level_name, logging.INFO)
 
-    root = logging.getLogger()
-    root.handlers.clear()
     handler = logging.StreamHandler(sys.stdout)
     handler.addFilter(ContextFilter())
     if fmt == "json":
@@ -65,6 +57,16 @@ def configure_logging() -> None:
         handler.setFormatter(
             logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
         )
+
+    root = logging.getLogger()
+    root.handlers.clear()
     root.addHandler(handler)
     root.setLevel(level)
-    _configured = True
+
+    # uvicorn/celery часто ставят свои handlers — выравниваем под тот же формат
+    for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "celery", "studio.queue"):
+        lg = logging.getLogger(name)
+        lg.handlers.clear()
+        lg.addHandler(handler)
+        lg.setLevel(level)
+        lg.propagate = False

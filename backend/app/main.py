@@ -47,6 +47,7 @@ except ModuleNotFoundError as error:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    configure_logging(force=True)
     if init_database is not None:
         init_database()
     yield

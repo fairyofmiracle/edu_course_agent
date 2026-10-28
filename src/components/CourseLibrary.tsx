@@ -80,6 +80,22 @@ function TrashIcon() {
 }
 
 
+function isInProgress(item: LibraryItem) {
+  const r = item.readiness;
+  if (!r) return true;
+  if (r.framework !== "ready") return true;
+  if (r.materials !== "ready") return true;
+  if (r.checks === "fail" || r.checks === "warning" || r.checks === "empty") return true;
+  return false;
+}
+
+function pickFeaturedId(items: LibraryItem[]) {
+  const working = items.find(isInProgress);
+  if (working) return working.id;
+  return items[0]?.id ?? "";
+}
+
+
 function CatalogReadiness({ readiness }: { readiness?: CourseReadiness }) {
   if (!readiness) return null;
   const stages: { key: string; label: string; tone: string; text: string }[] = [
@@ -310,211 +326,259 @@ export function CourseCatalog() {
         {visible.length === 0 ? (
           <p className="kicker">{emptyReason}</p>
         ) : (
-          <div className="catalog-groups">
-            {groupByDirection(visible).map((group) => (
-              <section key={group.label} className="catalog-group">
-                <h2>{group.label}</h2>
-                <ul className="catalog-list">
-                  {group.courses.map((item) => {
-                    const panelOpen = draft.id === item.id || pendingDelete === item.id;
-                    return (
-                      <li key={item.id} className={panelOpen ? "is-open" : undefined}>
-                        <div className="catalog-card">
-                          <div className="catalog-card-main">
-                            <button
-                              type="button"
-                              className="catalog-open"
-                              disabled={busy}
-                              onClick={() => {
-                                setBusy(true);
-                                void openCourse(item.id).finally(() => setBusy(false));
-                              }}
-                            >
-                              <strong className="catalog-theme">
-                                {displayCourseTitle(item.title)}
-                              </strong>
-                              <span className="catalog-hours">
-                                {item.durationHours ? `${item.durationHours} ч` : "Часы не заданы"}
-                              </span>
-                              <span className="catalog-audience">
-                                {item.audience.trim() || "Аудитория не указана"}
-                              </span>
-                              <CatalogReadiness readiness={item.readiness} />
-                            </button>
-                            <span className="library-actions catalog-tools">
-                              <button
-                                type="button"
-                                className="catalog-tool-btn"
-                                aria-label="Копия"
-                                title="Копия"
-                                disabled={busy}
-                                onClick={() => {
-                                  setPendingDelete("");
-                                  setDraft({
-                                    id: item.id,
-                                    audience: item.audience,
-                                    duration: item.durationHours
-                                      ? String(item.durationHours).replace(".", ",")
-                                      : "",
-                                    attestation: String(item.attestationHours ?? 0).replace(".", ","),
-                                    error: "",
-                                  });
-                                }}
-                              >
-                                <CopyIcon />
-                                <span className="catalog-tool-label">Копия</span>
-                              </button>
-                              <button
-                                type="button"
-                                className="catalog-tool-btn"
-                                aria-label="Удалить"
-                                title="Удалить"
-                                disabled={busy}
-                                onClick={() => {
-                                  setDraft({
-                                    id: "",
-                                    audience: "",
-                                    duration: "",
-                                    attestation: "",
-                                    error: "",
-                                  });
-                                  setPendingDelete(item.id);
-                                }}
-                              >
-                                <TrashIcon />
-                                <span className="catalog-tool-label">Удалить</span>
-                              </button>
+          <>
+            {(() => {
+              const featuredId = pickFeaturedId(visible);
+              const featured = visible.find((item) => item.id === featuredId);
+              const rest = visible.filter((item) => item.id !== featuredId);
+              const renderCard = (item: LibraryItem, featuredCard: boolean) => {
+                const panelOpen = draft.id === item.id || pendingDelete === item.id;
+                return (
+                  <li
+                    key={item.id}
+                    className={`${featuredCard ? "is-featured" : "is-compact"}${panelOpen ? " is-open" : ""}`}
+                  >
+                    <div className={`catalog-card${featuredCard ? " catalog-card-featured" : ""}`}>
+                      <div className="catalog-card-main">
+                        <button
+                          type="button"
+                          className="catalog-open"
+                          disabled={busy}
+                          onClick={() => {
+                            setBusy(true);
+                            void openCourse(item.id).finally(() => setBusy(false));
+                          }}
+                        >
+                          <strong className="catalog-theme">
+                            {displayCourseTitle(item.title)}
+                          </strong>
+                          <span className="catalog-hours">
+                            {item.durationHours ? `${item.durationHours} ч` : "Часы не заданы"}
+                          </span>
+                          {featuredCard ? (
+                            <span className="catalog-audience">
+                              {item.audience.trim() || "Аудитория не указана"}
                             </span>
-                          </div>
-                          {panelOpen ? (
-                          <div className="catalog-card-panel" role="region">
-                            {draft.id === item.id ? (
-                              <form
-                                className="copy-form"
-                                onSubmit={(event) => {
-                                  event.preventDefault();
-                                  const durationHours = Number(draft.duration.trim().replace(",", "."));
-                                  const attestationHours = Number(draft.attestation.trim().replace(",", "."));
-                                  setBusy(true);
-                                  void copyCourse(item.id, {
-                                    audience: draft.audience,
-                                    durationHours,
-                                    attestationHours,
-                                  })
-                                    .then((error) => {
-                                      if (error) setDraft((current) => ({ ...current, error }));
-                                      else
-                                        setDraft({
-                                          id: "",
-                                          audience: "",
-                                          duration: "",
-                                          attestation: "",
-                                          error: "",
-                                        });
-                                    })
-                                    .finally(() => setBusy(false));
-                                }}
-                              >
-                                <p className="card-back-title">Копия</p>
-                                <label>
-                                  Новая аудитория
-                                  <input
-                                    value={draft.audience}
-                                    onChange={(event) =>
-                                      setDraft((current) => ({
-                                        ...current,
-                                        audience: event.target.value,
-                                        error: "",
-                                      }))
-                                    }
-                                  />
-                                </label>
-                                <label>
-                                  Новый объём, ч
-                                  <input
-                                    inputMode="decimal"
-                                    value={draft.duration}
-                                    onChange={(event) =>
-                                      setDraft((current) => ({
-                                        ...current,
-                                        duration: event.target.value,
-                                        error: "",
-                                      }))
-                                    }
-                                  />
-                                </label>
-                                <label>
-                                  Аттестация, ч
-                                  <input
-                                    inputMode="decimal"
-                                    value={draft.attestation}
-                                    onChange={(event) =>
-                                      setDraft((current) => ({
-                                        ...current,
-                                        attestation: event.target.value,
-                                        error: "",
-                                      }))
-                                    }
-                                  />
-                                </label>
-                                {draft.error ? <p>{draft.error}</p> : null}
-                                <span className="library-actions">
-                                  <button type="submit" className="primary" disabled={busy}>
-                                    Создать
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled={busy}
-                                    onClick={() =>
+                          ) : null}
+                          {featuredCard ? (
+                            <CatalogReadiness readiness={item.readiness} />
+                          ) : (
+                            <span className="catalog-mini-badge">
+                              {item.readiness ? (
+                                <span
+                                  className={`check-badge ${
+                                    item.readiness.checks === "pass"
+                                      ? "ready"
+                                      : item.readiness.checks === "warning"
+                                        ? "partial"
+                                        : item.readiness.checks === "fail"
+                                          ? "fail"
+                                          : "empty"
+                                  }`}
+                                >
+                                  {CHECKS_LABEL[item.readiness.checks]}
+                                </span>
+                              ) : (
+                                <span className="check-badge empty">нет данных</span>
+                              )}
+                            </span>
+                          )}
+                        </button>
+                        <span className={`library-actions catalog-tools${featuredCard ? " catalog-tools-footer" : ""}`}>
+                          <button
+                            type="button"
+                            className="catalog-tool-btn"
+                            aria-label="Копия"
+                            title="Копия"
+                            disabled={busy}
+                            onClick={() => {
+                              setPendingDelete("");
+                              setDraft({
+                                id: item.id,
+                                audience: item.audience,
+                                duration: item.durationHours
+                                  ? String(item.durationHours).replace(".", ",")
+                                  : "",
+                                attestation: String(item.attestationHours ?? 0).replace(".", ","),
+                                error: "",
+                              });
+                            }}
+                          >
+                            <CopyIcon />
+                            <span className="catalog-tool-label">Копия</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="catalog-tool-btn"
+                            aria-label="Удалить"
+                            title="Удалить"
+                            disabled={busy}
+                            onClick={() => {
+                              setDraft({
+                                id: "",
+                                audience: "",
+                                duration: "",
+                                attestation: "",
+                                error: "",
+                              });
+                              setPendingDelete(item.id);
+                            }}
+                          >
+                            <TrashIcon />
+                            <span className="catalog-tool-label">Удалить</span>
+                          </button>
+                        </span>
+                      </div>
+                      {panelOpen ? (
+                        <div className="catalog-card-panel" role="region">
+                          {draft.id === item.id ? (
+                            <form
+                              className="copy-form"
+                              onSubmit={(event) => {
+                                event.preventDefault();
+                                const durationHours = Number(draft.duration.trim().replace(",", "."));
+                                const attestationHours = Number(
+                                  draft.attestation.trim().replace(",", "."),
+                                );
+                                setBusy(true);
+                                void copyCourse(item.id, {
+                                  audience: draft.audience,
+                                  durationHours,
+                                  attestationHours,
+                                })
+                                  .then((error) => {
+                                    if (error) setDraft((current) => ({ ...current, error }));
+                                    else
                                       setDraft({
                                         id: "",
                                         audience: "",
                                         duration: "",
                                         attestation: "",
                                         error: "",
-                                      })
-                                    }
-                                  >
-                                    Отмена
-                                  </button>
-                                </span>
-                              </form>
-                            ) : (
-                              <div className="copy-form">
-                                <p className="card-back-title">Удалить</p>
-                                <p>Курс пропадёт из списка. Вернуть его нельзя.</p>
-                                <span className="library-actions">
-                                  <button
-                                    type="button"
-                                    className="primary"
-                                    disabled={busy}
-                                    onClick={() => {
-                                      setBusy(true);
-                                      void removeCourse(item.id).finally(() => setBusy(false));
-                                    }}
-                                  >
-                                    Удалить
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled={busy}
-                                    onClick={() => setPendingDelete("")}
-                                  >
-                                    Отмена
-                                  </button>
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          ) : null}
+                                      });
+                                  })
+                                  .finally(() => setBusy(false));
+                              }}
+                            >
+                              <p className="card-back-title">Копия</p>
+                              <label>
+                                Новая аудитория
+                                <input
+                                  value={draft.audience}
+                                  onChange={(event) =>
+                                    setDraft((current) => ({
+                                      ...current,
+                                      audience: event.target.value,
+                                      error: "",
+                                    }))
+                                  }
+                                />
+                              </label>
+                              <label>
+                                Новые часы, ч
+                                <input
+                                  inputMode="decimal"
+                                  value={draft.duration}
+                                  onChange={(event) =>
+                                    setDraft((current) => ({
+                                      ...current,
+                                      duration: event.target.value,
+                                      error: "",
+                                    }))
+                                  }
+                                />
+                              </label>
+                              <label>
+                                Аттестация, ч
+                                <input
+                                  inputMode="decimal"
+                                  value={draft.attestation}
+                                  onChange={(event) =>
+                                    setDraft((current) => ({
+                                      ...current,
+                                      attestation: event.target.value,
+                                      error: "",
+                                    }))
+                                  }
+                                />
+                              </label>
+                              {draft.error ? <p>{draft.error}</p> : null}
+                              <span className="library-actions">
+                                <button type="submit" className="primary" disabled={busy}>
+                                  Создать
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() =>
+                                    setDraft({
+                                      id: "",
+                                      audience: "",
+                                      duration: "",
+                                      attestation: "",
+                                      error: "",
+                                    })
+                                  }
+                                >
+                                  Отмена
+                                </button>
+                              </span>
+                            </form>
+                          ) : (
+                            <div className="copy-form">
+                              <p className="card-back-title">Удалить</p>
+                              <p>Курс пропадёт из каталога. Работу это не ломает.</p>
+                              <span className="library-actions">
+                                <button
+                                  type="button"
+                                  className="primary"
+                                  disabled={busy}
+                                  onClick={() => {
+                                    setBusy(true);
+                                    void removeCourse(item.id).finally(() => setBusy(false));
+                                  }}
+                                >
+                                  Удалить
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => setPendingDelete("")}
+                                >
+                                  Отмена
+                                </button>
+                              </span>
+                            </div>
+                          )}
                         </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            ))}
-          </div>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              };
+
+              return (
+                <div className="catalog-groups">
+                  {featured ? (
+                    <section className="catalog-group catalog-group-featured">
+                      <h2>В работе</h2>
+                      <ul className="catalog-list catalog-list-featured">
+                        {renderCard(featured, true)}
+                      </ul>
+                    </section>
+                  ) : null}
+                  {groupByDirection(rest).map((group) => (
+                    <section key={group.label} className="catalog-group">
+                      <h2>{group.label}</h2>
+                      <ul className="catalog-list">
+                        {group.courses.map((item) => renderCard(item, false))}
+                      </ul>
+                    </section>
+                  ))}
+                </div>
+              );
+            })()}
+          </>
         )}
       </section>
     </SiteFrame>

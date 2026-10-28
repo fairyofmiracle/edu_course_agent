@@ -15,6 +15,7 @@ import {
   loadCourseFromBackend,
   saveCourseToBackend,
 } from "@/lib/backend-storage";
+import { createAutosaveQueue } from "@/lib/autosave-queue";
 import { exportDoneLabel, exportWaitLabel, workProgress } from "@/lib/job-status";
 import { useElapsed } from "@/lib/use-elapsed";
 import { applyPatch, foldCourseFromMessages } from "@/lib/course-patches";
@@ -461,6 +462,23 @@ function StudioSession({
     };
   }, [initialCourse.id, persist, setMessages]);
 
+  const autosaveRef = useRef(
+    createAutosaveQueue({
+      getSnapshot: () => ({
+        course: courseRef.current,
+        messages: messagesRef.current,
+      }),
+      getVersion: () => versionRef.current,
+      setVersion: (version) => {
+        versionRef.current = version;
+      },
+      save: ({ course: nextCourse, messages: nextMessages }, expectedVersion) =>
+        saveCourseToBackend(nextCourse, nextMessages, "autosave", expectedVersion),
+      onState: (state) => setSaveState(state),
+      isConflict: (error) => error instanceof CourseConflictError,
+    }),
+  );
+
   useEffect(() => {
     if (!backendReady || !hasBackendStorage() || !persist) return;
     if (isCourseEmpty(course) && messages.length === 0) {
@@ -468,15 +486,7 @@ function StudioSession({
       return;
     }
     const timer = window.setTimeout(() => {
-      setSaveState("saving");
-      void saveCourseToBackend(course, messages, "autosave", versionRef.current)
-        .then((version) => {
-          if (typeof version === "number") versionRef.current = version;
-          setSaveState("synced");
-        })
-        .catch((error: unknown) => {
-          setSaveState(error instanceof CourseConflictError ? "conflict" : "offline");
-        });
+      autosaveRef.current.request();
     }, 700);
     return () => window.clearTimeout(timer);
   }, [backendReady, persist, course, messages]);

@@ -5,7 +5,7 @@ import { ORDER_266, citesRepealedOrder499, isOfficialPublication, missingLegalBa
 import { moduleRationales } from "@/lib/module-rationale";
 import { findOutdated } from "@/lib/outdated";
 import { meaningHits } from "@/lib/meaning-audit";
-import { referenceNotes, verbatimSpans } from "@/lib/verbatim";
+import { isReferenceConfirmed, referenceNotes, verbatimSpans } from "@/lib/verbatim";
 
 export type AuditStatus = "pass" | "warning" | "fail" | "disabled";
 export type AuditSection = "framework" | "content" | "sources" | "freshness" | "case" | "meaning";
@@ -62,6 +62,7 @@ function warning(id: string, label: string, section: AuditSection, details?: str
 function unconfirmedItem(course: CourseDocument): AuditItem | null {
   const pending = course.brief.references
     .filter((reference) => {
+      if (isReferenceConfirmed(reference)) return false;
       const source = reference.source?.trim() ?? "";
       if (!source) return true;
       return /^https?:\/\//i.test(source) && !isOfficialPublication(source);
@@ -69,13 +70,18 @@ function unconfirmedItem(course: CourseDocument): AuditItem | null {
     .map((reference) => reference.title);
   if (course.brief.references.length === 0) return null;
   if (pending.length === 0) {
-    return item("sources.unconfirmed", "Официальные публикации и файлы на месте", true, "sources");
+    return item(
+      "sources.unconfirmed",
+      "У каждого источника есть подтверждение, файл или официальная публикация",
+      true,
+      "sources",
+    );
   }
   return warning(
     "sources.unconfirmed",
     `Не подтверждено источников: ${pending.length}`,
     "sources",
-    `Чужая ссылка не подтверждает документ, пока на странице не найден номер. ${pending.join("; ")}`,
+    `Ссылка на проверке, пока методист не примет её или probe не подтвердит номер. ${pending.join("; ")}`,
   );
 }
 

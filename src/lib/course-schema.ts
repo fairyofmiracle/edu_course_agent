@@ -22,6 +22,8 @@ export const referenceSchema = z.object({
   title: z.string().min(1).max(200),
   source: absent(z.string().max(500).optional()),
   note: absent(z.string().max(1500).optional()),
+  /** confirmed — принят / авто; unconfirmed — на проверке; source_attached — синоним confirmed */
+  status: absent(z.enum(["confirmed", "unconfirmed", "source_attached"]).optional()),
 });
 
 export const briefSchema = z.object({

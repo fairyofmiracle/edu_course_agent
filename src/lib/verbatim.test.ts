@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SAMPLE_COURSE } from "@/lib/sample-course";
-import { generatedText, sourceConfidence, verbatimSpans } from "@/lib/verbatim";
+import { generatedText, isConfirmedStatus, isReferenceConfirmed, sourceConfidence, verbatimSpans } from "@/lib/verbatim";
 
 describe("verbatimSpans", () => {
   it("ловит дословное окно из примечания референса", () => {
@@ -62,5 +62,15 @@ describe("verbatimSpans", () => {
     expect(verbatimSpans(course)).toHaveLength(3);
     expect(sourceConfidence(course).level).toBe("низкая");
     expect(sourceConfidence(course).summary).toContain("Дословный фрагмент");
+  });
+});
+
+
+describe("reference confirmation", () => {
+  it("файл методиста и явный status считаются подтверждёнными", () => {
+    expect(isReferenceConfirmed({ source: "профстандарт.pdf" })).toBe(true);
+    expect(isReferenceConfirmed({ source: "https://example.org", status: "confirmed" })).toBe(true);
+    expect(isReferenceConfirmed({ source: "https://example.org" })).toBe(false);
+    expect(isConfirmedStatus("source_attached")).toBe(true);
   });
 });

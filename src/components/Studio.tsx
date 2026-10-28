@@ -570,15 +570,58 @@ function StudioSession({
     persistLog(actionEntry(sessionRef.current, "Утверждение каркаса снято"));
   };
 
+
+  const confirmReference = (target: { title: string; source?: string; index: number }) => {
+    const latest = courseRef.current;
+    const references = latest.brief.references.map((item, index) => {
+      const byIndex = index === target.index;
+      const bySource =
+        target.source != null && (item.source?.trim() ?? "") === target.source.trim();
+      const byTitle = item.title === target.title && bySource;
+      if (!(byIndex || byTitle || bySource)) return item;
+      if (item.status === "confirmed" || item.status === "source_attached") return item;
+      return { ...item, status: "confirmed" as const };
+    });
+    const changed = references.some((item, index) => item !== latest.brief.references[index]);
+    if (!changed) return;
+    const next = applyPatch(latest, {
+      type: "update_brief",
+      brief: { references },
+    });
+    courseRef.current = next;
+    setStoredCourse(next);
+    // server confirm best-effort (не блокирует UI)
+    const courseId = next.id;
+    void fetch(`/api/backend/api/courses/${encodeURIComponent(courseId)}/sources/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        index: target.index,
+        title: target.title,
+        source: target.source,
+      }),
+    }).catch(() => {
+      /* autosave всё равно унесёт status в payload */
+    });
+  };
+
   const addReference = (reference: CourseBrief["references"][number]) => {
     const latest = courseRef.current;
     const duplicate = latest.brief.references.some(
       (item) => item.title === reference.title && item.source === reference.source,
     );
     if (duplicate) return;
+    const source = reference.source?.trim() ?? "";
+    const autoFile = Boolean(source) && !/^https?:\/\//i.test(source);
+    const withStatus = {
+      ...reference,
+      status:
+        reference.status ??
+        (autoFile ? ("confirmed" as const) : ("unconfirmed" as const)),
+    };
     const next = applyPatch(latest, {
       type: "update_brief",
-      brief: { references: [...latest.brief.references, reference].slice(-20) },
+      brief: { references: [...latest.brief.references, withStatus].slice(-20) },
     });
     courseRef.current = next;
     setStoredCourse(next);
@@ -784,6 +827,7 @@ function StudioSession({
             course={course}
             tab={tab}
             frameworkReady={frameworkReady}
+            onConfirmReference={confirmReference}
             onApproveFramework={approveFramework}
             onGoApprove={() => {
               setTab("overview");

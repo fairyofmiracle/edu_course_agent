@@ -82,9 +82,33 @@ def verbatim_spans(course: dict[str, Any], size: int = _SPAN) -> list[str]:
     return hits
 
 
+CONFIRMED_STATUSES = frozenset({"confirmed", "source_attached"})
+
+
+def is_confirmed_status(status: str | None) -> bool:
+    return (status or "").strip().lower() in CONFIRMED_STATUSES
+
+
 def stored_source_status(source: str | None) -> str:
     """Ссылка и пустой источник не становятся подтверждёнными только потому, что строка непустая."""
     text = (source or "").strip().lower()
     if not text or text.startswith("http://") or text.startswith("https://"):
         return "unconfirmed"
-    return "source_attached"
+    return "confirmed"
+
+
+def effective_reference_status(reference: dict[str, Any] | Any) -> str:
+    """Итоговый статус референса: явный confirmed / файл методиста / иначе unconfirmed."""
+    if isinstance(reference, dict):
+        status = reference.get("status")
+        source = reference.get("source")
+    else:
+        status = getattr(reference, "status", None)
+        source = getattr(reference, "source", None)
+    if is_confirmed_status(status if isinstance(status, str) or status is None else str(status)):
+        return "confirmed"
+    return stored_source_status(source if source is None or isinstance(source, str) else str(source))
+
+
+def reference_is_confirmed(reference: dict[str, Any] | Any) -> bool:
+    return is_confirmed_status(effective_reference_status(reference))

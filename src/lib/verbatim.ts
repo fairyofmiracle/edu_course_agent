@@ -65,9 +65,26 @@ export function isHttpSource(source?: string) {
   return /^https?:\/\//i.test(source?.trim() ?? "");
 }
 
+export function isConfirmedStatus(status?: string | null) {
+  const value = status?.trim().toLowerCase() ?? "";
+  return value === "confirmed" || value === "source_attached";
+}
+
+/** Файл методиста или явный confirmed. Официальную публикацию смотрит audit отдельно. */
+export function isReferenceConfirmed(reference: {
+  source?: string | null;
+  status?: string | null;
+}) {
+  if (isConfirmedStatus(reference.status)) return true;
+  const source = reference.source?.trim() ?? "";
+  if (!source) return false;
+  return !isHttpSource(source);
+}
+
 export function unconfirmedReferenceTitles(course: CourseDocument) {
   return course.brief.references
     .filter((reference) => {
+      if (isReferenceConfirmed(reference)) return false;
       const source = reference.source?.trim() ?? "";
       if (!source) return true;
       return isHttpSource(source) && !isOfficialPublication(source);

@@ -173,4 +173,14 @@ describe("auditCourse", () => {
     const notes = methodistNotes(course);
     expect(notes.some((line) => /календарн/i.test(line))).toBe(true);
   });
+
+  it("ручное confirmed снимает sources.unconfirmed", () => {
+    const course = structuredClone(SAMPLE_COURSE);
+    course.brief.references = [
+      { title: "Чужая ссылка", source: "https://example.org/order", status: "confirmed" },
+    ];
+    const pending = auditCourse(course).items.find((item) => item.id === "sources.unconfirmed");
+    expect(pending?.status).toBe("pass");
+  });
+
 });

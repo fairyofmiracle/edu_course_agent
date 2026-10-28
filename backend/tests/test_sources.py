@@ -230,7 +230,7 @@ def test_regulatory_check_marks_number_found_and_missing(monkeypatch) -> None:
                 ]
             },
         )
-    assert found.json()["results"][0]["status"] == "source_attached"
+    assert found.json()["results"][0]["status"] == "confirmed"
     assert "номер документа на странице есть" in found.json()["results"][0]["message"]
     assert missed.json()["results"][0]["status"] == "unconfirmed"
     assert "не найден" in missed.json()["results"][0]["message"]
@@ -489,3 +489,54 @@ def test_cgnat_addresses_are_not_public() -> None:
     missed = probe_url("http://100.64.10.10/order")
     assert missed["state"] == "not_checked"
 
+
+def test_audit_respects_manual_confirmed_reference() -> None:
+    from backend.app.audit import audit_course
+
+    course = {
+        "brief": {
+            "title": "Курс",
+            "audience": "Студенты",
+            "programKind": "general",
+            "durationHours": 16,
+            "attestationHours": 0,
+            "references": [
+                {
+                    "title": "Чужая ссылка",
+                    "source": "https://example.org/order",
+                    "status": "confirmed",
+                }
+            ],
+        },
+        "modules": [
+            {
+                "id": "m1",
+                "title": "Модуль",
+                "hours": 16,
+                "lectureHours": 4,
+                "practiceHours": 12,
+                "labHours": 0,
+                "selfStudyHours": 0,
+                "topics": ["Тема"],
+                "learningOutcomes": ["Умеет"],
+            }
+        ],
+        "lectures": [{"moduleId": "m1"}],
+        "seminars": [{"moduleId": "m1", "tasks": [{"learningOutcome": "Умеет"}]}],
+        "assessments": [
+            {
+                "moduleId": "m1",
+                "questions": [{"answer": "Ответ", "learningOutcome": "Умеет"}],
+            }
+        ],
+    }
+    pending = [item for item in audit_course(course)["items"] if item["id"] == "sources.unconfirmed"]
+    assert pending and pending[0]["status"] == "pass"
+
+
+def test_effective_reference_status_prefers_explicit_confirmed() -> None:
+    from backend.app.verbatim import effective_reference_status, reference_is_confirmed
+
+    assert effective_reference_status({"source": "https://example.org", "status": "confirmed"}) == "confirmed"
+    assert reference_is_confirmed({"source": "file.pdf"})
+    assert not reference_is_confirmed({"source": "https://example.org"})

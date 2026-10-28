@@ -10,7 +10,7 @@ from .models import CourseDocument
 from .outdated import find_outdated
 from .rationale import module_rationales
 from .meaning_audit import meaning_audit_items
-from .verbatim import reference_notes, verbatim_spans
+from .verbatim import reference_is_confirmed, reference_notes, verbatim_spans
 
 KIND_FIELDS = ("lectureHours", "practiceHours", "labHours", "selfStudyHours")
 
@@ -407,34 +407,32 @@ def audit_course(course: dict[str, Any]) -> dict[str, Any]:
         }
     )
 
-    http_titles = [
-        str(reference.get("title") or "Источник")
-        for reference in references
-        if isinstance(reference, dict)
-        and (
-            not str(reference.get("source") or "").strip()
-            or (
-                str(reference.get("source") or "").strip().lower().startswith(("http://", "https://"))
-                and not is_official_publication(str(reference.get("source") or ""))
-            )
-        )
-    ]
+    pending_titles = []
+    for reference in references:
+        if not isinstance(reference, dict):
+            continue
+        source = str(reference.get("source") or "").strip()
+        if reference_is_confirmed(reference):
+            continue
+        if source and is_official_publication(source):
+            continue
+        pending_titles.append(str(reference.get("title") or "Источник"))
     if references:
         items.append(
             {
                 "id": "sources.unconfirmed",
                 "label": (
-                    f"Не подтверждено источников: {len(http_titles)}"
-                    if http_titles
-                    else "У каждого источника есть файл или официальная публикация"
+                    f"Не подтверждено источников: {len(pending_titles)}"
+                    if pending_titles
+                    else "У каждого источника есть подтверждение, файл или официальная публикация"
                 ),
-                "status": "warning" if http_titles else "pass",
+                "status": "warning" if pending_titles else "pass",
                 "section": "sources",
                 "details": (
-                    "Чужая ссылка не подтверждает документ, пока на странице не найден номер. "
-                    + "; ".join(http_titles)
-                    if http_titles
-                    else "Пустых ссылок нет."
+                    "Ссылка на проверке, пока методист не примет её или probe не подтвердит номер. "
+                    + "; ".join(pending_titles)
+                    if pending_titles
+                    else "Неподтверждённых ссылок нет."
                 ),
             }
         )

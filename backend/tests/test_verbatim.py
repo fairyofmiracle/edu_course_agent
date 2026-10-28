@@ -4,7 +4,7 @@ from backend.app.verbatim import generated_text, stored_source_status, verbatim_
 def test_http_source_stays_unconfirmed() -> None:
     assert stored_source_status("https://example.com/order") == "unconfirmed"
     assert stored_source_status("") == "unconfirmed"
-    assert stored_source_status("профстандарт.pdf") == "source_attached"
+    assert stored_source_status("профстандарт.pdf") == "confirmed"
     assert stored_source_status(None) == "unconfirmed"
     assert stored_source_status("http://example.com/order") == "unconfirmed"
 

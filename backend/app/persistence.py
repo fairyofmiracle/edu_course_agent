@@ -10,7 +10,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .verbatim import stored_source_status
+from .verbatim import effective_reference_status, stored_source_status
 from .database import (
     ChatMessageRecord,
     CourseArtifact,
@@ -238,7 +238,7 @@ def save_course(
                 title=reference.title,
                 source=reference.source,
                 note=reference.note,
-                status=stored_source_status(reference.source),
+                status=effective_reference_status(reference),
             )
             for reference in request.course.brief.references
         )
@@ -355,6 +355,108 @@ def list_versions(
             for version in versions
         ]
     }
+
+
+class ConfirmSourceRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    title: str | None = Field(default=None, max_length=200)
+    source: str | None = Field(default=None, max_length=500)
+    index: int | None = Field(default=None, ge=0, le=19)
+
+
+@router.post(
+    "/{course_id}/sources/confirm",
+    summary="Подтвердить референс / ссылку на приказ",
+    description=(
+        "Методист принимает источник вручную. Статус confirmed пишется в payload курса "
+        "и в таблицу sources. Автоподтверждение файла методиста и успешного probe "
+        "делается при сохранении и в UI без этого метода."
+    ),
+    operation_id="confirmCourseSource",
+)
+def confirm_course_source(
+    course_id: str,
+    request: ConfirmSourceRequest,
+    session: Session = Depends(get_db),
+) -> dict[str, Any]:
+    record = session.scalar(
+        select(CourseRecord).where(CourseRecord.id == course_id).with_for_update()
+    )
+    if record is None:
+        raise HTTPException(status_code=404, detail="Курс не найден.")
+    version = _latest_version(session, course_id)
+    if version is None or not isinstance(version.payload, dict):
+        raise HTTPException(status_code=404, detail="У курса нет сохранённой версии.")
+    payload = dict(version.payload)
+    brief = dict(payload.get("brief") or {})
+    references = list(brief.get("references") or [])
+    if not references:
+        raise HTTPException(status_code=404, detail="В курсе нет референсов.")
+
+    match_index: int | None = None
+    if request.index is not None:
+        if request.index >= len(references):
+            raise HTTPException(status_code=404, detail="Референс с таким индексом не найден.")
+        match_index = request.index
+    else:
+        for idx, item in enumerate(references):
+            if not isinstance(item, dict):
+                continue
+            title_ok = request.title is None or str(item.get("title") or "") == request.title
+            source_ok = request.source is None or str(item.get("source") or "") == request.source
+            if title_ok and source_ok and (request.title is not None or request.source is not None):
+                match_index = idx
+                break
+    if match_index is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Укажите index или пару title/source референса для подтверждения.",
+        )
+
+    item = dict(references[match_index]) if isinstance(references[match_index], dict) else {}
+    item["status"] = "confirmed"
+    references[match_index] = item
+    brief["references"] = references
+    payload["brief"] = brief
+
+    latest = session.scalar(
+        select(func.max(CourseVersion.version)).where(CourseVersion.course_id == course_id)
+    )
+    next_version = max(record.current_version, int(latest or 0)) + 1
+    record.current_version = next_version
+    session.add(
+        CourseVersion(
+            course_id=course_id,
+            version=next_version,
+            payload=payload,
+            reason="confirm-source",
+        )
+    )
+
+    # refresh SourceRecord rows from payload
+    session.execute(delete(SourceRecord).where(SourceRecord.course_id == course_id))
+    session.add_all(
+        SourceRecord(
+            course_id=course_id,
+            title=str(ref.get("title") or "Источник"),
+            source=ref.get("source"),
+            note=ref.get("note"),
+            status=effective_reference_status(ref),
+        )
+        for ref in references
+        if isinstance(ref, dict)
+    )
+    session.commit()
+    return {
+        "id": course_id,
+        "version": next_version,
+        "index": match_index,
+        "status": "confirmed",
+        "title": item.get("title"),
+        "source": item.get("source"),
+    }
+
 
 
 @router.delete(

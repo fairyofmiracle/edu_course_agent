@@ -21,6 +21,14 @@ class Reference(ApiModel):
     title: str = Field(min_length=1, max_length=200)
     source: str | None = Field(default=None, max_length=500)
     note: str | None = Field(default=None, max_length=1500)
+    status: Literal["confirmed", "unconfirmed", "source_attached"] | None = Field(
+        default=None,
+        description=(
+            "Подтверждение референса: confirmed — принят методистом или авто "
+            "(файл / успешный probe); unconfirmed — на проверке. "
+            "source_attached — устаревший синоним confirmed."
+        ),
+    )
 
 
 class HourConstraint(ApiModel):

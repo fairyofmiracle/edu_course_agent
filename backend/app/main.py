@@ -268,7 +268,7 @@ async def meaning_review(request: MeaningReviewRequest) -> MeaningReviewResponse
     summary="Проверить наличие источника",
     description=(
         "Ссылку открывает сервер и смотрит только код ответа. Текст приказа не сохраняется. "
-        "source_attached ставится, если сайт ответил и реквизиты заполнены. "
+        "confirmed ставится, если сайт ответил и реквизиты заполнены (или официальная публикация). "
         "Недоступный сайт оставляет документ неподтверждённым."
     ),
     operation_id="checkRegulatorySources",
@@ -304,7 +304,7 @@ def check_regulatory_sources(
         results.append(
             {
                 **claim.model_dump(mode="json"),
-                "status": "source_attached" if source_attached else "unconfirmed",
+                "status": "confirmed" if source_attached else "unconfirmed",
                 "message": message,
                 "site": probe["state"],
                 "siteMessage": probe["message"],

@@ -9,7 +9,7 @@ import { LectureDeck } from "@/components/LectureDeck";
 import { MermaidBlock } from "@/components/MermaidBlock";
 import { auditCourse, type AuditSection, type AuditStatus } from "@/lib/course-audit";
 import { isOfficialPublication } from "@/lib/legal-basis";
-import { isHttpSource } from "@/lib/verbatim";
+import { isHttpSource, isReferenceConfirmed } from "@/lib/verbatim";
 import { exportAssessmentDocx, exportSeminarDocx } from "@/lib/export-docx";
 import { briefGaps, moduleKindsGap, programBalanceNote } from "@/lib/course-validation";
 import { moduleFlowChart } from "@/lib/presentation/course-to-presentation";
@@ -57,6 +57,7 @@ type CourseWorkspaceProps = {
   onRebuildModule?: (moduleId: string, title: string) => void;
   onRefreshOutdated?: (labels: string[]) => void;
   onGoPlan?: () => void;
+  onConfirmReference?: (reference: { title: string; source?: string; index: number }) => void;
 };
 
 function TabEmpty({
@@ -124,6 +125,7 @@ export function CourseWorkspace({
   onRefreshOutdated,
   onOpenChat,
   onGoPlan,
+  onConfirmReference,
 }: CourseWorkspaceProps) {
   const contentOpen = isFrameworkApproved(course) || hasBuiltMaterials(course);
   const locked = CONTENT_TABS.includes(tab) && !contentOpen;
@@ -141,7 +143,7 @@ export function CourseWorkspace({
           />
         ) : (
           <>
-            {tab === "overview" ? <Overview course={course} /> : null}
+            {tab === "overview" ? <Overview course={course} onConfirmReference={onConfirmReference} /> : null}
             {tab === "structure" ? (
               course.modules.length === 0 ? (
                 <TabEmpty
@@ -202,7 +204,7 @@ export function CourseWorkspace({
                 <Tests course={course} />
               )
             ) : null}
-            {tab === "checks" ? <AuditPanel course={course} onRefreshOutdated={onRefreshOutdated} /> : null}
+            {tab === "checks" ? <AuditPanel course={course} onRefreshOutdated={onRefreshOutdated} onConfirmReference={onConfirmReference} /> : null}
           </>
         )}
       </div>
@@ -234,20 +236,25 @@ function LockedContentState({
   );
 }
 
-function sourceStatus(source?: string) {
-  const value = source?.trim() ?? "";
-  if (!value) return "Источник не указан";
-  if (!isHttpSource(value)) return "Файл методиста";
-  if (isOfficialPublication(value)) return "Официальное опубликование";
-  return "Ссылка не подтверждена";
+function sourceStatusLabel(item: CourseDocument["brief"]["references"][number]) {
+  const source = item.source?.trim() ?? "";
+  if (isReferenceConfirmed(item) || (source && isOfficialPublication(source))) {
+    if (source && !isHttpSource(source)) return "Подтверждён · файл методиста";
+    if (source && isOfficialPublication(source)) return "Подтверждён · официальное опубликование";
+    return "Подтверждён";
+  }
+  if (!source) return "На проверке · источник не указан";
+  return "На проверке";
 }
 
 function ReferenceList({
   references,
   title,
+  onConfirmReference,
 }: {
   references: CourseDocument["brief"]["references"];
   title: string;
+  onConfirmReference?: (reference: { title: string; source?: string; index: number }) => void;
 }) {
   const count = references.length;
   return (
@@ -262,10 +269,12 @@ function ReferenceList({
         <ul className="ref-list">
           {references.map((item, index) => {
             const source = item.source?.trim() ?? "";
+            const confirmed =
+              isReferenceConfirmed(item) || (Boolean(source) && isOfficialPublication(source));
             return (
               <li key={`${item.title}-${source}-${index}`}>
                 <strong>{item.title}</strong>
-                <span>{sourceStatus(item.source)}</span>
+                <span>{sourceStatusLabel(item)}</span>
                 {isHttpSource(source) ? (
                   <a href={source} target="_blank" rel="noreferrer">
                     {source}
@@ -274,6 +283,16 @@ function ReferenceList({
                   <span>{source}</span>
                 ) : null}
                 {item.note ? <span>{item.note}</span> : null}
+                {!confirmed && onConfirmReference ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onConfirmReference({ title: item.title, source: item.source, index })
+                    }
+                  >
+                    Принять
+                  </button>
+                ) : null}
               </li>
             );
           })}
@@ -347,9 +366,11 @@ const PROBLEM_VISIBLE = 5;
 function AuditPanel({
   course,
   onRefreshOutdated,
+  onConfirmReference,
 }: {
   course: CourseDocument;
   onRefreshOutdated?: (labels: string[]) => void;
+  onConfirmReference?: (reference: { title: string; source?: string; index: number }) => void;
 }) {
   const report = auditCourse(course);
   const outdatedHits = findOutdated(course);
@@ -612,8 +633,8 @@ function AuditPanel({
 
               {extraOpen === "sources-refs" ? (
                 <div className="audit-inline">
-                  <ReferenceList references={course.brief.references} title="Источники" />
-                  <SourceChecks course={course} />
+                  <ReferenceList references={course.brief.references} title="Источники" onConfirmReference={onConfirmReference} />
+                  <SourceChecks course={course} onConfirmReference={onConfirmReference} />
                 </div>
               ) : null}
               {extraOpen === "freshness" ? (
@@ -735,8 +756,10 @@ function kitOf(course: CourseDocument, moduleId: string) {
 
 function Overview({
   course,
+  onConfirmReference,
 }: {
   course: CourseDocument;
+  onConfirmReference?: (reference: { title: string; source?: string; index: number }) => void;
 }) {
   const { brief } = course;
   const gaps = briefGaps(course);
@@ -874,7 +897,7 @@ function Overview({
         </article>
       </div>
 
-      <ReferenceList references={brief.references} title="Материалы" />
+      <ReferenceList references={brief.references} title="Материалы" onConfirmReference={onConfirmReference} />
     </div>
   );
 }

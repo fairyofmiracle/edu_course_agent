@@ -122,7 +122,7 @@ class RegulatoryCheckRequest(BaseModel):
 
 
 class RegulatoryCheckResult(RegulatoryClaim):
-    status: Literal["source_attached", "unconfirmed"]
+    status: Literal["confirmed", "source_attached", "unconfirmed"]
     message: str
     site: Literal["reachable", "unavailable", "not_found", "blocked", "not_checked"] = "not_checked"
     site_message: str = Field(default="", alias="siteMessage")

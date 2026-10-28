@@ -38,7 +38,13 @@ function formatSeen(iso: string) {
   return date.toLocaleString("ru-RU", { dateStyle: "long", timeStyle: "short" });
 }
 
-export function SourceChecks({ course }: { course: CourseDocument }) {
+export function SourceChecks({
+  course,
+  onConfirmReference,
+}: {
+  course: CourseDocument;
+  onConfirmReference?: (reference: { title: string; source?: string; index: number }) => void;
+}) {
   const cacheKey = sourceProbeRequest(course).cacheKey;
   const [check, setCheck] = useState<SourceCheck | { state: "pending" }>(
     () => (cacheKey ? { state: "pending" } : { state: "empty" }),
@@ -87,6 +93,24 @@ export function SourceChecks({ course }: { course: CourseDocument }) {
     return () => window.clearTimeout(timer);
   }, [check]);
 
+  useEffect(() => {
+    if (check.state !== "ready" || !onConfirmReference) return;
+    for (const result of check.results) {
+      const official = isOfficialPublication(result.url);
+      const requisites = result.requisites ?? "unchecked";
+      const probeConfirmed =
+        result.state === "reachable" && (official || requisites === "found");
+      if (!probeConfirmed) continue;
+      const refIndex = course.brief.references.findIndex(
+        (item) => (item.source?.trim() ?? "") === result.url,
+      );
+      if (refIndex < 0) continue;
+      const ref = course.brief.references[refIndex];
+      if (ref.status === "confirmed" || ref.status === "source_attached") continue;
+      onConfirmReference({ title: ref.title, source: result.url, index: refIndex });
+    }
+  }, [check, course.brief.references, onConfirmReference]);
+
   function acknowledge(result: SourceProbeResult) {
     const fingerprint = result.fingerprint?.trim() || "";
     if (!fingerprint) return;
@@ -131,8 +155,15 @@ export function SourceChecks({ course }: { course: CourseDocument }) {
             const text = noticeText(notice, formatSeen);
             const requisites = result.requisites ?? "unchecked";
             const official = isOfficialPublication(result.url);
-            const confirmed =
+            const probeConfirmed =
               result.state === "reachable" && (official || requisites === "found");
+            const refIndex = course.brief.references.findIndex(
+              (item) => (item.source?.trim() ?? "") === result.url,
+            );
+            const ref = refIndex >= 0 ? course.brief.references[refIndex] : undefined;
+            const manuallyConfirmed =
+              ref?.status === "confirmed" || ref?.status === "source_attached";
+            const confirmed = manuallyConfirmed || probeConfirmed;
             return (
               <li
                 key={result.url}
@@ -145,22 +176,46 @@ export function SourceChecks({ course }: { course: CourseDocument }) {
                 }
               >
                 <strong>
-                  {official && result.state === "reachable"
-                    ? "Официальное опубликование"
-                    : STATE_LABEL[result.state]}
+                  {confirmed
+                    ? "Подтверждён"
+                    : official && result.state === "reachable"
+                      ? "Официальное опубликование"
+                      : result.state === "reachable"
+                        ? "На проверке"
+                        : STATE_LABEL[result.state]}
                 </strong>
                 <a href={result.url} target="_blank" rel="noreferrer">
                   {result.url}
                 </a>
                 <span>
-                  {official && result.state === "reachable"
-                    ? "Это ссылка из нашего списка. Текст приказа со страницы не забираем."
-                    : `${result.message} ${REQUISITE_LABEL[requisites]}`}
+                  {confirmed && manuallyConfirmed
+                    ? "Методист принял источник."
+                    : confirmed && probeConfirmed
+                      ? official
+                        ? "Официальное опубликование — источник подтверждён автоматически."
+                        : "Номер документа найден на странице — источник подтверждён автоматически."
+                      : official && result.state === "reachable"
+                        ? "Это ссылка из нашего списка. Текст приказа со страницы не забираем."
+                        : `${result.message} ${REQUISITE_LABEL[requisites]}`}
                 </span>
                 {text ? <span>{text}</span> : null}
                 {notice.kind === "changed" ? (
                   <button type="button" onClick={() => acknowledge(result)}>
                     Сверила, запомнить новую отметку
+                  </button>
+                ) : null}
+                {!confirmed && onConfirmReference && refIndex >= 0 ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onConfirmReference({
+                        title: ref?.title || result.url,
+                        source: result.url,
+                        index: refIndex,
+                      })
+                    }
+                  >
+                    Принять
                   </button>
                 ) : null}
               </li>

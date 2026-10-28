@@ -152,3 +152,93 @@ def validate_hour_constraints(
         )
 
     return errors
+
+
+def validate_allocated_hours(
+    constraints: list[dict[str, Any]],
+    modules: list[dict[str, Any]],
+    duration_hours: float,
+    attestation_hours: float = 0,
+) -> list[str]:
+    """Проверяет фактическое распределение часов относительно ограничений."""
+
+    errors = []
+
+    module_fields = (
+        "lectureHours",
+        "practiceHours",
+        "labHours",
+        "selfStudyHours",
+    )
+
+    actual = {
+        field: sum(
+            float(module.get(field) or 0)
+            for module in modules
+        )
+        for field in module_fields
+    }
+
+    actual["hours"] = sum(
+        float(module.get("hours") or 0)
+        for module in modules
+    ) + attestation_hours
+
+    actual["attestationHours"] = attestation_hours
+
+    for constraint in constraints:
+        field = constraint["field"]
+        operator = constraint["operator"]
+        expected = float(constraint["value"])
+
+        if field not in actual:
+            errors.append(f"Неизвестное поле ограничения: {field}")
+            continue
+
+        value = actual[field]
+
+        if operator == "min" and value < expected - 1e-9:
+            errors.append(
+                f"{field}: требуется минимум {expected} ч, "
+                f"фактически {value} ч"
+            )
+
+        elif operator == "max" and value > expected + 1e-9:
+            errors.append(
+                f"{field}: разрешено максимум {expected} ч, "
+                f"фактически {value} ч"
+            )
+
+        elif operator == "eq" and abs(value - expected) > 1e-9:
+            errors.append(
+                f"{field}: требуется ровно {expected} ч, "
+                f"фактически {value} ч"
+            )
+
+    # Проверяем общий бюджет программы.
+    actual_duration = actual["hours"]
+
+    if abs(actual_duration - duration_hours) > 1e-9:
+        errors.append(
+            f"Общая продолжительность курса: "
+            f"требуется {duration_hours} ч, "
+            f"фактически {actual_duration} ч"
+        )
+
+    # Проверяем согласованность часов внутри каждого модуля.
+    for index, module in enumerate(modules, start=1):
+        module_hours = float(module.get("hours") or 0)
+
+        kinds_total = sum(
+            float(module.get(field) or 0)
+            for field in module_fields
+        )
+
+        if abs(module_hours - kinds_total) > 1e-9:
+            errors.append(
+                f"Модуль {index}: сумма видов занятий "
+                f"{kinds_total} ч не равна объёму модуля "
+                f"{module_hours} ч"
+            )
+
+    return errors

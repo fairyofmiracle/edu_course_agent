@@ -58,6 +58,88 @@ KIND_HOURS_CONTEXT = re.compile(
 )
 
 
+def extract_hour_constraints(text: str) -> list[dict[str, Any]]:
+    """Извлекает однозначные ограничения часов без обращения к LLM."""
+
+    kind_mapping = {
+        "практик": "practiceHours",
+        "практическ": "practiceHours",
+        "лекци": "lectureHours",
+        "лекционн": "lectureHours",
+        "лаборатор": "labHours",
+        "самостоятельн": "selfStudyHours",
+    }
+
+    operator_mapping = {
+        "не менее": "min",
+        "не меньше": "min",
+        "минимум": "min",
+        "не более": "max",
+        "не больше": "max",
+        "максимум": "max",
+        "ровно": "eq",
+        "точно": "eq",
+    }
+
+    matches = []
+
+    # Сначала собираем совпадения обоих шаблонов.
+    for pattern in (
+        HOUR_CONSTRAINT_KIND_FIRST,
+        HOUR_CONSTRAINT_OPERATOR_FIRST,
+    ):
+        for match in pattern.finditer(text):
+            matches.append(match)
+
+    # Сортируем по позиции в исходном тексте.
+    # При одинаковом начале предпочитаем более длинное совпадение.
+    matches.sort(
+        key=lambda match: (match.start(), -match.end())
+    )
+
+    result = []
+    last_end = -1
+
+    for match in matches:
+        # Не допускаем использования одного фрагмента текста
+        # одновременно в двух разных ограничениях.
+        if match.start() < last_end:
+            continue
+
+        kind = match.group("kind").lower()
+        operator = match.group("operator").lower()
+        value = float(match.group("value").replace(",", "."))
+
+        field = next(
+            (
+                field_name
+                for prefix, field_name in kind_mapping.items()
+                if kind.startswith(prefix)
+            ),
+            None,
+        )
+
+        if field is None:
+            continue
+
+        if value < 0 or value * 2 != int(value * 2):
+            continue
+
+        result.append(
+            {
+                "field": field,
+                "operator": operator_mapping[operator],
+                "value": value,
+                "source": "methodist",
+            }
+        )
+
+        # Запоминаем конец принятого совпадения.
+        last_end = match.end()
+
+    return result
+
+
 def _is_kind_hours(text: str, match: re.Match[str]) -> bool:
     """Проверяет, относятся ли указанные часы к отдельному виду занятий."""
 
@@ -155,6 +237,48 @@ KNOWN_WORDS = (
     "сертификатом",
     "стажировка",
     "стажировку",
+)
+
+
+HOUR_KIND_PATTERN = (
+    r"(?P<kind>"
+    r"практик\w*|практическ\w*|"
+    r"лекци\w*|лекционн\w*|"
+    r"лабораторн\w*|лаборатор\w*|"
+    r"самостоятельн\w*"
+    r")"
+)
+
+HOUR_OPERATOR_PATTERN = (
+    r"(?P<operator>"
+    r"не\s+менее|не\s+меньше|минимум|"
+    r"не\s+более|не\s+больше|максимум|"
+    r"ровно|точно"
+    r")"
+)
+
+HOUR_VALUE_PATTERN = (
+    r"(?P<value>\d+(?:[.,]\d+)?)"
+    r"\s*(?:академическ\w*\s+|ак\.?\s*)?"
+    r"(?:часов|часа|час\b|ч\b)"
+)
+
+HOUR_CONSTRAINT_KIND_FIRST = re.compile(
+    HOUR_KIND_PATTERN
+    + r"\s+"
+    + HOUR_OPERATOR_PATTERN
+    + r"\s+"
+    + HOUR_VALUE_PATTERN,
+    re.IGNORECASE,
+)
+
+HOUR_CONSTRAINT_OPERATOR_FIRST = re.compile(
+    HOUR_OPERATOR_PATTERN
+    + r"\s+"
+    + HOUR_VALUE_PATTERN
+    + r"\s+"
+    + HOUR_KIND_PATTERN,
+    re.IGNORECASE,
 )
 
 
@@ -792,6 +916,32 @@ def guard_brief(
     texts = [text for text in user_texts if not SERVICE_PROMPT.search(text.strip())]
     form = form_brief or {}
     last = user_texts[-1] if user_texts else ""
+    # Извлекаем явные ограничения часов из последнего
+    # сообщения методиста без обращения к LLM.
+    local_hour_constraints = extract_hour_constraints(
+        texts[-1] if texts else ""
+    )
+
+    if local_hour_constraints:
+        # Сохраняем ограничения LLM, которые не относятся
+        # к видам часов, явно указанным методистом.
+        explicit_fields = {
+            item["field"]
+            for item in local_hour_constraints
+        }
+
+        llm_constraints = [
+            item
+            for item in (brief.get("hourConstraints") or [])
+            if (
+                isinstance(item, dict)
+                and item.get("field") not in explicit_fields
+            )
+        ]
+
+        brief["hourConstraints"] = (
+            llm_constraints + local_hour_constraints
+        )
     if "programKind" in brief:
         kind = normalize_program_kind(brief.get("programKind"))
         if kind:

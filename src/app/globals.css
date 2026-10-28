@@ -2,7 +2,7 @@
 
 :root {
   --ink: #f4efe6;
-  --ink-soft: #c3bdb2;
+  --ink-soft: #d8d2c6;
   --paper: #141311;
   --panel: #1c1b18;
   --chat: #1c1b18;
@@ -29,7 +29,7 @@
 
 html[data-theme="light"] {
   --ink: #111111;
-  --ink-soft: #5e5e66;
+  --ink-soft: #3f3f48;
   --paper: #f8f8fa;
   --panel: #ffffff;
   --chat: #ffffff;
@@ -1909,6 +1909,18 @@ button.primary {
   background: var(--panel);
 }
 
+.composer.composer-template {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  border-top: 0;
+}
+
+.composer.composer-template .template-grid {
+  flex: 1 1 auto;
+  align-content: start;
+}
+
 .pane-write .messages {
   flex: 1 1 auto;
   min-height: 0;
@@ -3717,5 +3729,93 @@ html[data-theme="light"] .hours-gap {
 
   .dock-caption {
     font-size: 9px;
+  }
+}
+
+
+/* --- Mode split + passport stub + brighter placeholders --- */
+.template-grid input::placeholder,
+.template-grid textarea::placeholder,
+.chat-field::placeholder,
+.ask-own::placeholder,
+.composer input::placeholder,
+.composer textarea::placeholder {
+  color: color-mix(in srgb, var(--ink-soft) 88%, var(--ink));
+  opacity: 1;
+}
+
+html[data-theme="light"] .template-grid input::placeholder,
+html[data-theme="light"] .template-grid textarea::placeholder,
+html[data-theme="light"] .chat-field::placeholder,
+html[data-theme="light"] .ask-own::placeholder,
+html[data-theme="light"] .composer input::placeholder,
+html[data-theme="light"] .composer textarea::placeholder {
+  color: #2f2f38;
+  opacity: 0.78;
+}
+
+.dock-send.dock-send-label {
+  width: auto;
+  min-width: 32px;
+  height: 34px;
+  gap: 6px;
+  padding: 0 12px 0 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dock-send.dock-send-label span {
+  line-height: 1;
+}
+
+.passport-stub {
+  border-style: dashed;
+}
+
+.passport-kicker {
+  margin: 0 0 6px;
+  color: var(--shell-accent);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.passport-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.passport-placeholder {
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.passport-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.passport-secondary {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.passport-secondary:hover {
+  border-color: var(--shell-accent);
+  color: var(--shell-accent);
+}
+
+@media (max-width: 720px) {
+  .passport-grid {
+    grid-template-columns: 1fr;
   }
 }

@@ -54,6 +54,8 @@ type CourseWorkspaceProps = {
   onGatherFramework?: () => void;
   onGatherKit?: () => void;
   onOpenChat?: () => void;
+  onFillInChat?: () => void;
+  onFillByTemplate?: () => void;
   onRebuildModule?: (moduleId: string, title: string) => void;
   onRefreshOutdated?: (labels: string[]) => void;
 };
@@ -122,6 +124,8 @@ export function CourseWorkspace({
   onRebuildModule,
   onRefreshOutdated,
   onOpenChat,
+  onFillInChat,
+  onFillByTemplate,
 }: CourseWorkspaceProps) {
   const contentOpen = isFrameworkApproved(course) || hasBuiltMaterials(course);
   const locked = CONTENT_TABS.includes(tab) && !contentOpen;
@@ -139,7 +143,7 @@ export function CourseWorkspace({
           />
         ) : (
           <>
-            {tab === "overview" ? <Overview course={course} /> : null}
+            {tab === "overview" ? <Overview course={course} onFillInChat={onFillInChat} onFillByTemplate={onFillByTemplate} /> : null}
             {tab === "structure" ? (
               course.modules.length === 0 ? (
                 <TabEmpty
@@ -498,11 +502,59 @@ function ModuleBoard({ course, onRebuildModule }: { course: CourseDocument; onRe
   );
 }
 
-function Overview({ course }: { course: CourseDocument }) {
+function Overview({
+  course,
+  onFillInChat,
+  onFillByTemplate,
+}: {
+  course: CourseDocument;
+  onFillInChat?: () => void;
+  onFillByTemplate?: () => void;
+}) {
   const { brief } = course;
   const gaps = briefGaps(course);
+  const isBlank = !brief.title.trim() && course.modules.length === 0;
   return (
     <div className="overview">
+      {isBlank ? (
+        <section className="about-card passport-stub">
+          <p className="passport-kicker">Паспорт-заготовка</p>
+          <h2>О программе</h2>
+          <dl className="meta-grid passport-grid">
+            <div>
+              <dt>Название</dt>
+              <dd className="passport-placeholder">Например, Основы кибербезопасности</dd>
+            </div>
+            <div>
+              <dt>Аудитория</dt>
+              <dd className="passport-placeholder">Кто будет учиться</dd>
+            </div>
+            <div>
+              <dt>Объём часов</dt>
+              <dd className="passport-placeholder">От 16 академических часов</dd>
+            </div>
+            <div>
+              <dt>Формат</dt>
+              <dd className="passport-placeholder">Очно, смешанный или практикум</dd>
+            </div>
+          </dl>
+          {(onFillInChat || onFillByTemplate) ? (
+            <div className="passport-actions">
+              {onFillInChat ? (
+                <button type="button" className="primary" onClick={onFillInChat}>
+                  Заполнить в чате
+                </button>
+              ) : null}
+              {onFillByTemplate ? (
+                <button type="button" className="passport-secondary" onClick={onFillByTemplate}>
+                  По шаблону
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </section>
+      ) : (
+      <>
       {!brief.title && course.modules.length === 0 && gaps.length > 0 ? (
         <p className="program-soon">Пока нет: {gaps.join(", ")}.</p>
       ) : null}
@@ -538,6 +590,8 @@ function Overview({ course }: { course: CourseDocument }) {
           </div>
         </dl>
       </section>
+      </>
+      )}
       {course.modules.length > 0 ? (
         <>
         <table className="hours-table">

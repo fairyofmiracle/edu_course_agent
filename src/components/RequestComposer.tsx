@@ -388,7 +388,7 @@ export function RequestComposer({
   };
 
   return (
-    <form className="composer" onSubmit={submit}>
+    <form className={`composer${mode === "template" ? " composer-template" : ""}`} onSubmit={submit}>
       {mode === "template" ? (
         <div className="template-grid">
           <label>
@@ -546,12 +546,13 @@ export function RequestComposer({
               ) : (
                 <button
                   type="submit"
-                  className="dock-send"
+                  className="dock-send dock-send-label"
                   aria-label="Отправить"
                   title="Отправить"
                   disabled={recording || !input.trim()}
                 >
                   <SendIcon />
+                  <span>Отправить</span>
                 </button>
               )}
             </div>
@@ -601,12 +602,13 @@ export function RequestComposer({
             ) : (
               <button
                 type="submit"
-                className="dock-send"
-                aria-label="Собрать по шаблону"
-                title="Собрать по шаблону"
+                className="dock-send dock-send-label"
+                aria-label="Отправить"
+                title="Отправить"
                 disabled={!templateReady}
               >
                 <SendIcon />
+                <span>Отправить</span>
               </button>
             )
           ) : null}

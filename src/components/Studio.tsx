@@ -232,6 +232,7 @@ function StudioSession({
   const [extraReferences, setExtraReferences] = useState("");
   const [tab, setTab] = useState<WorkspaceTab>("overview");
   const [chatOpen, setChatOpen] = useState(true);
+  const [composerMode, setComposerMode] = useState<"free" | "template">("free");
   useEffect(() => {
     const hasDocument = Boolean(
       initialCourse.brief.title.trim() || initialCourse.modules.length || initialMessages.length,
@@ -293,9 +294,7 @@ function StudioSession({
     return "Комплект написала модель.";
   })();
   const stage = frameworkApproved ? "kit" : course.modules.length ? "framework" : "ask";
-  const showDocument = Boolean(
-    course.brief.title.trim() || course.modules.length || messages.length > 0,
-  );
+  const showDocument = true;
   const chatPending = status === "submitted" || status === "streaming";
   const chatElapsed = useElapsed(chatPending);
   const activity = chatPending ? workProgress(stage, chatElapsed) : null;
@@ -494,6 +493,7 @@ function StudioSession({
     setMessages([]);
     setExtraReferences("");
     setTab("overview");
+    setComposerMode("free");
     persistLog(actionEntry(nextSession, "Новый курс"));
   };
 
@@ -677,6 +677,8 @@ function StudioSession({
           frameworkApproved={course.frameworkApproved}
           kitComplete={kitComplete}
           stage={stage}
+          composerMode={composerMode}
+          onComposerModeChange={setComposerMode}
           onReferencesChange={setExtraReferences}
           onReferenceAdd={addReference}
           onSend={send}
@@ -731,6 +733,17 @@ function StudioSession({
               send(refreshOutdatedPrompt(labels));
             }}
             onOpenChat={() => setChatOpen(true)}
+            onFillInChat={() => {
+              setChatOpen(true);
+              setComposerMode("free");
+              window.setTimeout(() => {
+                document.getElementById("course-request")?.focus();
+              }, 40);
+            }}
+            onFillByTemplate={() => {
+              setChatOpen(true);
+              setComposerMode("template");
+            }}
           />
         </div>
         ) : null}

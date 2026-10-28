@@ -75,6 +75,8 @@ const TOOL_LABELS: Record<string, string> = {
   revise_section: "Правка",
 };
 
+type ComposerMode = "free" | "template";
+
 type ChatPanelProps = {
   messages: UIMessage[];
   status: string;
@@ -83,6 +85,8 @@ type ChatPanelProps = {
   frameworkApproved: boolean;
   kitComplete: boolean;
   stage: "ask" | "framework" | "kit";
+  composerMode?: ComposerMode;
+  onComposerModeChange?: (mode: ComposerMode) => void;
   onReferencesChange: (value: string) => void;
   onReferenceAdd: (reference: CourseBrief["references"][number]) => void;
   onSend: (text: string, brief?: Partial<CourseBrief>) => void;
@@ -98,6 +102,8 @@ export function ChatPanel({
   frameworkApproved,
   kitComplete,
   stage,
+  composerMode: composerModeProp,
+  onComposerModeChange,
   onReferencesChange,
   onReferenceAdd,
   onSend,
@@ -131,7 +137,12 @@ export function ChatPanel({
   const [picks, setPicks] = useState<Record<string, string>>({});
   const [ownAttestation, setOwnAttestation] = useState("");
   const [ownHours, setOwnHours] = useState("");
-  const [composerMode, setComposerMode] = useState<"free" | "template">("free");
+  const [composerModeState, setComposerModeState] = useState<ComposerMode>("free");
+  const composerMode = composerModeProp ?? composerModeState;
+  const setComposerMode = (mode: ComposerMode) => {
+    setComposerModeState(mode);
+    onComposerModeChange?.(mode);
+  };
   const wasPending = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -186,7 +197,9 @@ export function ChatPanel({
         </div>
       </header>
 
+      {composerMode === "free" ? (
       <div className="messages" aria-live="polite">
+
         {messages.length === 0 ? (
           <div className="chat-start">
             <p className="chat-empty">С чего начнём?</p>
@@ -366,6 +379,7 @@ export function ChatPanel({
         {error ? <p className="chat-error">{userFacingError(error)}</p> : null}
         <div ref={bottomRef} />
       </div>
+      ) : null}
 
       <RequestComposer
         extraReferences={extraReferences}
@@ -377,7 +391,10 @@ export function ChatPanel({
         onModeChange={setComposerMode}
         onReferencesChange={onReferencesChange}
         onReferenceAdd={onReferenceAdd}
-        onSend={onSend}
+        onSend={(text, brief) => {
+          onSend(text, brief);
+          if (composerMode === "template") setComposerMode("free");
+        }}
         onStop={onStop}
       />
     </aside>

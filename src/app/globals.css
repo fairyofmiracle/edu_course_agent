@@ -5725,7 +5725,7 @@ button,
   }
 }
 
-/* === Audit flat layout: page → list, max 2 layers (menu polish) === */
+/* === Audit flat layout: page → list, max 2 layers (menu polish + track) === */
 .audit-flat {
   --audit-fail: #9a4a4a;
   --audit-warn: #a07a2e;
@@ -5833,31 +5833,73 @@ button,
 
 .audit-flat-layout {
   display: grid;
-  grid-template-columns: minmax(188px, 228px) minmax(0, 1fr);
-  gap: 0 24px;
+  grid-template-columns: minmax(196px, 236px) minmax(0, 1fr);
+  gap: 0 28px;
   align-items: start;
   min-height: 0;
 }
 
-/* Rail = neat vertical menu */
+/* Rail = neat vertical menu + divided track */
 .audit-rail {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 2px 0;
+  gap: 2px;
+  padding: 2px 0 2px 18px;
   margin: 0;
   border: 0;
   background: transparent;
 }
 
+.audit-rail-track {
+  position: absolute;
+  left: 5px;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--ink-soft) 32%, transparent);
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.audit-rail-tick {
+  flex: 1 1 0;
+  position: relative;
+  min-height: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--paper) 88%, var(--ink-soft));
+}
+
+.audit-rail-tick:last-child {
+  border-bottom: 0;
+}
+
+.audit-rail-tick.is-active::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 14px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--audit-ok) 78%, var(--ink));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--audit-ok) 28%, transparent);
+}
+
 .audit-rail-item {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
   margin: 0;
-  padding: 9px 12px 9px 11px;
-  min-height: 42px;
+  padding: 10px 12px 10px 12px;
+  min-height: 44px;
   border: 0;
   border-radius: 10px;
   background: transparent;
@@ -5870,7 +5912,7 @@ button,
 }
 
 .audit-rail-item:hover {
-  background: color-mix(in srgb, var(--ink) 4.5%, transparent);
+  background: color-mix(in srgb, var(--ink) 6%, var(--paper));
 }
 
 .audit-rail-item:focus-visible {
@@ -5878,18 +5920,20 @@ button,
 }
 
 .audit-rail-item.is-active {
-  background: color-mix(in srgb, var(--ink) 7%, transparent);
-  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--audit-ok) 72%, transparent);
+  background: color-mix(in srgb, var(--ink) 9%, var(--paper));
+  box-shadow: none;
+}
+
+.audit-rail-item.is-active:hover {
+  background: color-mix(in srgb, var(--ink) 11%, var(--paper));
 }
 
 .audit-rail-item.is-active:focus-visible {
-  box-shadow:
-    inset 3px 0 0 color-mix(in srgb, var(--audit-ok) 72%, transparent),
-    0 0 0 2px color-mix(in srgb, var(--audit-ok) 35%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--audit-ok) 40%, transparent);
 }
 
 .audit-rail-item.is-active .audit-rail-name {
-  font-weight: 600;
+  font-weight: 650;
   color: var(--ink);
 }
 
@@ -5905,6 +5949,7 @@ button,
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  pointer-events: none;
 }
 
 .audit-rail-count {
@@ -5914,6 +5959,7 @@ button,
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
+  pointer-events: none;
 }
 
 .audit-rail-ok {
@@ -5923,35 +5969,49 @@ button,
   min-width: 1em;
   text-align: right;
   flex-shrink: 0;
+  pointer-events: none;
 }
 
-.audit-rail-item.is-weak .audit-rail-ok,
-.audit-flat .audit-stage-dot.pass {
+.audit-rail-item.is-weak .audit-rail-ok {
   color: color-mix(in srgb, var(--audit-ok) 45%, var(--ink-soft));
 }
 
 .audit-flat .audit-stage-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: color-mix(in srgb, var(--ink-soft) 40%, transparent);
+  background: color-mix(in srgb, var(--ink-soft) 55%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 12%, transparent);
+  pointer-events: none;
 }
 
-.audit-flat .audit-stage-dot.fail { background: var(--audit-fail); }
-.audit-flat .audit-stage-dot.warning { background: var(--audit-warn); }
-.audit-flat .audit-stage-dot.pass {
-  background: color-mix(in srgb, var(--ink-soft) 35%, transparent);
+.audit-flat .audit-stage-dot.fail {
+  background: var(--audit-fail);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--audit-fail) 35%, transparent);
 }
+
+.audit-flat .audit-stage-dot.warning {
+  background: var(--audit-warn);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--audit-warn) 35%, transparent);
+}
+
+.audit-flat .audit-stage-dot.pass {
+  background: color-mix(in srgb, var(--audit-ok) 42%, var(--ink-soft));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--audit-ok) 25%, transparent);
+  color: color-mix(in srgb, var(--audit-ok) 45%, var(--ink-soft));
+}
+
 .audit-flat .audit-stage-dot.disabled,
 .audit-flat .audit-stage-dot.empty {
-  background: color-mix(in srgb, var(--ink-soft) 28%, transparent);
+  background: color-mix(in srgb, var(--ink-soft) 38%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 8%, transparent);
 }
 
-/* ONE content surface — no second card frame */
+/* ONE content surface - no second card frame */
 .audit-panel {
   margin: 0;
-  padding: 2px 0 0;
+  padding: 4px 0 0;
   border: 0;
   background: transparent;
   min-width: 0;
@@ -6074,7 +6134,7 @@ button,
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--audit-ok) 40%, transparent);
 }
 
-/* Inline expand — no third card shell */
+/* Inline expand - no third card shell */
 .audit-inline {
   margin-top: 12px;
   padding: 0;
@@ -6110,7 +6170,7 @@ button,
     gap: 12px;
   }
 
-  /* Chips stay on one scrollable row — never wrap */
+  /* Chips stay on one scrollable row - never wrap */
   .audit-rail {
     flex-direction: row;
     flex-wrap: nowrap;
@@ -6120,6 +6180,10 @@ button,
     padding: 2px 2px 6px;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
+  }
+
+  .audit-rail-track {
+    display: none;
   }
 
   .audit-rail-item {
@@ -6136,12 +6200,12 @@ button,
   }
 
   .audit-rail-item:hover {
-    background: color-mix(in srgb, var(--ink) 4%, transparent);
+    background: color-mix(in srgb, var(--ink) 5%, var(--paper));
   }
 
   .audit-rail-item.is-active {
-    border-color: color-mix(in srgb, var(--audit-ok) 45%, var(--line));
-    background: color-mix(in srgb, var(--ink) 5%, transparent);
+    border-color: color-mix(in srgb, var(--audit-ok) 50%, var(--line));
+    background: color-mix(in srgb, var(--ink) 7%, var(--paper));
     box-shadow: none;
   }
 
@@ -6181,4 +6245,5 @@ button,
     white-space: normal;
   }
 }
+
 

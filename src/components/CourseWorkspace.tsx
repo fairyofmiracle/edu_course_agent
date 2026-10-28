@@ -460,6 +460,15 @@ function AuditPanel({
 
       <div className={`audit-flat-layout${selected ? " has-selection" : ""}`}>
         <nav className="audit-rail" role="tablist" aria-label="Этапы проверки">
+          <div className="audit-rail-track" aria-hidden="true">
+            {stages.map(({ topic }) => (
+              <span
+                key={topic.section}
+                className={`audit-rail-tick${selected === topic.section ? " is-active" : ""}`}
+              />
+            ))}
+          </div>
+
           {stages.map(({ topic, status, countLabel, weak }) => {
             const isActive = selected === topic.section;
             return (

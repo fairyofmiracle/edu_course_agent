@@ -129,6 +129,51 @@ npm run backend:migrate
 | `NEXT_PUBLIC_PYTHON_API_URL` | Куда браузер сохраняет курс. Локально тот же адрес. |
 | `DATABASE_URL` | Локально `sqlite:///backend/data/studio.db`. В Compose подставляется PostgreSQL. |
 
+## Внедрение
+
+Короткий runbook для закрытой техзащиты. Полный сценарий демо — ниже, в «Сценарий на техничке».
+
+### Поднять
+
+```bash
+cp -n .env.example .env
+# заполнить обязательные переменные (имена ниже, значения — свои)
+docker compose up -d --build
+docker compose ps
+curl -sS http://localhost:8000/backend/health
+```
+
+Студия: http://localhost:8000  
+Миграции Alembic на старте контейнера `api` автоматически (`alembic upgrade head` в CMD).
+
+### Обязательные env (только имена)
+
+- `STUDIO_API_TOKEN`, `STUDIO_JWT_SECRET`
+- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
+- `REDIS_PASSWORD`
+- ключ LLM: `GIGASCHOOL_API_KEY` + `GIGASCHOOL_BASE_URL` **или** `CLOUDRU_API_KEY` + `CLOUDRU_BASE_URL`
+
+Опционально: `CLOUDRU_MODEL` / `CLOUDRU_MODEL_WRITER`, `GATEWAY_CONCURRENCY`, `LLM_TOKEN_BUDGET`.
+
+### Сервисы и worker
+
+Compose поднимает `db`, `redis`, `api`, `worker`, `web`.  
+**Worker обязателен:** без Celery-worker ход чата в Docker не выполняется (очередь через Redis).
+
+### Health и логи
+
+- Health: `GET http://localhost:8000/backend/health` (прокси web → api `/health`)
+- Логи: `docker compose logs -f --tail=200 api worker web`
+- Статус: `docker compose ps` — `api` и `web` должны быть healthy; `worker` — Up
+
+### После стоп-кода
+
+Код не меняем. Только демо, питч и правки текста при необходимости.
+
+### Next 2 спринта
+
+S3 для артефактов; non-root в `api`/`worker`; healthcheck у `worker`.
+
 ## Сценарий на техничке
 
 Десять минут, живой экран: [docs/technicka-10min.md](docs/technicka-10min.md). Шесть минут — один проход от пустого курса до каркаса, четыре — вопросы про код, токены и отказ выдумывать.

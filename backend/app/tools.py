@@ -276,12 +276,28 @@ def coerce_structure_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
                 workload_weight = None
         except (TypeError, ValueError):
             workload_weight = None
+        fixed_hours = raw.get("fixedHours")
+
+        if fixed_hours is not None:
+            try:
+                fixed_hours = float(fixed_hours)
+
+                if (
+                    not math.isfinite(fixed_hours)
+                    or fixed_hours < 0
+                    or not (fixed_hours * 2).is_integer()
+                ):
+                    fixed_hours = None
+
+            except (TypeError, ValueError, OverflowError):
+                fixed_hours = None
         coerced.append(
             {
                 "id": raw.get("id") or f"m{index + 1}",
                 "title": title,
                 "hours": hours,
                 "workloadWeight": workload_weight,
+                "fixedHours": fixed_hours,
                 "lectureHours": lecture,
                 "practiceHours": practice,
                 "labHours": lab,

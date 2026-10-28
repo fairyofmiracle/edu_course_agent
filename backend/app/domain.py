@@ -11,6 +11,8 @@ from pydantic import ValidationError
 from .legal_basis import merge_legal_basis
 from .models import CourseDocument
 from .rationale import result_passport
+from .curriculum_rules.validator import validate_hour_constraints
+from .curriculum_rules.profiles import get_workload_weights
 
 KIND_KEYS = ("lectureHours", "practiceHours", "labHours", "selfStudyHours")
 PATCH_TYPES = {
@@ -72,6 +74,116 @@ def allocate_integer(
     return [value / 2 for value in result]
 
 
+def allocate_constrained_hours(
+    target: float,
+    weights: dict[str, float],
+    constraints: list[dict[str, Any]],
+) -> dict[str, float]:
+    """Распределяет часы с шагом 0.5 с учётом ограничений min, max и eq."""
+
+    # Работаем в целых единицах по 0.5 часа.
+    budget = round(academic_hours(target) * 2)
+
+    keys = list(KIND_KEYS)
+
+    minimums = {key: 0 for key in keys}
+    maximums = {key: budget for key in keys}
+
+    # Собираем ограничения.
+    for constraint in constraints:
+        field = constraint.get("field")
+        operator = constraint.get("operator")
+
+        if field not in minimums:
+            continue
+
+        value = round(academic_hours(constraint.get("value")) * 2)
+
+        if operator == "min":
+            minimums[field] = max(minimums[field], value)
+
+        elif operator == "max":
+            maximums[field] = min(maximums[field], value)
+
+        elif operator == "eq":
+            minimums[field] = max(minimums[field], value)
+            maximums[field] = min(maximums[field], value)
+
+    # Проверяем противоречия для каждого вида занятий.
+    for key in keys:
+        if minimums[key] > maximums[key]:
+            raise ValueError(
+                f"Противоречивые ограничения для {key}: "
+                f"минимум {minimums[key] / 2}, "
+                f"максимум {maximums[key] / 2}"
+            )
+
+    # Проверяем совместимость ограничений с общим бюджетом.
+    if sum(minimums.values()) > budget:
+        raise ValueError(
+            "Сумма минимальных часов превышает доступный бюджет"
+        )
+
+    if sum(maximums.values()) < budget:
+        raise ValueError(
+            "Максимальные ограничения не позволяют распределить весь бюджет"
+        )
+
+    # Сначала резервируем обязательные часы.
+    result = minimums.copy()
+    remaining = budget - sum(result.values())
+
+    # Распределяем остаток, учитывая веса и свободную вместимость.
+    while remaining > 0:
+        available = [
+            key for key in keys
+            if result[key] < maximums[key]
+        ]
+
+        if not available:
+            raise ValueError("Не удалось распределить оставшиеся часы")
+
+        current_weights = [
+            max(0.0, float(weights.get(key, 0)))
+            for key in available
+        ]
+
+        # Если все веса нулевые, распределяем остаток равномерно.
+        if not any(current_weights):
+            current_weights = [1.0] * len(available)
+
+        allocation = allocate_integer(
+            remaining / 2,
+            current_weights,
+            keep_zero=True,
+        )
+
+        distributed = 0
+
+        for key, hours in zip(available, allocation):
+            requested = round(hours * 2)
+            capacity = maximums[key] - result[key]
+
+            added = min(requested, capacity)
+
+            result[key] += added
+            distributed += added
+
+        # Защита от ситуации, когда веса не позволяют
+        # распределить часы в доступные категории.
+        if distributed == 0:
+            key = available[0]
+            result[key] += 1
+            distributed = 1
+
+        remaining -= distributed
+
+    return {
+        key: result[key] / 2
+        for key in keys
+    }
+
+
 def _kind_sum(value: dict[str, Any]) -> float:
     return sum(academic_hours(value.get(key, 0)) for key in KIND_KEYS)
 
@@ -93,7 +205,10 @@ def _spread_classroom(lecture: float, practice: float, hours: float) -> list[flo
     return [lecture_hours, practice_hours, lab, self_study]
 
 
-def _fill_plan(module: dict[str, Any]) -> dict[str, Any]:
+def _fill_plan(
+    module: dict[str, Any],
+    profile_weights: dict[str, float] | None = None,
+) -> dict[str, Any]:
     result = deepcopy(module)
     title = str(result.get("title") or "").strip() or "Модуль"
     topics = [
@@ -101,10 +216,31 @@ def _fill_plan(module: dict[str, Any]) -> dict[str, Any]:
         for value in result.get("topics") or []
         if str(value).strip()
     ] or [title]
-    hours = academic_hours(result.get("hours")) or _kind_sum(result) or 1
+    raw_hours = result.get("hours")
+
+    if result.get("fixedHours") == 0:
+        hours = 0
+    else:
+        hours = academic_hours(raw_hours) or _kind_sum(result) or 1
+    has_explicit_kind_hours = any(
+        key in module
+        for key in KIND_KEYS
+    )
     weights = [academic_hours(result.get(key)) for key in KIND_KEYS]
+
     if weights[2] == 0 and weights[3] == 0 and (weights[0] > 0 or weights[1] > 0):
         weights = _spread_classroom(weights[0], weights[1], hours)
+
+    if (
+        not has_explicit_kind_hours
+        and not any(weights)
+        and profile_weights is not None
+    ):
+        weights = [
+            float(profile_weights.get(key, 0))
+            for key in KIND_KEYS
+        ]
+
     kinds = allocate_integer(
         hours,
         weights if any(weights) else [1, 2, 0, 1],
@@ -147,11 +283,15 @@ def balance_modules(
     modules: list[dict[str, Any]],
     duration_hours: float,
     attestation_hours: float,
+    profile_weights: dict[str, float] | None = None,
 ) -> list[dict[str, Any]]:
     if not modules:
         return []
 
-    filled = [_fill_plan(module) for module in modules]
+    filled = [
+        _fill_plan(module, profile_weights=profile_weights)
+        for module in modules
+    ]
     target = academic_hours(max(0, duration_hours - attestation_hours))
 
     # Индексы модулей с фиксированными часами.
@@ -215,7 +355,10 @@ def balance_modules(
             hours[index] = allocated_hours
 
     return [
-        _fill_plan({**module, "hours": hours[index]})
+        _fill_plan(
+            {**module, "hours": hours[index]},
+            profile_weights=profile_weights,
+        )
         for index, module in enumerate(filled)
     ]
 
@@ -259,6 +402,61 @@ def _link_competencies(course: dict[str, Any]) -> None:
         node["moduleIds"] = linked
 
 
+def _apply_hour_constraints(value: dict[str, Any]) -> None:
+    """Проверяет и применяет ограничения часов ко всем модулям программы."""
+
+    brief = value["brief"]
+    constraints = brief.get("hourConstraints") or []
+
+    if not constraints:
+        return
+
+    # 1. Проверяем ограничения до распределения часов.
+    errors = validate_hour_constraints(
+        constraints=constraints,
+        duration_hours=brief.get("durationHours"),
+        attestation_hours=brief.get("attestationHours") or 0,
+    )
+
+    if errors:
+        raise ValueError(
+            "Некорректные ограничения часов: " + "; ".join(errors)
+        )
+
+    modules = value["modules"]
+
+    if not modules:
+        return
+
+    # 2. Определяем доступный бюджет модулей.
+    module_budget = sum(
+        academic_hours(module.get("hours"))
+        for module in modules
+    )
+
+    # 3. Получаем текущие веса видов занятий.
+    weights = {
+        key: sum(
+            academic_hours(module.get(key))
+            for module in modules
+        )
+        for key in KIND_KEYS
+    }
+    
+    # 4. Рассчитываем целевое распределение.
+    target_kinds = allocate_constrained_hours(
+        target=module_budget,
+        weights=weights,
+        constraints=constraints,
+    )
+
+    # 5. Применяем распределение к модулям.
+    value["modules"] = distribute_kinds_between_modules(
+        modules,
+        target_kinds,
+    )
+
+
 def rebalance_course(course: CourseDocument) -> CourseDocument:
     value = course.as_api()
     if not value["modules"] or value["brief"]["durationHours"] <= 0:
@@ -270,7 +468,151 @@ def rebalance_course(course: CourseDocument) -> CourseDocument:
         value["brief"]["attestationHours"],
     )
     _keep_sixteen_hour_practice(value)
+    _apply_min_practice_constraint(value)
+    _apply_hour_constraints(value)
+
     return CourseDocument.model_validate(value)
+
+
+def _move_hours_between_kinds(
+    module: dict[str, Any],
+    source_key: str,
+    target_key: str,
+    requested_hours: float,
+) -> float:
+    """Переносит часы между видами занятий внутри модуля и его плана."""
+    if source_key not in KIND_KEYS or target_key not in KIND_KEYS:
+        raise ValueError("Неизвестный вид занятий")
+
+    if source_key == target_key:
+        return 0.0
+
+    remaining = academic_hours(requested_hours)
+    moved = 0.0
+
+    for row in module.get("plan") or []:
+        if remaining <= 0:
+            break
+
+        available = academic_hours(row.get(source_key))
+        take = min(available, remaining)
+
+        if take <= 0:
+            continue
+
+        row[source_key] = academic_hours(available - take)
+        row[target_key] = academic_hours(
+            float(row.get(target_key) or 0) + take
+        )
+
+        moved += take
+        remaining -= take
+
+    if moved > 0:
+        module[source_key] = academic_hours(
+            float(module.get(source_key) or 0) - moved
+        )
+        module[target_key] = academic_hours(
+            float(module.get(target_key) or 0) + moved
+        )
+
+    return moved
+
+
+def distribute_kinds_between_modules(
+    modules: list[dict[str, Any]],
+    target_kinds: dict[str, float],
+) -> list[dict[str, Any]]:
+    """Распределяет виды занятий, сохраняя бюджет каждого модуля."""
+    result = deepcopy(modules)
+
+    # Работаем в целых единицах по 0.5 часа.
+    targets = {
+        key: round(academic_hours(target_kinds.get(key, 0)) * 2)
+        for key in KIND_KEYS
+    }
+
+    current = {
+        key: round(
+            sum(academic_hours(module.get(key)) for module in result) * 2
+        )
+        for key in KIND_KEYS
+    }
+
+    module_budget = sum(
+        round(academic_hours(module.get("hours")) * 2)
+        for module in result
+    )
+
+    if sum(targets.values()) != module_budget:
+        raise ValueError(
+            "Целевые часы не совпадают с бюджетом модулей"
+        )
+
+    if any(value < 0 for value in targets.values()):
+        raise ValueError("Целевые часы не могут быть отрицательными")
+
+    if sum(current.values()) != module_budget:
+        raise ValueError(
+            "Текущие виды занятий не совпадают с бюджетом модулей"
+        )
+
+    # Проверяем согласованность тематических планов.
+    for module in result:
+        for key in KIND_KEYS:
+            plan_total = sum(
+                academic_hours(row.get(key))
+                for row in module.get("plan") or []
+            )
+
+            if plan_total != academic_hours(module.get(key)):
+                raise ValueError(
+                    "Тематический план не соответствует часам модуля"
+                )
+
+    # Определяем, откуда нужно забрать часы и куда добавить.
+    for source_key in KIND_KEYS:
+        surplus = current[source_key] - targets[source_key]
+
+        if surplus <= 0:
+            continue
+
+        for target_key in KIND_KEYS:
+            deficit = targets[target_key] - current[target_key]
+
+            if deficit <= 0:
+                continue
+
+            requested = min(surplus, deficit) / 2
+
+            for module in result:
+                if requested <= 0:
+                    break
+
+                moved = _move_hours_between_kinds(
+                    module,
+                    source_key,
+                    target_key,
+                    requested,
+                )
+
+                moved_units = round(moved * 2)
+
+                current[source_key] -= moved_units
+                current[target_key] += moved_units
+                surplus -= moved_units
+                requested -= moved
+
+            if surplus <= 0:
+                break
+
+    if current != targets:
+        raise ValueError(
+            "Не удалось распределить целевые часы между модулями"
+        )
+
+    return result
+
 
 def _move_hours_to_practice(
     module: dict[str, Any],
@@ -336,6 +678,75 @@ def _keep_sixteen_hour_practice(value: dict[str, Any]) -> None:
                     _sync_topic_plan(module)
                     moved = take
             need = academic_hours(need - moved)
+
+
+def _apply_min_practice_constraint(value: dict[str, Any]) -> None:
+    """Обеспечивает минимальное количество практических часов."""
+
+    brief = value.get("brief") or {}
+    constraints = brief.get("hourConstraints") or []
+    modules = value.get("modules") or []
+
+    minimum = 0.0
+
+    for constraint in constraints:
+        if (
+            constraint.get("field") == "practiceHours"
+            and constraint.get("operator") == "min"
+        ):
+            minimum = max(
+                minimum,
+                academic_hours(constraint.get("value")),
+            )
+
+    if minimum <= 0:
+        return
+
+    current = sum(
+        academic_hours(module.get("practiceHours"))
+        for module in modules
+    )
+
+    need = academic_hours(minimum - current)
+
+    if need <= 0:
+        return
+
+    available_total = sum(
+        academic_hours(module.get("hours"))
+        for module in modules
+    )
+
+    if minimum > available_total:
+        raise ValueError(
+            f"Невозможно выделить {minimum} часов практики: "
+            f"доступно только {available_total} часов."
+        )
+
+    # Сначала переносим часы из самостоятельной работы,
+    # затем из лабораторных занятий и лекций.
+    for source_key in (
+        "selfStudyHours",
+        "labHours",
+        "lectureHours",
+    ):
+        for module in modules:
+            if need <= 0:
+                return
+
+            moved = _move_hours_to_practice(
+                module,
+                source_key,
+                need,
+            )
+
+            need = academic_hours(need - moved)
+
+    if need > 0:
+        raise ValueError(
+            f"Не удалось выполнить требование методиста: "
+            f"не хватает {need} часов практики."
+        )
 
 
 def _sync_topic_plan(module: dict[str, Any]) -> None:
@@ -435,9 +846,13 @@ def _merge_modules(existing: list[Any], incoming: list[Any]) -> list[Any]:
 
         updated = dict(replacement)
 
-        # Если новый вес не указан, сохраняем предыдущий.
+        # Сохраняем ранее установленный вес, если новый не указан.
         if updated.get("workloadWeight") is None:
             updated["workloadWeight"] = item.get("workloadWeight")
+
+        # Сохраняем фиксированные часы при обновлении модуля.
+        if updated.get("fixedHours") is None:
+            updated["fixedHours"] = item.get("fixedHours")
 
         merged.append(updated)
 
@@ -545,6 +960,8 @@ def apply_patch(course: CourseDocument, patch: dict[str, Any]) -> CourseDocument
         return rebalance_course(CourseDocument.model_validate(value))
     except (KeyError, TypeError, ValidationError):
         return course
+
+
 
 
 def _json_number(value: Any) -> int | float:

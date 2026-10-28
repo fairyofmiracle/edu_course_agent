@@ -164,7 +164,10 @@ Compose поднимает `db`, `redis`, `api`, `worker`, `web`.
 
 - Health: GET http://localhost:8000/backend/health (прокси web → api /health)
 - Логи: docker compose logs -f --tail=200 api worker web
-- Статус: docker compose ps — pi, web и worker должны быть healthy (у worker — celery inspect ping)
+- Статус: docker compose ps — api, web и worker должны быть healthy (у worker — celery inspect ping)
+
+- Узкий E2E smoke (без UI-логина): `npm run smoke:e2e` → `scripts/smoke-e2e.py` — health → brief (fixture) → audit → export json/docx через `http://localhost:8000/backend`. Auth stub не gate.
+- Если smoke красный: `docker compose ps` (api/web/worker healthy), затем `docker compose logs --tail=100 api web`; проверьте `STUDIO_API_TOKEN` в `.env` (токен прокси, не логин методиста).
 
 ### Что проверяет код, а что — человек
 
@@ -176,7 +179,7 @@ Compose поднимает `db`, `redis`, `api`, `worker`, `web`.
 
 ### Next 2 спринта
 
-S3 для артефактов; non-root в pi/worker; метрики токенов на боевых прогонах.
+S3 для артефактов; non-root в api/worker; метрики токенов на боевых прогонах.
 
 ## Сценарий на техничке
 

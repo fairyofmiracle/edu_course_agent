@@ -12,7 +12,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "smoke:llm": "python scripts/smoke-llm.py"
+    "smoke:llm": "python scripts/smoke-llm.py",
+    "smoke:e2e": "python scripts/smoke-e2e.py"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.84",

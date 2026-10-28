@@ -573,6 +573,12 @@ BARE_DURATION = re.compile(
     re.IGNORECASE,
 )
 
+FIELD_LABEL_TITLE = re.compile(
+    r"^(?:тип\s+программы|объ[её]м(?:\s+часов)?|слушатели|аудитория|"
+    r"форма\s+обучени\w*|итоговая\s+аттестация)\.?$",
+    re.IGNORECASE,
+)
+
 
 def clarifying_title_from_reply(text: str) -> str:
     cleaned = (text or "").strip()
@@ -653,7 +659,11 @@ def title_from_request(text: str) -> str:
     title = title[:160]
     if is_offtopic_request(text) or contains_profanity(text) or contains_profanity(title):
         return ""
-    if VOLUME_FIELD_TITLE.search(title) or BARE_DURATION.search(title):
+    if (
+        VOLUME_FIELD_TITLE.search(title)
+        or BARE_DURATION.search(title)
+        or FIELD_LABEL_TITLE.search(title)
+    ):
         return ""
     # Short extracted topic ("Python") is OK when the request already framed a course.
     if is_garbage_title(title) and not has_title_markers(text):

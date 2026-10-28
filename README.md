@@ -60,7 +60,11 @@ Compose: `db`, `redis`, `api`, `worker`, `web`.
 
 #### Парсер запроса и валидатор ограничений часов
 
-Парсер запроса без LLM (`backend/app/brief_guard.py`) достаёт объём курса, часы аттестации, вид программы и ограничения по видам занятий; «месяц» часами не считается. Валидатор ограничений часов (`backend/app/curriculum_rules/validator.py`) ловит противоречия ограничений и выход за общий объём. Профили нагрузки — `curriculum_rules/profiles.py`, рамки — `regulations.py`. Тесты: `test_brief_hours_parser.py`, `test_hour_constraints_*.py`, `test_allocated_hours_validator.py`, `test_hour_allocation.py`, `test_regulations.py`.
+Парсер запроса без LLM (`backend/app/brief_guard.py`) достаёт из текста объём курса, часы аттестации, вид программы и ограничения по видам занятий («практики не менее 20 ч», «ровно 8 ч»). Опечатки правит; «месяц» и сроки часами не считает.
+
+Валидатор (`backend/app/curriculum_rules/validator.py`) ловит противоречия ограничений и выход за общий объём за вычетом аттестации. Профили нагрузки — `curriculum_rules/profiles.py` и `workload_profiles.json`, нормативные рамки — `regulations.py`.
+
+Тесты: `test_brief_hours_parser`, `test_hour_constraints_parser`, `test_hour_constraints_guard`, `test_allocated_hours_validator`, `test_hour_allocation`, `test_regulations`. Код отвечает за арифметику и противоречия; уместность распределения и применимость норм подтверждает методист.
 
 ## Как устроено (кратко)
 

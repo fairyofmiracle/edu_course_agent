@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from typing import Any
+import json
 
 HOURS = re.compile(
     r"(\d+)\s*(?:(?:академическ\w*|учебн\w*)\s+|ак\.?\s*)?"
@@ -1042,7 +1043,32 @@ THINKING_LEAK = re.compile(
 )
 
 
+def _strip_tool_json_dumps(text: str) -> str:
+    """Remove model tool dumps like {"tool":"...","arguments":{...}} from visible text."""
+    cleaned = text or ""
+    cleaned = re.sub(
+        r"(?is)```(?:json)?\s*(\{[\s\S]*?\"tool\"\s*:[\s\S]*?\})\s*```",
+        "",
+        cleaned,
+    )
+    decoder = json.JSONDecoder()
+    while True:
+        match = re.search(r"\{\s*\"tool\"\s*:", cleaned)
+        if not match:
+            break
+        start = match.start()
+        try:
+            _, end = decoder.raw_decode(cleaned[start:])
+        except json.JSONDecodeError:
+            # Truncated dump: drop from the tool object start through end of text.
+            cleaned = cleaned[:start]
+            break
+        cleaned = cleaned[:start] + cleaned[start + end :]
+    return cleaned
+
+
 def strip_assistant_text(text: str) -> str:
     cleaned = THINKING_LEAK.sub("", text or "")
+    cleaned = _strip_tool_json_dumps(cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
     return cleaned

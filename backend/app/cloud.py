@@ -280,9 +280,11 @@ def parse_assistant_message(content: str | None) -> dict[str, Any]:
         for key, value in parsed.items():
             if key not in {"tool", "arguments"} and key not in arguments:
                 arguments[key] = value
+        # Keep human prose; drop the tool JSON dump from visible content.
+        prose = strip_assistant_text(text)
         return {
             "role": "assistant",
-            "content": "",
+            "content": prose,
             "tool_calls": [
                 {
                     "id": "json-tool",
@@ -294,7 +296,7 @@ def parse_assistant_message(content: str | None) -> dict[str, Any]:
                 }
             ],
         }
-    return {"role": "assistant", "content": text}
+    return {"role": "assistant", "content": strip_assistant_text(text)}
 
 
 def build_chat_payload(
@@ -484,5 +486,10 @@ class CloudRuClient:
                     message["content"] = promoted
             if self.json_tools and not message.get("tool_calls"):
                 return parse_assistant_message(message.get("content"))
-            return sanitize(message)
+            message = sanitize(message)
+            # Native tool_calls can still echo a JSON tool dump in content — strip it.
+            content = message.get("content")
+            if isinstance(content, str) and content.strip():
+                message["content"] = strip_assistant_text(content)
+            return message
         raise RuntimeError(attempts_label(total_attempts))

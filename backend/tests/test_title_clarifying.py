@@ -48,6 +48,27 @@ def test_strip_thinking_leak():
     assert strip_assistant_text("<think>secret</think>Готово") == "Готово"
 
 
+def test_strip_tool_json_leak_from_assistant_text():
+    leak = (
+        "Пересобираю материалы выбранного модуля.\n\n"
+        '{"tool":"update_brief","arguments":{"modules":[{"moduleId":"m1",'
+        '"set_lecture":{"title":"Карта задач","hours":4.0}}]}}'
+    )
+    cleaned = strip_assistant_text(leak)
+    assert "\"tool\":" not in cleaned
+    assert "update_brief" not in cleaned
+    assert "set_lecture" not in cleaned
+    assert "Пересобираю" in cleaned
+
+    only_json = '{"tool":"set_lecture","arguments":{"title":"X","hours":2}}'
+    assert strip_assistant_text(only_json) == ""
+
+    fenced = "Готово.\n```json\n{\"tool\":\"update_brief\",\"arguments\":{\"title\":\"A\"}}\n```"
+    cleaned_fenced = strip_assistant_text(fenced)
+    assert "\"tool\":" not in cleaned_fenced
+    assert "Готово" in cleaned_fenced
+
+
 def test_osnovy_python_from_clarifying_reply():
     course = assemble_local_course(
         ["месяц", "Объём: 6 академических часа", "Основы Python"]

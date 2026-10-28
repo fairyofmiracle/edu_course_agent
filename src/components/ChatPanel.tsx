@@ -207,7 +207,6 @@ export function ChatPanel({
         {messages.length === 0 ? (
           <div className="chat-start">
             <p className="chat-empty">С чего начнём?</p>
-            <p className="chat-empty-hint">Напишите тему и часы своими словами — или заполните шаблон. Без часов спрошу уточнение.</p>
             <div className="start-chips">
               <button
                 type="button"

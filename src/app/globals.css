@@ -4042,10 +4042,12 @@ html[data-theme="light"] .composer textarea::placeholder {
 
 .chat-head-tools {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .export-summary {
@@ -4542,12 +4544,33 @@ button,
 }
 
 .chat-edge-open {
-  position: relative;
+  position: absolute;
 }
 
 .chat-edge-open.is-busy {
   box-shadow: 0 8px 20px rgb(17 17 17 / 20%), 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
 }
+
+/* chat hide edge: pin to pane mid-left; do not let later relative rules drift it */
+.pane-write > .chat-edge {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: auto;
+  bottom: auto;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+}
+
+.studio-body > .chat-edge-open {
+  position: absolute;
+  z-index: 6;
+}
+
+.chat-collapse {
+  flex: 0 0 auto;
+}
+
 
 @keyframes chat-fab-pulse {
   0%, 100% { transform: scale(1); opacity: 1; }
@@ -5021,4 +5044,18 @@ button,
   }
 }
 
+/* chat hide edge mobile safeguard */
+@media (max-width: 980px) {
+  .studio-body > .chat-edge-open {
+    position: fixed !important;
+    top: auto !important;
+    transform: none;
+  }
+  .pane-write > .chat-edge {
+    display: none;
+  }
+  .chat-collapse {
+    display: inline-flex;
+  }
+}
 

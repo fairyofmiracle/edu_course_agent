@@ -388,7 +388,7 @@ export function RequestComposer({
   };
 
   return (
-    <form className={`composer${mode === "template" ? " composer-template" : ""}`} onSubmit={submit}>
+    <form className={`composer${mode === "template" ? " composer-template" : ""}`} onSubmit={submit} noValidate>
       {mode === "template" ? (
         <div className="template-grid">
           <label>
@@ -528,17 +528,6 @@ export function RequestComposer({
               }}
             />
             <div className="chat-compose-actions">
-              <button
-                type="button"
-                className="dock-icon"
-                title={recording ? "Стоп запись" : "Голос"}
-                aria-label={recording ? "Стоп запись" : "Голос"}
-                aria-pressed={recording}
-                onClick={() => void toggleVoice()}
-                disabled={busyFile || pending}
-              >
-                <MicIcon />
-              </button>
               {pending ? (
                 <button type="button" className="dock-send" aria-label="Стоп" title="Стоп" onClick={onStop}>
                   <StopIcon />
@@ -601,11 +590,12 @@ export function RequestComposer({
               </button>
             ) : (
               <button
-                type="submit"
+                type="button"
                 className="dock-send dock-send-label"
                 aria-label="Отправить"
                 title="Отправить"
-                disabled={!templateReady}
+                disabled={!templateReady || pending}
+                onClick={() => sendTemplate()}
               >
                 <SendIcon />
                 <span>Отправить</span>
@@ -705,15 +695,6 @@ export function RequestComposer({
   );
 }
 
-function MicIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="9" y="3.5" width="6" height="10" rx="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      <path d="M12 17v3M9 20h6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 function FileIcon() {
   return <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/file.png)" }} aria-hidden="true" />;

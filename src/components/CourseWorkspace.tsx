@@ -538,8 +538,9 @@ function Overview({
               <dd className="passport-placeholder">Очно, смешанный или практикум</dd>
             </div>
           </dl>
+        </section>
           {(onFillInChat || onFillByTemplate) ? (
-            <div className="passport-actions">
+            <div className="passport-actions passport-actions-below">
               {onFillInChat ? (
                 <button type="button" className="primary" onClick={onFillInChat}>
                   Заполнить в чате
@@ -552,7 +553,6 @@ function Overview({
               ) : null}
             </div>
           ) : null}
-        </section>
       ) : (
       <>
       {!brief.title && course.modules.length === 0 && gaps.length > 0 ? (

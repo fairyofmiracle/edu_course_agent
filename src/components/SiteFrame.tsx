@@ -89,6 +89,7 @@ export function SiteFrame({
           ) : null}
         </div>
         {tools ? <div className="site-tools site-tools-header" onClick={() => setPanel(null)}>{tools}</div> : null}
+        {note ? <p className="site-save-note" aria-live="polite">{note}</p> : null}
         {onOpenChat ? (
           <button
             type="button"
@@ -143,14 +144,8 @@ export function SiteFrame({
             <small>студия методиста</small>
           </span>
         </Link>
-        {tools ? <div className="site-tools site-tools-nav">{tools}</div> : null}
         <div className="top-actions">{actions?.()}</div>
         <div className="nav-foot">
-          {note ? (
-            <p className="nav-note" aria-live="polite">
-              {note}
-            </p>
-          ) : null}
           <button
             type="button"
             className="nav-help"
@@ -186,6 +181,7 @@ export function SiteFrame({
       </nav>
       <div className="studio-column">
         <div className="studio-main">
+          {children}
           {panel ? (
             <SideTab
               panel={panel}
@@ -197,9 +193,7 @@ export function SiteFrame({
                 storeMethodistName(window.localStorage, next);
               }}
             />
-          ) : (
-            children
-          )}
+          ) : null}
         </div>
       </div>
       </div>
@@ -216,7 +210,7 @@ function ThemeButton({ theme, onToggle }: { theme: Theme; onToggle: () => void }
   );
 }
 
-const DEFAULT_METHODIST_NAME = "Методист Методистов";
+const DEFAULT_METHODIST_NAME = "Методист";
 const METHODIST_NAME_KEY = "edu-course-methodist-name";
 
 function readMethodistName(storage: Pick<Storage, "getItem">) {
@@ -244,7 +238,7 @@ function SideTab({
   onName: (name: string) => void;
 }) {
   return (
-    <section className="side-tab">
+    <section className="side-tab side-tab-overlay" role="dialog" aria-modal="true">
       <div className="side-tab-bar">
         <button type="button" className="side-tab-back" onClick={() => onPanel(null)}>
           К программе

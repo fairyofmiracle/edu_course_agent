@@ -39,13 +39,46 @@ const LEAD_STRIP =
 
 /** Soft RU+EN swear filter — mirror backend brief_guard.contains_profanity */
 const PROFANITY =
-  /\b(?:бля(?:д|т|ть|ди|дск)?\w*|сука\w*|хуй\w*|хуя\w*|хуе\w*|хуё\w*|пизд\w*|еба\w*|ёба\w*|ебл\w*|ёбл\w*|ебу\w*|ёбу\w*|ебан\w*|ёбан\w*|муда\w*|мудил\w*|гавно\w*|говно\w*|залуп\w*|пидор\w*|пидар\w*|долбо[её]б\w*|у[её]б\w*|fuck\w*|fucking|motherfuck\w*|shit\w*|bullshit|asshole\w*|dickhead\w*|bitch\w*|cunt\w*|bastard\w*|wtf\b)/i;
+  /(?<![A-Za-zА-Яа-яЁё])(?:бля(?:д|т|ть|ди|дск)?\w*|сука\w*|сучк\w*|ж+о+п+\w*|хуй\w*|хуя\w*|хуе\w*|хуё\w*|нахуй\w*|нахер\w*|похуй\w*|пизд\w*|еба\w*|ёба\w*|ебл\w*|ёбл\w*|ебу\w*|ёбу\w*|ебан\w*|ёбан\w*|муда\w*|мудил\w*|гавно\w*|говно\w*|залуп\w*|пидор\w*|пидар\w*|долбо[её]б\w*|у[её]б\w*)|(?<![A-Za-z])(?:fuck\w*|fucking|motherfuck\w*|shit\w*|bullshit|asshole\w*|dickhead\w*|bitch\w*|cunt\w*|bastard\w*|wtf\b)/i;
 
 export const PROFANITY_REPLY =
   "Переформулируйте запрос без грубостей — из мата программу не собираю.";
 
-export function containsProfanity(text: string): boolean {
-  return PROFANITY.test(text || "");
+export function collapseRepeats(text: string): string {
+  return (text || "").replace(/(.)\1{2,}/gu, "");
+}
+
+function containsProfanity(text: string): boolean {
+  const raw = text || "";
+  return PROFANITY.test(raw) || PROFANITY.test(collapseRepeats(raw));
+}
+
+const VOLUME_ONLY_REPLY =
+  /^\s*(?:объ[её]м\s*[:—-]?\s*)?\d+(?:[.,]\d+)?\s*(?:академическ\S*\s+|ак\.?\s*)?(?:час(?:а|ов)?|ч)\b/i;
+
+function isUnusableTitle(text: string): boolean {
+  const cleaned = (text || "").trim();
+  if (cleaned.length < 2) return true;
+  if (containsProfanity(cleaned)) return true;
+  return false;
+}
+
+const VOLUME_FIELD_TITLE = /^(?:объ[её]м|длительность|продолжительность|часов?|hours?|duration)\.?$/i;
+
+const BARE_DURATION = /^(?:месяц(?:а|ев)?|недел[яюи]|день|дня|дней|год(?:а|ов)?|час(?:а|ов)?)\.?$/i;
+
+function clarifyingTitleFromReply(text: string): string {
+  let cleaned = (text || "").trim();
+  if (!cleaned || SERVICE_PROMPT.test(cleaned)) return "";
+  if (containsProfanity(cleaned)) return "";
+  if (VOLUME_ONLY_REPLY.test(cleaned)) return "";
+  if (BARE_DURATION.test(cleaned)) return "";
+  if (VOLUME_FIELD_TITLE.test(cleaned)) return "";
+  cleaned = cleaned.replace(/^(?:назван\w*|тема|программ\w*)\s*[:—-]\s*/i, "").trim();
+  if (cleaned.length < 2 || isUnusableTitle(cleaned)) return "";
+  let title = cleaned.split(/[\n;]/)[0]?.trim().slice(0, 160) ?? "";
+  if (title) title = title[0].toUpperCase() + title.slice(1);
+  return title && !isUnusableTitle(title) ? title : "";
 }
 
 function isGarbageTitle(text: string): boolean {
@@ -145,7 +178,10 @@ export function guardBrief(
   if (!current.title.trim() && !brief.title?.trim()) {
     const first =
       context.userTexts.find((text) => text.trim() && !SERVICE_PROMPT.test(text.trim())) ?? "";
-    const title = titleFromRequest(first);
+    const last =
+      [...context.userTexts].reverse().find((text) => text.trim() && !SERVICE_PROMPT.test(text.trim())) ?? "";
+    const title =
+      titleFromRequest(last) || titleFromRequest(first) || clarifyingTitleFromReply(last);
     if (title) brief.title = title;
   }
 
@@ -159,7 +195,7 @@ export function guardBrief(
     if (attest) brief.attestationForm = attest;
   }
 
-  if (brief.title && (containsProfanity(brief.title) || isGarbageTitle(brief.title))) {
+  if (brief.title && (containsProfanity(brief.title) || isUnusableTitle(brief.title))) {
     delete brief.title;
     dropped.push("title");
   }

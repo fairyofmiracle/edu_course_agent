@@ -19,7 +19,7 @@ describe("job status labels", () => {
 
   it("чат идёт от отправки к повторам", () => {
     expect(chatWaitLabel(0)).toMatch(/Отправляю/);
-    expect(chatWaitLabel(4000)).toMatch(/думает/);
+    expect(chatWaitLabel(4000)).toMatch(/Готовлю ответ/);
     expect(chatWaitLabel(25000)).toMatch(/Жду ответ шлюза/);
     expect(chatWaitLabel(80000)).toMatch(/пишет комплект/);
   });

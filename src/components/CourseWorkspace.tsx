@@ -54,8 +54,6 @@ type CourseWorkspaceProps = {
   onGatherFramework?: () => void;
   onGatherKit?: () => void;
   onOpenChat?: () => void;
-  onFillInChat?: () => void;
-  onFillByTemplate?: () => void;
   onRebuildModule?: (moduleId: string, title: string) => void;
   onRefreshOutdated?: (labels: string[]) => void;
   onGoPlan?: () => void;
@@ -125,8 +123,6 @@ export function CourseWorkspace({
   onRebuildModule,
   onRefreshOutdated,
   onOpenChat,
-  onFillInChat,
-  onFillByTemplate,
   onGoPlan,
 }: CourseWorkspaceProps) {
   const contentOpen = isFrameworkApproved(course) || hasBuiltMaterials(course);
@@ -145,7 +141,7 @@ export function CourseWorkspace({
           />
         ) : (
           <>
-            {tab === "overview" ? <Overview course={course} onFillInChat={onFillInChat} onFillByTemplate={onFillByTemplate} onGatherFramework={gatherFramework} /> : null}
+            {tab === "overview" ? <Overview course={course} /> : null}
             {tab === "structure" ? (
               course.modules.length === 0 ? (
                 <TabEmpty
@@ -424,14 +420,8 @@ function kitOf(course: CourseDocument, moduleId: string) {
 
 function Overview({
   course,
-  onFillInChat,
-  onFillByTemplate,
-  onGatherFramework,
 }: {
   course: CourseDocument;
-  onFillInChat?: () => void;
-  onFillByTemplate?: () => void;
-  onGatherFramework?: () => void;
 }) {
   const { brief } = course;
   const gaps = briefGaps(course);
@@ -462,20 +452,7 @@ function Overview({
             </div>
           </dl>
         </section>
-          {(onFillInChat || onFillByTemplate) ? (
-            <div className="passport-actions passport-actions-below">
-              {onFillInChat ? (
-                <button type="button" className="primary" onClick={onFillInChat}>
-                  Заполнить в чате
-                </button>
-              ) : null}
-              {onFillByTemplate ? (
-                <button type="button" className="passport-secondary" onClick={onFillByTemplate}>
-                  По шаблону
-                </button>
-              ) : null}
-            </div>
-          ) : null}
+
         </>
       ) : (
       <>
@@ -581,13 +558,7 @@ function Overview({
           </ul>
         </article>
       </div>
-      {onGatherFramework && !isFrameworkApproved(course) && course.modules.length === 0 ? (
-        <div className="passport-actions passport-actions-below">
-          <button type="button" className="primary" onClick={onGatherFramework}>
-            Собрать каркас
-          </button>
-        </div>
-      ) : null}
+
       <ReferenceList references={brief.references} title="Материалы" />
     </div>
   );
@@ -651,230 +622,128 @@ function topicHoursLine(topic: {
   return parts.length ? parts.join(", ") : "часы по видам ещё не разложены";
 }
 
-function ModulePanel({
-  course,
-  moduleId,
-  onSelectModule,
-  onRebuildModule,
-  relatedIds,
-}: {
-  course: CourseDocument;
-  moduleId: string;
-  onSelectModule: (id: string) => void;
-  onRebuildModule?: (moduleId: string, title: string) => void;
-  relatedIds: Set<string>;
-}) {
-  const selected = course.modules.find((item) => item.id === moduleId) ?? course.modules[0];
-  if (!selected) return null;
-  const marks = kitOf(course, selected.id);
-  const topics = selected.plan.length
-    ? selected.plan
-    : selected.topics.map((title) => ({
-        title,
-        lectureHours: 0,
-        practiceHours: 0,
-        labHours: 0,
-        selfStudyHours: 0,
-      }));
-  return (
-    <div className="module-panel sticky-module-panel">
-      <p className="kit-legend muted" aria-label="Обозначения комплекта">
-        <span><i className="on">Л</i> лекция</span>
-        <span><i className="on">З</i> задание</span>
-        <span><i className="on">Т</i> тест</span>
-        <span className="kit-legend-hint">Цветная метка — материал уже есть</span>
-      </p>
-      {course.modules.length > 1 ? (
-        <div className="module-chip-row" role="list" aria-label="Модули">
-          {course.modules.map((item, index) => {
-            const kit = kitOf(course, item.id);
-            const gap = moduleKindsGap(item);
-            const related = relatedIds.has(item.id);
-            return (
-              <button
-                key={item.id}
-                type="button"
-                role="listitem"
-                className={[
-                  "module-chip",
-                  item.id === selected.id ? "active" : "",
-                  related ? "related" : "",
-                  gap ? "hours-bad" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                title={gap ?? item.title}
-                onClick={() => onSelectModule(item.id)}
-              >
-                <span className="mono">{String(index + 1).padStart(2, "0")}</span>
-                <strong>{item.title}</strong>
-                <span className="hours">{item.hours} ч</span>
-                <span className="kit-marks" aria-label="Комплект модуля">
-                  <i className={kit.lecture ? "on" : ""}>Л</i>
-                  <i className={kit.seminar ? "on" : ""}>З</i>
-                  <i className={kit.test ? "on" : ""}>Т</i>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-      <article className="module-detail">
-        <p className="kicker">Модуль</p>
-        <h3>{selected.title}</h3>
-        {onRebuildModule && isFrameworkApproved(course) ? (
-          <div className="pane-actions" style={{ margin: "8px 0 12px" }}>
-            <button
-              type="button"
-              title="Пересобрать лекции, семинар и тест только для этого модуля"
-              onClick={() => onRebuildModule(selected.id, selected.title)}
-            >
-              Пересобрать материалы модуля
-            </button>
-          </div>
-        ) : null}
-        <p className="muted">
-          {selected.hours} ч
-          {selected.competencyIds.length
-            ? ` · ${selected.competencyIds.map((id) => competencyName(course, id)).join(", ")}`
-            : ""}
-        </p>
-        <span className="kit-marks detail-marks">
-          <i className={marks.lecture ? "on" : ""}>Лекция</i>
-          <i className={marks.seminar ? "on" : ""}>Задание</i>
-          <i className={marks.test ? "on" : ""}>Тест</i>
-        </span>
-        <h4>Темы</h4>
-        <ol className="plan-list">
-          {topics.map((topic) => (
-            <li key={topic.title}>
-              <strong>{topic.title}</strong>
-              {selected.plan.length ? <span>{topicHoursLine(topic)}</span> : null}
-            </li>
-          ))}
-        </ol>
-        <h4>Результаты</h4>
-        <ul>
-          {selected.learningOutcomes.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-        <details className="module-schema">
-          <summary>Схема</summary>
-          <MermaidBlock chart={moduleFlowChart(selected)} />
-        </details>
-      </article>
-    </div>
-  );
-}
-
 function weekWord(count: number) {
   if (count % 10 === 1 && count % 100 !== 11) return "неделя";
   if (count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 12 || count % 100 > 14)) return "недели";
   return "недель";
 }
 
-function WeekStrip({
-  course,
-  perWeek,
-  setPerWeek,
+function ModuleWeekRuler({
   weeks,
-  selectedWeek,
-  onSelectWeek,
-  selectedModuleId,
-  onSelectModule,
+  moduleId,
+}: {
+  weeks: Array<Array<{ id: string }>>;
+  moduleId: string;
+}) {
+  if (weeks.length === 0) return null;
+  return (
+    <div className="module-week-ruler" aria-label="Недели модуля в курсе" role="list">
+      {weeks.map((pieces, index) => {
+        const on = pieces.some((piece) => piece.id === moduleId);
+        return (
+          <span
+            key={`ruler-${moduleId}-${index}`}
+            role="listitem"
+            className={["week-dot", on ? "on" : ""].filter(Boolean).join(" ")}
+            title={`Неделя ${index + 1}${on ? " — этот модуль" : ""}`}
+            aria-label={`Неделя ${index + 1}${on ? ", модуль здесь" : ""}`}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function ModuleCard({
+  course,
+  module,
+  index,
+  open,
+  onToggle,
+  weeks,
+  onRebuildModule,
 }: {
   course: CourseDocument;
-  perWeek: number;
-  setPerWeek: (value: number) => void;
+  module: CourseDocument["modules"][number];
+  index: number;
+  open: boolean;
+  onToggle: () => void;
   weeks: Array<Array<{ id: string; title: string; hours: number; continued: boolean }>>;
-  selectedWeek: number;
-  onSelectWeek: (index: number) => void;
-  selectedModuleId: string;
-  onSelectModule: (id: string) => void;
+  onRebuildModule?: (moduleId: string, title: string) => void;
 }) {
-  const total = snapHalf(course.modules.reduce((sum, item) => sum + item.hours, 0));
-  const pace = calendarPace(course.brief.constraints, total);
-  const sameAsGraph = pace?.weeks != null && weeks.length === pace.weeks;
+  const marks = kitOf(course, module.id);
+  const gap = moduleKindsGap(module);
+  const topics = module.plan.length
+    ? module.plan
+    : module.topics.map((title) => ({
+        title,
+        lectureHours: 0,
+        practiceHours: 0,
+        labHours: 0,
+        selfStudyHours: 0,
+      }));
+  const weekIndexes = weeks
+    .map((pieces, weekIndex) => (pieces.some((piece) => piece.id === module.id) ? weekIndex + 1 : null))
+    .filter((value): value is number => value != null);
+
   return (
-    <section className="week-plan week-plan-strip">
-      <header className="week-plan-head">
-        <div>
-          <p className="kicker">По неделям</p>
-          <h3>Лента недель</h3>
-          <p className="muted">
-            {pace?.line ? `${pace.line} ` : ""}
-            {formatHours(total)} ч
-            {sameAsGraph
-              ? ` на ${weeks.length} ${weekWord(weeks.length)}, по ${formatHours(perWeek)} ч.`
-              : ` · сейчас ${weeks.length} ${weekWord(weeks.length)} по ${formatHours(perWeek)} ч.`}
-          </p>
-        </div>
-        <label className="week-hours-control">
-          Часов в неделю
-          <input
-            type="range"
-            min={0.5}
-            max={40}
-            step={0.5}
-            value={perWeek}
-            aria-valuetext={`${formatHours(perWeek)} ч в неделю`}
-            onChange={(event) => {
-              const next = snapHalf(Number(event.target.value));
-              if (next >= 0.5 && next <= 40) setPerWeek(next);
-            }}
-          />
-          <span className="week-hours-value">{formatHours(perWeek)} ч · тяните ползунок</span>
-        </label>
-      </header>
-      <div className="week-strip" role="list">
-        {weeks.map((pieces, index) => {
-          const weekActive = index === selectedWeek;
-          return (
-            <article
-              key={`week-${index}`}
-              role="listitem"
-              className={["week-card", "week-strip-card", weekActive ? "active" : ""].filter(Boolean).join(" ")}
-            >
+    <article
+      className={["module-first-card", open ? "open" : "", gap ? "hours-bad" : ""].filter(Boolean).join(" ")}
+    >
+      <button type="button" className="module-first-head" aria-expanded={open} onClick={onToggle}>
+        <span className="mono module-first-num">{String(index + 1).padStart(2, "0")}</span>
+        <span className="module-first-main">
+          <strong>{module.title}</strong>
+          <span className="module-first-meta muted">
+            {formatHours(module.hours)} ч
+            {weekIndexes.length ? ` · нед. ${weekIndexes.join(", ")}` : ""}
+            {module.competencyIds.length
+              ? ` · ${module.competencyIds.map((id) => competencyName(course, id)).join(", ")}`
+              : ""}
+          </span>
+          <ModuleWeekRuler weeks={weeks} moduleId={module.id} />
+        </span>
+        <span className="kit-marks" aria-label="Комплект модуля">
+          <i className={marks.lecture ? "on" : ""}>Л</i>
+          <i className={marks.seminar ? "on" : ""}>З</i>
+          <i className={marks.test ? "on" : ""}>Т</i>
+        </span>
+      </button>
+      {open ? (
+        <div className="module-first-body">
+          {onRebuildModule && isFrameworkApproved(course) ? (
+            <div className="pane-actions">
               <button
                 type="button"
-                className="week-card-select"
-                aria-pressed={weekActive}
-                onClick={() => onSelectWeek(index)}
+                title="Пересобрать лекции, семинары и тесты только для этого модуля"
+                onClick={() => onRebuildModule(module.id, module.title)}
               >
-                <p className="kicker">Неделя {index + 1}</p>
-                <span className="muted week-card-sum">
-                  {formatHours(pieces.reduce((sum, p) => sum + p.hours, 0))} ч
-                </span>
+                Пересобрать материалы модуля
               </button>
-              <ul>
-                {pieces.map((piece, pieceIndex) => {
-                  const pieceActive = piece.id === selectedModuleId;
-                  return (
-                    <li key={`${piece.id}-${pieceIndex}`}>
-                      <button
-                        type="button"
-                        className={["week-piece", pieceActive ? "active" : ""].filter(Boolean).join(" ")}
-                        onClick={() => {
-                          onSelectWeek(index);
-                          onSelectModule(piece.id);
-                        }}
-                      >
-                        <strong>{piece.title}</strong>
-                        <span>
-                          {piece.continued ? "продолжение, " : ""}
-                          {formatHours(piece.hours)} ч
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </article>
-          );
-        })}
-      </div>
-    </section>
+            </div>
+          ) : null}
+          <h4>Темы</h4>
+          <ol className="plan-list">
+            {topics.map((topic) => (
+              <li key={topic.title}>
+                <strong>{topic.title}</strong>
+                {module.plan.length ? <span>{topicHoursLine(topic)}</span> : null}
+              </li>
+            ))}
+          </ol>
+          <h4>Результаты</h4>
+          <ul>
+            {module.learningOutcomes.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+          <details className="module-schema">
+            <summary>Схема</summary>
+            <MermaidBlock chart={moduleFlowChart(module)} />
+          </details>
+        </div>
+      ) : null}
+    </article>
   );
 }
 
@@ -885,50 +754,65 @@ function Structure({ course, onRebuildModule }: { course: CourseDocument; onRebu
   const total = snapHalf(course.modules.reduce((sum, item) => sum + item.hours, 0));
   const pace = calendarPace(course.brief.constraints, total);
   const [perWeek, setPerWeek] = useState(pace?.perWeek ?? 4);
-  const [moduleId, setModuleId] = useState(course.modules[0]?.id ?? "");
-  const [selectedWeek, setSelectedWeek] = useState(0);
+  const [openId, setOpenId] = useState(course.modules[0]?.id ?? "");
 
   useEffect(() => {
     setPerWeek(pace?.perWeek ?? 4);
   }, [course.id, pace?.line, pace?.perWeek]);
 
   useEffect(() => {
-    if (!course.modules.some((item) => item.id === moduleId)) {
-      setModuleId(course.modules[0]?.id ?? "");
+    if (!course.modules.some((item) => item.id === openId)) {
+      setOpenId(course.modules[0]?.id ?? "");
     }
-  }, [course.modules, moduleId]);
+  }, [course.modules, openId]);
 
   const weeks = weeksOf(course.modules, perWeek);
+  const sameAsGraph = pace?.weeks != null && weeks.length === pace.weeks;
 
-  useEffect(() => {
-    if (selectedWeek >= weeks.length) setSelectedWeek(Math.max(0, weeks.length - 1));
-  }, [weeks.length, selectedWeek]);
-
-  const relatedIds = new Set((weeks[selectedWeek] ?? []).map((piece) => piece.id));
+  const bumpHours = (delta: number) => {
+    const next = snapHalf(perWeek + delta);
+    if (next >= 0.5 && next <= 40) setPerWeek(next);
+  };
 
   return (
-    <div className="structure structure-light structure-plan-a">
-      <p className="muted structure-hint">Учебный план по неделям и модули. Даты календаря сюда не ставятся.</p>
-      <WeekStrip
-        course={course}
-        perWeek={perWeek}
-        setPerWeek={setPerWeek}
-        weeks={weeks}
-        selectedWeek={selectedWeek}
-        onSelectWeek={setSelectedWeek}
-        selectedModuleId={moduleId}
-        onSelectModule={setModuleId}
-      />
-      <ModulePanel
-        course={course}
-        moduleId={moduleId}
-        onSelectModule={setModuleId}
-        onRebuildModule={onRebuildModule}
-        relatedIds={relatedIds}
-      />
+    <div className="structure structure-light structure-modules-first">
+      <header className="plan-tempo-head">
+        <p className="plan-tempo-line">
+          {pace?.line ? `${pace.line} · ` : ""}
+          {formatHours(total)} ч
+          {sameAsGraph
+            ? ` · ${weeks.length} ${weekWord(weeks.length)} · ${formatHours(perWeek)} ч/нед.`
+            : ` · сетка ${weeks.length} ${weekWord(weeks.length)} по ${formatHours(perWeek)} ч`}
+        </p>
+        <div className="week-hours-stepper" aria-label="Часов в неделю">
+          <button type="button" className="stepper-btn" aria-label="Меньше часов в неделю" onClick={() => bumpHours(-0.5)}>
+            −
+          </button>
+          <span className="week-hours-value">{formatHours(perWeek)} ч/нед.</span>
+          <button type="button" className="stepper-btn" aria-label="Больше часов в неделю" onClick={() => bumpHours(0.5)}>
+            +
+          </button>
+        </div>
+      </header>
+      <div className="module-first-list" role="list">
+        {course.modules.map((module, index) => (
+          <div key={module.id} role="listitem">
+            <ModuleCard
+              course={course}
+              module={module}
+              index={index}
+              open={module.id === openId}
+              onToggle={() => setOpenId((prev) => (prev === module.id ? "" : module.id))}
+              weeks={weeks}
+              onRebuildModule={onRebuildModule}
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
+
 
 function competencyName(course: CourseDocument, id: string) {
   return course.competencies.nodes.find((node) => node.id === id)?.name ?? id;

@@ -812,17 +812,6 @@ function StudioSession({
             }}
             onOpenChat={() => setChatOpen(true)}
             onGoPlan={() => setTab("structure")}
-            onFillInChat={() => {
-              setChatOpen(true);
-              setComposerMode("free");
-              window.setTimeout(() => {
-                document.getElementById("course-request")?.focus();
-              }, 40);
-            }}
-            onFillByTemplate={() => {
-              setChatOpen(true);
-              setComposerMode("template");
-            }}
           />
         </div>
         ) : null}

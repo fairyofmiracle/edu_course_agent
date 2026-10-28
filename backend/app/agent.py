@@ -4,7 +4,7 @@ import json
 import time
 from typing import Any
 
-from .brief_guard import contains_profanity, is_offtopic_request, PROFANITY_REPLY, repair_typos, volume_from_text
+from .brief_guard import contains_profanity, is_offtopic_request, PROFANITY_REPLY, repair_typos, volume_from_text, strip_assistant_text
 from .cloud import CloudRuClient, TurnStopped
 from .domain import apply_patch, framework_fingerprint, framework_items, rebalance_course
 from .catalog import (
@@ -665,6 +665,8 @@ async def run_turn(
             "Подтвердите, что вам нужен курс такого объёма."
         )
         assistant_text = f"{assistant_text}\n\n{note}".strip() if assistant_text else note
+
+    assistant_text = strip_assistant_text(assistant_text)
 
     return {
         "course": course,

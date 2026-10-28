@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import httpx
+from .brief_guard import strip_assistant_text
 
 ROOT_ENV = Path(__file__).parents[2] / ".env"
 CONTROL_TOKEN = re.compile(r"<\|[^|<>]{0,80}\|>")
@@ -478,7 +479,9 @@ class CloudRuClient:
                 raise RuntimeError("Шлюз вернул ответ без списка вариантов.")
             message = dict(choices[0]["message"])
             if not str(message.get("content") or "").strip() and message.get("reasoning"):
-                message["content"] = message.get("reasoning")
+                promoted = strip_assistant_text(str(message.get("reasoning") or ""))
+                if promoted:
+                    message["content"] = promoted
             if self.json_tools and not message.get("tool_calls"):
                 return parse_assistant_message(message.get("content"))
             return sanitize(message)

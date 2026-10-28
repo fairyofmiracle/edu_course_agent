@@ -397,7 +397,8 @@ def test_complete_uses_reasoning_and_rejects_empty_choices(monkeypatch) -> None:
             tools=[],
         )
     )
-    assert message["content"] == "думаю"
+    # reasoning-only "думаю" is stripped — empty content stays empty
+    assert not str(message.get("content") or "").strip()
 
 
 def test_complete_retries_then_succeeds(monkeypatch) -> None:

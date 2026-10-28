@@ -350,7 +350,7 @@ function topicCountLabel(items: { status: AuditStatus }[]) {
   const failCount = items.filter((item) => item.status === "fail").length;
   const warnCount = items.filter((item) => item.status === "warning").length;
   if (failCount > 0) return `${failCount}`;
-  if (warnCount > 0) return `${warnCount} вниман.`;
+  if (warnCount > 0) return `${warnCount}`;
   return null;
 }
 
@@ -411,10 +411,9 @@ function AuditPanel({
       if (statusFilter && entry.status !== statusFilter) return false;
       return true;
     });
-    const passCount = items.filter((entry) => entry.status === "pass").length;
     const countLabel = topicCountLabel(items);
     const weak = status === "fail" || status === "warning";
-    return { topic, items, status, problems, passCount, countLabel, weak };
+    return { topic, items, status, problems, countLabel, weak };
   });
 
   const active = stages.find((s) => s.topic.section === selected) ?? null;
@@ -522,14 +521,10 @@ function AuditPanel({
                 />
                 <span className="audit-rail-name">{topic.title}</span>
                 {countLabel ? (
-                  <span className="audit-rail-count">{countLabel}</span>
-                ) : status === "pass" || status === "disabled" ? (
-                  <span className="audit-rail-ok" aria-label="готово">
-                    ✓
+                  <span className="audit-rail-count" aria-label={`${countLabel} слабостей`}>
+                    {countLabel}
                   </span>
-                ) : (
-                  <span className="audit-rail-ok muted" />
-                )}
+                ) : null}
               </button>
             );
           })}
@@ -542,11 +537,6 @@ function AuditPanel({
             <>
               <header className="audit-panel-head">
                 <h3>{active.topic.title}</h3>
-                {active.weak ? (
-                  <span className="audit-panel-tag">
-                    {active.countLabel ?? "есть слабости"}
-                  </span>
-                ) : null}
               </header>
 
               {visibleProblems.length === 0 &&
@@ -561,9 +551,10 @@ function AuditPanel({
                   {visibleProblems.map((entry) => {
                     const modTitle = moduleTitle(entry.moduleId);
                     const fixHint = SECTION_FIX_HINT[active.topic.section];
+                    // Prefer entry.details; only add place hint when details empty (less chrome).
                     const where =
-                      modTitle || fixHint
-                        ? `Где править${modTitle ? `: «${modTitle}»` : ""}${fixHint ? ` · ${fixHint}` : ""}`
+                      !entry.details && (modTitle || fixHint)
+                        ? `${modTitle ? `«${modTitle}»` : ""}${modTitle && fixHint ? " · " : ""}${fixHint ?? ""}`
                         : null;
                     const detail = [entry.details, where].filter(Boolean).join(" · ");
                     return (
@@ -590,10 +581,6 @@ function AuditPanel({
                 >
                   Ещё {hiddenCount}
                 </button>
-              ) : null}
-
-              {active.passCount > 0 ? (
-                <p className="audit-passed-line muted">Пройдено: {active.passCount}</p>
               ) : null}
 
               <div className="audit-flat-actions">

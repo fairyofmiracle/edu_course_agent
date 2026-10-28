@@ -4063,3 +4063,9 @@ button,
 .chat-compose-actions:empty {
   display: none;
 }
+
+
+.keys-toggle {
+  margin: 0 0 12px;
+  justify-content: flex-end;
+}

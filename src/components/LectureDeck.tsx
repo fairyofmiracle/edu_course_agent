@@ -28,7 +28,7 @@ export function LectureDeck({ course }: LectureDeckProps) {
             <li key={lecture.moduleId} className={open ? "open" : ""}>
               <div className="file-row">
                 <div>
-                  <p className="kicker">Презентация</p>
+                  <p className="kicker">Лекция</p>
                   <strong>{title}</strong>
                   <p className="muted">
                     {lecture.slides.length} слайдов · {lecture.durationMin} мин

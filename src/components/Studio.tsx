@@ -525,6 +525,8 @@ function StudioSession({
     };
     courseRef.current = next;
     setStoredCourse(next);
+    setTab("lectures");
+    setChatOpen(true);
     persistLog(actionEntry(sessionRef.current, "Каркас утверждён"));
   };
 

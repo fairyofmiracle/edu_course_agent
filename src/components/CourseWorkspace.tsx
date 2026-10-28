@@ -39,7 +39,7 @@ const WORKSPACE_TABS: { id: WorkspaceTab; label: string; hint: string }[] = [
   { id: "overview", label: "Обзор", hint: "Шаблон, аудитория и проверка часов. Каркас утверждают здесь." },
   { id: "structure", label: "План", hint: "Модули и разбивка часов по неделям. Календарные даты сюда не ставятся." },
   { id: "competencies", label: "Компетенции", hint: "Чему научатся: знания, умения и навыки по каждой компетенции." },
-  { id: "lectures", label: "Лекции", hint: "Черновик модели. Штамп паспорта от формулировок слайдов не зависит." },
+  { id: "lectures", label: "Лекции", hint: "Файлы лекций: открыть просмотр или скачать PPTX." },
   { id: "seminars", label: "Семинары", hint: "Файлы заданий: открыть просмотр или скачать." },
   { id: "tests", label: "Тесты", hint: "Файлы проверки: открыть просмотр или скачать." },
   { id: "checks", label: "Проверка", hint: "Часы, связи, комплект, источники и оценивание каждого результата." },
@@ -875,6 +875,105 @@ function Seminars({ course }: { course: CourseDocument }) {
 }
 
 function Tests({ course }: { course: CourseDocument }) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [showKeysFor, setShowKeysFor] = useState<Record<string, boolean>>({});
+  if (course.assessments.length === 0) {
+    return null;
+  }
+  return (
+    <ul className="file-list">
+      {course.assessments.map((assessment) => {
+        const courseModule = course.modules.find((item) => item.id === assessment.moduleId);
+        const title = courseModule?.title ?? assessment.moduleId;
+        const open = openId === assessment.moduleId;
+        const showKeys = Boolean(showKeysFor[assessment.moduleId]);
+        return (
+          <li key={assessment.moduleId} className={open ? "open" : ""}>
+            <div className="file-row">
+              <div>
+                <p className="kicker">Тест</p>
+                <strong>{title}</strong>
+                <p className="muted">{assessment.questions.length} вопр.</p>
+              </div>
+              <div className="deck-nav">
+                <button type="button" onClick={() => setOpenId(open ? null : assessment.moduleId)}>
+                  {open ? "Закрыть" : "Открыть"}
+                </button>
+                <button type="button" onClick={() => void exportAssessmentDocx(course, assessment.moduleId)}>
+                  Скачать
+                </button>
+              </div>
+            </div>
+            {open ? (
+              <article className="plan-sheet file-preview">
+                <div className="pane-actions keys-toggle">
+                  <button
+                    type="button"
+                    aria-pressed={showKeys}
+                    title={showKeys ? "Скрыть правильные ответы" : "Показать правильные ответы методисту"}
+                    onClick={() =>
+                      setShowKeysFor((prev) => ({
+                        ...prev,
+                        [assessment.moduleId]: !showKeys,
+                      }))
+                    }
+                  >
+                    {showKeys ? "Скрыть ключи" : "Показать ключи"}
+                  </button>
+                </div>
+                {assessment.questions.map((question, index) => (
+                  <div key={`${question.stem}-${index}`} className="task">
+                    <p className="plan-lead">
+                      <span className="qtype">{QUESTION_LABELS[question.type]}</span> {index + 1}. {question.stem}
+                    </p>
+                    {question.options?.length ? (
+                      <ul>
+                        {question.options.map((option) => {
+                          const isKey = option === question.answer;
+                          return (
+                            <li
+                              key={option}
+                              className={showKeys && isKey ? "correct" : undefined}
+                            >
+                              {showKeys && isKey ? "Ключ. " : ""}
+                              {option}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : showKeys ? (
+                      <p className="answer">Ключ: {question.answer}</p>
+                    ) : (
+                      <p className="muted">Открытый ответ · ключ скрыт</p>
+                    )}
+                    {showKeys ? (
+                      <p className="muted">
+                        {question.explanation}
+                        {question.learningOutcome ? ` · результат: ${question.learningOutcome}` : ""}
+                        {" · "}
+                        {competencyName(course, question.competencyId)}
+                        {" · "}
+                        {BLOOM_LABELS[
+                          course.competencies.nodes.find((node) => node.id === question.competencyId)?.bloomLevel ??
+                            "apply"
+                        ]}
+                      </p>
+                    ) : (
+                      <p className="muted">
+                        {competencyName(course, question.competencyId)}
+                        {question.learningOutcome ? ` · результат: ${question.learningOutcome}` : ""}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </article>
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}: { course: CourseDocument }) {
   const [openId, setOpenId] = useState<string | null>(null);
   if (course.assessments.length === 0) {
     return null;

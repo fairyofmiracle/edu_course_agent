@@ -5725,7 +5725,7 @@ button,
   }
 }
 
-/* === Audit flat layout: page → list, max 2 layers (menu polish + track) === */
+/* === Audit flat layout: page → list, max 2 layers (f9aeabc menu + divided track) === */
 .audit-flat {
   --audit-fail: #9a4a4a;
   --audit-warn: #a07a2e;
@@ -5833,18 +5833,18 @@ button,
 
 .audit-flat-layout {
   display: grid;
-  grid-template-columns: minmax(196px, 236px) minmax(0, 1fr);
-  gap: 0 28px;
+  grid-template-columns: minmax(188px, 228px) minmax(0, 1fr);
+  gap: 0 24px;
   align-items: start;
   min-height: 0;
 }
 
-/* Rail = neat vertical menu + divided track */
+/* Rail = neat vertical menu + divided track (f9aeabc menu + track) */
 .audit-rail {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   padding: 2px 0 2px 18px;
   margin: 0;
   border: 0;
@@ -5898,7 +5898,7 @@ button,
   gap: 10px;
   width: 100%;
   margin: 0;
-  padding: 10px 12px 10px 12px;
+  padding: 9px 12px 9px 11px;
   min-height: 44px;
   border: 0;
   border-radius: 10px;
@@ -5912,7 +5912,7 @@ button,
 }
 
 .audit-rail-item:hover {
-  background: color-mix(in srgb, var(--ink) 6%, var(--paper));
+  background: color-mix(in srgb, var(--ink) 4.5%, transparent);
 }
 
 .audit-rail-item:focus-visible {
@@ -5920,20 +5920,22 @@ button,
 }
 
 .audit-rail-item.is-active {
-  background: color-mix(in srgb, var(--ink) 9%, var(--paper));
-  box-shadow: none;
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--audit-ok) 72%, transparent);
 }
 
 .audit-rail-item.is-active:hover {
-  background: color-mix(in srgb, var(--ink) 11%, var(--paper));
+  background: color-mix(in srgb, var(--ink) 8.5%, transparent);
 }
 
 .audit-rail-item.is-active:focus-visible {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--audit-ok) 40%, transparent);
+  box-shadow:
+    inset 3px 0 0 color-mix(in srgb, var(--audit-ok) 72%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--audit-ok) 35%, transparent);
 }
 
 .audit-rail-item.is-active .audit-rail-name {
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ink);
 }
 
@@ -5972,7 +5974,8 @@ button,
   pointer-events: none;
 }
 
-.audit-rail-item.is-weak .audit-rail-ok {
+.audit-rail-item.is-weak .audit-rail-ok,
+.audit-flat .audit-stage-dot.pass {
   color: color-mix(in srgb, var(--audit-ok) 45%, var(--ink-soft));
 }
 
@@ -5981,37 +5984,31 @@ button,
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: color-mix(in srgb, var(--ink-soft) 55%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 12%, transparent);
+  background: color-mix(in srgb, var(--ink-soft) 48%, transparent);
   pointer-events: none;
 }
 
 .audit-flat .audit-stage-dot.fail {
   background: var(--audit-fail);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--audit-fail) 35%, transparent);
 }
 
 .audit-flat .audit-stage-dot.warning {
   background: var(--audit-warn);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--audit-warn) 35%, transparent);
 }
 
 .audit-flat .audit-stage-dot.pass {
-  background: color-mix(in srgb, var(--audit-ok) 42%, var(--ink-soft));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--audit-ok) 25%, transparent);
-  color: color-mix(in srgb, var(--audit-ok) 45%, var(--ink-soft));
+  background: color-mix(in srgb, var(--ink-soft) 42%, transparent);
 }
 
 .audit-flat .audit-stage-dot.disabled,
 .audit-flat .audit-stage-dot.empty {
-  background: color-mix(in srgb, var(--ink-soft) 38%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 8%, transparent);
+  background: color-mix(in srgb, var(--ink-soft) 32%, transparent);
 }
 
 /* ONE content surface - no second card frame */
 .audit-panel {
   margin: 0;
-  padding: 4px 0 0;
+  padding: 2px 0 0;
   border: 0;
   background: transparent;
   min-width: 0;
@@ -6200,12 +6197,12 @@ button,
   }
 
   .audit-rail-item:hover {
-    background: color-mix(in srgb, var(--ink) 5%, var(--paper));
+    background: color-mix(in srgb, var(--ink) 4%, transparent);
   }
 
   .audit-rail-item.is-active {
-    border-color: color-mix(in srgb, var(--audit-ok) 50%, var(--line));
-    background: color-mix(in srgb, var(--ink) 7%, var(--paper));
+    border-color: color-mix(in srgb, var(--audit-ok) 45%, var(--line));
+    background: color-mix(in srgb, var(--ink) 5%, transparent);
     box-shadow: none;
   }
 

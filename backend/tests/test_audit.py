@@ -38,8 +38,19 @@ def test_audit_checks_hours_and_two_instruments() -> None:
                 "learningOutcomes": [outcome],
             }
         ],
-        "lectures": [{"moduleId": "m1"}],
-        "seminars": [{"moduleId": "m1", "tasks": [{"learningOutcome": outcome}]}],
+        "lectures": [{
+            "moduleId": "m1",
+            "outline": ["Риски ИИ", "Проверка фактов", "План урока"],
+            "slides": [{
+                "title": "Риски",
+                "bullets": ["Галлюцинации модели", "Персональные данные учеников"],
+            }],
+        }],
+        "seminars": [{"moduleId": "m1", "tasks": [{
+            "title": "План урока",
+            "prompt": "Соберите безопасный план урока с проверкой фактов",
+            "learningOutcome": outcome,
+        }]}],
         "assessments": [
             {
                 "moduleId": "m1",
@@ -159,8 +170,19 @@ def test_audit_accepts_half_hour_with_linked_key() -> None:
                 "learningOutcomes": [outcome],
             }
         ],
-        "lectures": [{"moduleId": "m1"}],
-        "seminars": [{"moduleId": "m1", "tasks": [{"learningOutcome": outcome}]}],
+        "lectures": [{
+            "moduleId": "m1",
+            "outline": ["VLAN", "Коммутация", "Практика на стенде"],
+            "slides": [{
+                "title": "VLAN",
+                "bullets": ["Сегментация сети", "Теги 802.1Q"],
+            }],
+        }],
+        "seminars": [{"moduleId": "m1", "tasks": [{
+            "title": "Настройка VLAN",
+            "prompt": "Настройте VLAN на учебном коммутаторе и проверьте сегментацию",
+            "learningOutcome": outcome,
+        }]}],
         "assessments": [
             {"moduleId": "m1", "questions": [{"answer": "Сегментация", "learningOutcome": outcome}]}
         ],
@@ -209,7 +231,7 @@ def test_openapi_describes_audit_contract() -> None:
 
     assert response.status_code == 200
     body = response.json()
-    assert set(body["summary"]) == {"pass", "warning", "fail"}
+    assert set(body["summary"]) == {"pass", "warning", "fail", "disabled"}
     assert body["summary"]["fail"] > 0
 
 

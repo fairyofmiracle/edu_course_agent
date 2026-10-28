@@ -1,5 +1,46 @@
 {
   "version": "1.0",
   "description": "Каталог рекомендательных профилей трудоёмкости образовательных программ",
-  "profiles": []
+  "profiles": [
+    {
+      "id": "default",
+      "description": "Нейтральный профиль, когда формат программы не указан явно",
+      "weights": {
+        "lectureHours": 3,
+        "practiceHours": 3,
+        "labHours": 1,
+        "selfStudyHours": 2
+      }
+    },
+    {
+      "id": "lecture",
+      "description": "Преимущественно лекционный формат обучения",
+      "weights": {
+        "lectureHours": 5,
+        "practiceHours": 2,
+        "labHours": 1,
+        "selfStudyHours": 2
+      }
+    },
+    {
+      "id": "blended",
+      "description": "Смешанный формат обучения",
+      "weights": {
+        "lectureHours": 3,
+        "practiceHours": 4,
+        "labHours": 1,
+        "selfStudyHours": 2
+      }
+    },
+    {
+      "id": "workshop",
+      "description": "Практико-ориентированный формат обучения",
+      "weights": {
+        "lectureHours": 1,
+        "practiceHours": 5,
+        "labHours": 3,
+        "selfStudyHours": 1
+      }
+    }
+  ]
 }

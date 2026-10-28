@@ -20,6 +20,140 @@ VOLUME = re.compile(
     r"(?:часов|часа|час\b|ч(?![а-яё]))",
     re.IGNORECASE,
 )
+
+EXPLICIT_DURATION = re.compile(
+    r"(?:"
+    r"\b(?:курс|программа|обучение)\b"
+    r"(?:\s+[^\W\d_][\w-]*){0,5}?"
+    r"\s+на\s+"
+    r"|"
+    r"\b(?:общ(?:ий|ая|ее|его)\s+)?"
+    r"(?:объ[её]м|продолжительность)\b"
+    r"\s*(?:курса|программы)?\s*[:—-]?\s*"
+    r"|"
+    r"\bвсего\s+"
+    r")"
+    r"(\d+)\s*"
+    r"(?:(?:академическ\w*|учебн\w*)\s+|ак\.?\s*)?"
+    r"(?:часов|часа|час\b|ч(?![а-яё]))",
+    re.IGNORECASE,
+)
+
+DURATION_HOURS_FIRST = re.compile(
+    r"(\d+)\s*"
+    r"(?:(?:академическ\w*|учебн\w*)\s+|ак\.?\s*)?"
+    r"(?:часов|часа|час\b|ч(?![а-яё]))"
+    r"\s+(?:на|для)\s+"
+    r"(?:всей\s+)?(?:программ\w*|курс\w*|обучени\w*)\b",
+    re.IGNORECASE,
+)
+
+KIND_HOURS_CONTEXT = re.compile(
+    r"(?:"
+    r"практик\w*|практическ\w*|"
+    r"лекци\w*|лекционн\w*|"
+    r"лабораторн\w*|"
+    r"самостоятельн\w*"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def extract_hour_constraints(text: str) -> list[dict[str, Any]]:
+    """Извлекает однозначные ограничения часов без обращения к LLM."""
+
+    kind_mapping = {
+        "практик": "practiceHours",
+        "практическ": "practiceHours",
+        "лекци": "lectureHours",
+        "лекционн": "lectureHours",
+        "лаборатор": "labHours",
+        "самостоятельн": "selfStudyHours",
+    }
+
+    operator_mapping = {
+        "не менее": "min",
+        "не меньше": "min",
+        "минимум": "min",
+        "не более": "max",
+        "не больше": "max",
+        "максимум": "max",
+        "ровно": "eq",
+        "точно": "eq",
+    }
+
+    matches = []
+
+    # Сначала собираем совпадения обоих шаблонов.
+    for pattern in (
+        HOUR_CONSTRAINT_KIND_FIRST,
+        HOUR_CONSTRAINT_OPERATOR_FIRST,
+    ):
+        for match in pattern.finditer(text):
+            matches.append(match)
+
+    # Сортируем по позиции в исходном тексте.
+    # При одинаковом начале предпочитаем более длинное совпадение.
+    matches.sort(
+        key=lambda match: (match.start(), -match.end())
+    )
+
+    result = []
+    last_end = -1
+
+    for match in matches:
+        # Не допускаем использования одного фрагмента текста
+        # одновременно в двух разных ограничениях.
+        if match.start() < last_end:
+            continue
+
+        kind = match.group("kind").lower()
+        operator = match.group("operator").lower()
+        value = float(match.group("value").replace(",", "."))
+
+        field = next(
+            (
+                field_name
+                for prefix, field_name in kind_mapping.items()
+                if kind.startswith(prefix)
+            ),
+            None,
+        )
+
+        if field is None:
+            continue
+
+        if value < 0 or value * 2 != int(value * 2):
+            continue
+
+        result.append(
+            {
+                "field": field,
+                "operator": operator_mapping[operator],
+                "value": value,
+                "source": "methodist",
+            }
+        )
+
+        # Запоминаем конец принятого совпадения.
+        last_end = match.end()
+
+    return result
+
+
+def _is_kind_hours(text: str, match: re.Match[str]) -> bool:
+    """Проверяет, относятся ли указанные часы к отдельному виду занятий."""
+
+    before = text[max(0, match.start() - 55):match.start()]
+    after = text[match.end():match.end() + 25]
+
+    # Ограничиваем контекст текущей частью предложения.
+    # Запятая разделяет независимые требования к часам.
+    before = re.split(r"[,;.!?\n]", before)[-1]
+    after = re.split(r"[,;.!?\n]", after)[0]
+
+    return bool(KIND_HOURS_CONTEXT.search(before + " " + after))
+
 SERVICE_PROMPT = re.compile(r"^(Собери |Каркас утверждён)")
 LEAD = re.compile(
     r"^(?:сделайте|сделаем|делаем|давайте|давай|хочу|нужна|нужен|нужно|прошу)\s+",
@@ -104,6 +238,48 @@ KNOWN_WORDS = (
     "сертификатом",
     "стажировка",
     "стажировку",
+)
+
+
+HOUR_KIND_PATTERN = (
+    r"(?P<kind>"
+    r"практик\w*|практическ\w*|"
+    r"лекци\w*|лекционн\w*|"
+    r"лабораторн\w*|лаборатор\w*|"
+    r"самостоятельн\w*"
+    r")"
+)
+
+HOUR_OPERATOR_PATTERN = (
+    r"(?P<operator>"
+    r"не\s+менее|не\s+меньше|минимум|"
+    r"не\s+более|не\s+больше|максимум|"
+    r"ровно|точно"
+    r")"
+)
+
+HOUR_VALUE_PATTERN = (
+    r"(?P<value>\d+(?:[.,]\d+)?)"
+    r"\s*(?:академическ\w*\s+|ак\.?\s*)?"
+    r"(?:часов|часа|час\b|ч\b)"
+)
+
+HOUR_CONSTRAINT_KIND_FIRST = re.compile(
+    HOUR_KIND_PATTERN
+    + r"\s+"
+    + HOUR_OPERATOR_PATTERN
+    + r"\s+"
+    + HOUR_VALUE_PATTERN,
+    re.IGNORECASE,
+)
+
+HOUR_CONSTRAINT_OPERATOR_FIRST = re.compile(
+    HOUR_OPERATOR_PATTERN
+    + r"\s+"
+    + HOUR_VALUE_PATTERN
+    + r"\s+"
+    + HOUR_KIND_PATTERN,
+    re.IGNORECASE,
 )
 
 
@@ -302,32 +478,77 @@ def attestation_hours_from_text(texts: list[str]) -> float | None:
 
 
 def volume_from_text(texts: list[str]) -> int | None:
+    # 1. Ищем явно указанную общую продолжительность
     for text in reversed(texts):
-        match = VOLUME.search(text)
-        if not match:
-            continue
-        start, end = match.span()
-        window = text[max(0, start - 28) : min(len(text), end + 28)]
-        if SAMPLE_NEAR.search(window):
-            continue
-        before = text[max(0, start - 24) : start]
-        if re.search(r"аттестац", before, re.IGNORECASE):
-            continue
-        return int(match.group(1))
+        for pattern in (EXPLICIT_DURATION, DURATION_HOURS_FIRST):
+            for match in pattern.finditer(text):
+                start, end = match.span()
+
+                window = text[
+                    max(0, start - 28):min(len(text), end + 28)
+                ]
+
+                if SAMPLE_NEAR.search(window):
+                    continue
+
+                before = text[max(0, start - 24):start]
+
+                if re.search(r"аттестац", before, re.IGNORECASE):
+                    continue
+
+                return int(match.group(1))
+
+    # 2. Проверяем существующий шаблон продолжительности
+    for text in reversed(texts):
+        for match in VOLUME.finditer(text):
+            if _is_kind_hours(text, match):
+                continue
+
+            start, end = match.span()
+            window = text[max(0, start - 28):min(len(text), end + 28)]
+
+            if SAMPLE_NEAR.search(window):
+                continue
+
+            before = text[max(0, start - 24):start]
+
+            if re.search(r"аттестац", before, re.IGNORECASE):
+                continue
+
+            return int(match.group(1))
+
+    # Если явный объём не найден, используем резервный поиск
     ranked: list[tuple[int, int]] = []
+
     for text in reversed(texts):
         for match in HOURS.finditer(text):
             value = _hour_hit(text, match)
+
             if value is None or value < 8:
                 continue
-            before = text[max(0, match.start() - 24) : match.start()]
+
+            # Не принимаем часы отдельных видов занятий за общий объём
+            if _is_kind_hours(text, match):
+                continue
+
+            before = text[max(0, match.start() - 24):match.start()]
+
             if re.search(r"аттестац", before, re.IGNORECASE):
                 continue
-            around = text[max(0, match.start() - 40) : match.end() + 16]
-            score = 2 if re.search(r"программ|курс|объ[её]м", around, re.IGNORECASE) else 0
+
+            around = text[max(0, match.start() - 40):match.end() + 16]
+
+            score = (
+                2
+                if re.search(r"программ|курс|объ[её]м", around, re.IGNORECASE)
+                else 0
+            )
+
             ranked.append((score, value))
+
     if not ranked:
         return None
+
     ranked.sort()
     return ranked[-1][1]
 
@@ -783,6 +1004,32 @@ def guard_brief(
     texts = [text for text in user_texts if not SERVICE_PROMPT.search(text.strip())]
     form = form_brief or {}
     last = user_texts[-1] if user_texts else ""
+    # Извлекаем явные ограничения часов из последнего
+    # сообщения методиста без обращения к LLM.
+    local_hour_constraints = extract_hour_constraints(
+        texts[-1] if texts else ""
+    )
+
+    if local_hour_constraints:
+        # Сохраняем ограничения LLM, которые не относятся
+        # к видам часов, явно указанным методистом.
+        explicit_fields = {
+            item["field"]
+            for item in local_hour_constraints
+        }
+
+        llm_constraints = [
+            item
+            for item in (brief.get("hourConstraints") or [])
+            if (
+                isinstance(item, dict)
+                and item.get("field") not in explicit_fields
+            )
+        ]
+
+        brief["hourConstraints"] = (
+            llm_constraints + local_hour_constraints
+        )
     if "programKind" in brief:
         kind = normalize_program_kind(brief.get("programKind"))
         if kind:
@@ -807,11 +1054,21 @@ def guard_brief(
             asked_hours = int(float(brief["durationHours"]))
         except (TypeError, ValueError):
             asked_hours = None
-        earlier = {hour for text in texts for hour in mentioned_hours(text)}
+        earlier = {
+            volume
+            for text in texts
+            if (volume := volume_from_text([text])) is not None
+        }
+
+        last_volume = volume_from_text([last])
+
         allowed = (
             form.get("durationHours") == brief["durationHours"]
-            or asked_hours in mentioned_hours(last)
-            or (current.get("durationHours", 0) <= 0 and asked_hours in earlier)
+            or asked_hours == last_volume
+            or (
+                current.get("durationHours", 0) <= 0
+                and asked_hours in earlier
+            )
         )
         if not allowed:
             brief.pop("durationHours")

@@ -115,8 +115,25 @@ async def chat_turn(request: ChatTurnRequest) -> dict[str, Any]:
             references=request.extraReferences,
             form_brief=request.formBrief,
         )
+    except ValueError as error:
+        message = str(error)
+
+        if message.startswith("Некорректные ограничения часов:"):
+            raise HTTPException(
+                status_code=422,
+                detail=message,
+            ) from error
+
+        raise HTTPException(
+            status_code=502,
+            detail=_error_detail(error),
+        ) from error
+
     except Exception as error:
-        raise HTTPException(status_code=502, detail=_error_detail(error)) from error
+        raise HTTPException(
+            status_code=502,
+            detail=_error_detail(error),
+        ) from error
     result["course"] = result["course"].as_api()
     return result
 

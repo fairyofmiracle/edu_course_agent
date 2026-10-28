@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import httpx
+from .brief_guard import strip_assistant_text
 
 ROOT_ENV = Path(__file__).parents[2] / ".env"
 CONTROL_TOKEN = re.compile(r"<\|[^|<>]{0,80}\|>")
@@ -279,9 +280,11 @@ def parse_assistant_message(content: str | None) -> dict[str, Any]:
         for key, value in parsed.items():
             if key not in {"tool", "arguments"} and key not in arguments:
                 arguments[key] = value
+        # Keep human prose; drop the tool JSON dump from visible content.
+        prose = strip_assistant_text(text)
         return {
             "role": "assistant",
-            "content": "",
+            "content": prose,
             "tool_calls": [
                 {
                     "id": "json-tool",
@@ -293,7 +296,7 @@ def parse_assistant_message(content: str | None) -> dict[str, Any]:
                 }
             ],
         }
-    return {"role": "assistant", "content": text}
+    return {"role": "assistant", "content": strip_assistant_text(text)}
 
 
 def build_chat_payload(
@@ -478,8 +481,15 @@ class CloudRuClient:
                 raise RuntimeError("Шлюз вернул ответ без списка вариантов.")
             message = dict(choices[0]["message"])
             if not str(message.get("content") or "").strip() and message.get("reasoning"):
-                message["content"] = message.get("reasoning")
+                promoted = strip_assistant_text(str(message.get("reasoning") or ""))
+                if promoted:
+                    message["content"] = promoted
             if self.json_tools and not message.get("tool_calls"):
                 return parse_assistant_message(message.get("content"))
-            return sanitize(message)
+            message = sanitize(message)
+            # Native tool_calls can still echo a JSON tool dump in content — strip it.
+            content = message.get("content")
+            if isinstance(content, str) and content.strip():
+                message["content"] = strip_assistant_text(content)
+            return message
         raise RuntimeError(attempts_label(total_attempts))

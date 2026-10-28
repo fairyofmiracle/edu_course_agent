@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { applyTheme, readTheme, storeTheme, type Theme } from "@/lib/theme";
 import { NavIcon } from "@/components/NavIcon";
 import { LAW_273, ORDER_266, ORDER_499, ORDER_629 } from "@/lib/legal-basis";
@@ -37,17 +37,38 @@ export function SiteFrame({
   const [panel, setPanel] = useState<"faq" | "account" | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [methodistName, setMethodistName] = useState(DEFAULT_METHODIST_NAME);
+  const [methodistOrg, setMethodistOrg] = useState("");
+  const swipeStartX = useRef<number | null>(null);
 
   useEffect(() => {
     const stored = readTheme(window.localStorage);
     applyTheme(stored);
     const storedName = readMethodistName(window.localStorage);
+    const storedOrg = readMethodistOrg(window.localStorage);
     const timer = window.setTimeout(() => {
       setTheme(stored);
       setMethodistName(storedName);
+      setMethodistOrg(storedOrg);
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
+
+
+  useEffect(() => {
+    if (!panel && !menuOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (panel) setPanel(null);
+      else if (menuOpen) setMenuOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    if (panel || menuOpen) document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [panel, menuOpen]);
 
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
@@ -89,6 +110,7 @@ export function SiteFrame({
           ) : null}
         </div>
         {tools ? <div className="site-tools site-tools-header" onClick={() => setPanel(null)}>{tools}</div> : null}
+        {note ? <p className="site-save-note" aria-live="polite">{note}</p> : null}
         {onOpenChat ? (
           <button
             type="button"
@@ -125,6 +147,17 @@ export function SiteFrame({
       <nav
         className="site-nav"
         aria-label="Меню студии"
+        onTouchStart={(event) => {
+          swipeStartX.current = event.changedTouches[0]?.clientX ?? null;
+        }}
+        onTouchEnd={(event) => {
+          const start = swipeStartX.current;
+          swipeStartX.current = null;
+          if (start == null || !menuOpen) return;
+          const end = event.changedTouches[0]?.clientX ?? start;
+          // Swipe left closes the drawer on touch layouts.
+          if (start - end > 56) setMenuOpen(false);
+        }}
         onClick={(event) => {
           const target = event.target as HTMLElement;
           const hit = target.closest("a, button");
@@ -143,14 +176,8 @@ export function SiteFrame({
             <small>студия методиста</small>
           </span>
         </Link>
-        {tools ? <div className="site-tools site-tools-nav">{tools}</div> : null}
         <div className="top-actions">{actions?.()}</div>
         <div className="nav-foot">
-          {note ? (
-            <p className="nav-note" aria-live="polite">
-              {note}
-            </p>
-          ) : null}
           <button
             type="button"
             className="nav-help"
@@ -161,12 +188,12 @@ export function SiteFrame({
             Инструкция
           </button>
           <div className="nav-user">
-            <span className="nav-avatar" aria-hidden="true">
-              <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/user.png)" }} />
+            <span className="nav-avatar nav-avatar-initials" aria-hidden="true">
+              {initialsFromName(methodistName.trim() || DEFAULT_METHODIST_NAME)}
             </span>
             <span className="nav-user-text">
               <strong>{methodistName.trim() || DEFAULT_METHODIST_NAME}</strong>
-              <small>Методист</small>
+              <small>{DEFAULT_METHODIST_ROLE}{methodistOrg.trim() ? ` · ${methodistOrg.trim()}` : ""}</small>
             </span>
             <div className="nav-icons">
               <ThemeButton theme={theme} onToggle={toggleTheme} />
@@ -186,20 +213,24 @@ export function SiteFrame({
       </nav>
       <div className="studio-column">
         <div className="studio-main">
+          {children}
           {panel ? (
             <SideTab
               panel={panel}
               name={methodistName}
+              org={methodistOrg}
               onSample={onSample}
               onPanel={setPanel}
               onName={(next) => {
                 setMethodistName(next);
                 storeMethodistName(window.localStorage, next);
               }}
+              onOrg={(next) => {
+                setMethodistOrg(next);
+                storeMethodistOrg(window.localStorage, next);
+              }}
             />
-          ) : (
-            children
-          )}
+          ) : null}
         </div>
       </div>
       </div>
@@ -216,12 +247,18 @@ function ThemeButton({ theme, onToggle }: { theme: Theme; onToggle: () => void }
   );
 }
 
-const DEFAULT_METHODIST_NAME = "Методист Методистов";
+const DEFAULT_METHODIST_NAME = "Методист";
+const DEFAULT_METHODIST_ROLE = "Методист";
 const METHODIST_NAME_KEY = "edu-course-methodist-name";
+const METHODIST_ORG_KEY = "edu-course-methodist-org";
 
 function readMethodistName(storage: Pick<Storage, "getItem">) {
   const stored = storage.getItem(METHODIST_NAME_KEY)?.trim() ?? "";
   return stored.slice(0, 80) || DEFAULT_METHODIST_NAME;
+}
+
+function readMethodistOrg(storage: Pick<Storage, "getItem">) {
+  return (storage.getItem(METHODIST_ORG_KEY)?.trim() ?? "").slice(0, 120);
 }
 
 function storeMethodistName(storage: Pick<Storage, "setItem" | "removeItem">, name: string) {
@@ -230,25 +267,42 @@ function storeMethodistName(storage: Pick<Storage, "setItem" | "removeItem">, na
   else storage.setItem(METHODIST_NAME_KEY, next);
 }
 
+function storeMethodistOrg(storage: Pick<Storage, "setItem" | "removeItem">, org: string) {
+  const next = org.trim().slice(0, 120);
+  if (!next) storage.removeItem(METHODIST_ORG_KEY);
+  else storage.setItem(METHODIST_ORG_KEY, next);
+}
+
+function initialsFromName(name: string) {
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return "М";
+  if (parts.length === 1) return parts[0].slice(0, 2).toLocaleUpperCase("ru-RU");
+  return (parts[0][0] + parts[1][0]).toLocaleUpperCase("ru-RU");
+}
+
 function SideTab({
   panel,
   name,
+  org,
   onSample,
   onPanel,
   onName,
+  onOrg,
 }: {
   panel: "faq" | "account";
   name: string;
+  org: string;
   onSample?: () => void;
   onPanel: (panel: "faq" | "account" | null) => void;
   onName: (name: string) => void;
+  onOrg: (org: string) => void;
 }) {
   return (
-    <section className="side-tab">
+    <section className="side-tab side-tab-overlay" role="dialog" aria-modal="true">
       <div className="side-tab-bar">
-        <button type="button" className="side-tab-back" onClick={() => onPanel(null)}>
-          К программе
-        </button>
         <nav className="journal-tabs" aria-label="Инструкция и настройки">
           <button
             type="button"
@@ -299,8 +353,18 @@ function SideTab({
           </ul>
         </div>
       ) : (
-        <div className="side-tab-body">
+        <div className="side-tab-body cabinet-profile">
           <h2>Личный кабинет</h2>
+          <div className="cabinet-profile-head">
+            <span className="nav-avatar nav-avatar-initials cabinet-avatar" aria-hidden="true">
+              {initialsFromName(name.trim() || DEFAULT_METHODIST_NAME)}
+            </span>
+            <div className="cabinet-profile-text">
+              <strong>{name.trim() || DEFAULT_METHODIST_NAME}</strong>
+              <span>{DEFAULT_METHODIST_ROLE}</span>
+              <span className="muted">{org.trim() || "Организация не указана"}</span>
+            </div>
+          </div>
           <label>
             Имя
             <input
@@ -310,8 +374,17 @@ function SideTab({
               onChange={(event) => onName(event.target.value)}
             />
           </label>
-          <p>Роль: методист</p>
-          <p>Имя хранится в этом браузере. Кабинет не открывает курсы и выгрузку.</p>
+          <label>
+            Организация / вуз
+            <input
+              value={org}
+              maxLength={120}
+              aria-label="Организация или вуз"
+              placeholder="Например, университет"
+              onChange={(event) => onOrg(event.target.value)}
+            />
+          </label>
+          <p className="muted">Роль: {DEFAULT_METHODIST_ROLE}. Данные хранятся в этом браузере.</p>
         </div>
       )}
     </section>

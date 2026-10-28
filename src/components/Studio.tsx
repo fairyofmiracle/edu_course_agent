@@ -232,6 +232,36 @@ function StudioSession({
   const [extraReferences, setExtraReferences] = useState("");
   const [tab, setTab] = useState<WorkspaceTab>("overview");
   const [chatOpen, setChatOpen] = useState(true);
+
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("new") && !url.searchParams.has("fresh")) return;
+    url.searchParams.delete("new");
+    url.searchParams.delete("fresh");
+    const qs = url.searchParams.toString();
+    window.history.replaceState({}, "", qs ? `${url.pathname}?${qs}` : url.pathname);
+  }, []);
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const sync = () => {
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      document.documentElement.style.setProperty("--vv-keyboard", `${inset}px`);
+    };
+    sync();
+    vv.addEventListener("resize", sync);
+    vv.addEventListener("scroll", sync);
+    return () => {
+      vv.removeEventListener("resize", sync);
+      vv.removeEventListener("scroll", sync);
+      document.documentElement.style.removeProperty("--vv-keyboard");
+    };
+  }, []);
+
+  const [composerMode, setComposerMode] = useState<"free" | "template">("free");
   useEffect(() => {
     const hasDocument = Boolean(
       initialCourse.brief.title.trim() || initialCourse.modules.length || initialMessages.length,
@@ -293,10 +323,21 @@ function StudioSession({
     return "Комплект написала модель.";
   })();
   const stage = frameworkApproved ? "kit" : course.modules.length ? "framework" : "ask";
-  const showDocument = Boolean(
-    course.brief.title.trim() || course.modules.length || messages.length > 0,
-  );
+  const showDocument = true;
   const chatPending = status === "submitted" || status === "streaming";
+
+  useEffect(() => {
+    if (!chatOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (document.querySelector(".side-tab-overlay")) return;
+      if (document.querySelector('.studio[data-menu="open"]')) return;
+      setChatOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [chatOpen]);
+
   const chatElapsed = useElapsed(chatPending);
   const activity = chatPending ? workProgress(stage, chatElapsed) : null;
   useEffect(() => {
@@ -422,6 +463,10 @@ function StudioSession({
 
   useEffect(() => {
     if (!backendReady || !hasBackendStorage() || !persist) return;
+    if (isCourseEmpty(course) && messages.length === 0) {
+      setSaveState("local");
+      return;
+    }
     const timer = window.setTimeout(() => {
       setSaveState("saving");
       void saveCourseToBackend(course, messages, "autosave", versionRef.current)
@@ -494,6 +539,7 @@ function StudioSession({
     setMessages([]);
     setExtraReferences("");
     setTab("overview");
+    setComposerMode("free");
     persistLog(actionEntry(nextSession, "Новый курс"));
   };
 
@@ -507,6 +553,8 @@ function StudioSession({
     };
     courseRef.current = next;
     setStoredCourse(next);
+    setTab("lectures");
+    setChatOpen(true);
     persistLog(actionEntry(sessionRef.current, "Каркас утверждён"));
   };
 
@@ -563,48 +611,80 @@ function StudioSession({
       subtitle={courseSubtitle(course)}
       chatOpen={chatOpen}
       onOpenChat={() => setChatOpen(true)}
+      note={
+        exportJob?.phase === "work"
+          ? exportWaitLabel(exportJob.kind, exportElapsed, exportJob.place)
+          : exportJob?.phase === "done"
+            ? exportDoneLabel(exportJob.kind)
+            : exportJob?.phase === "error"
+              ? "Выгрузка не собралась"
+              : storageNote
+                ? storageNote
+                : saveState === "conflict"
+                  ? "Курс уже сохранила другая вкладка. Обновите страницу."
+                  : saveState === "synced"
+                    ? "Сохранено"
+                    : saveState === "saving"
+                      ? "Сохраняю…"
+                      : saveState === "offline"
+                        ? "Нет связи с сервером"
+                        : ""
+      }
       activity={activity}
       tools={
         <>
           <details className="export-menu">
-            <summary>
-              {exportJob?.phase === "work" ? "Собираю…" : "Выгрузка"}
+            <summary className="export-summary">
+              <span className="export-summary-text">{exportJob?.phase === "work" ? "Собираю…" : "Выгрузка"}</span>
+              <span className="export-summary-icon" aria-hidden="true">↓</span>
             </summary>
-            <div>
-              <button
-                type="button"
-                disabled={isCourseEmpty(course) || exportJob?.phase === "work"}
-                onClick={() => void exportFromServer("zip")}
-              >
-                {exportJob?.phase === "work" && exportJob.kind === "zip" ? "Собираю архив…" : "Архив"}
-              </button>
-              <button type="button" disabled={isCourseEmpty(course) || exportJob?.phase === "work"} onClick={() => void exportFromServer("docx", () => exportCourseDocx(course))}>
-                Программа
-              </button>
-              <button type="button" disabled={course.lectures.length === 0 || exportJob?.phase === "work"} onClick={() => void exportFromServer("pptx", () => exportCoursePptx(course))}>
-                Презентация
-              </button>
-              <button type="button" disabled={course.lectures.length === 0 || exportJob?.phase === "work"} onClick={() => void exportFromServer("html", () => exportLectureHtml(course))}>
-                Слайды
-              </button>
-              <button type="button" disabled={isCourseEmpty(course) || exportJob?.phase === "work"} onClick={() => void exportFromServer("json", () => exportCourseJson(course))}>
-                Данные
-              </button>
-              <button type="button" disabled={isCourseEmpty(course)} onClick={() => exportCourseMarkdown(course)}>
-                Текст
-              </button>
-              <button type="button" disabled={isCourseEmpty(course)} onClick={() => exportCourseAudit(course)}>
-                Отчёт
-              </button>
-              <button type="button" disabled={course.assessments.every((assessment) => assessment.questions.length === 0) || exportJob?.phase === "work"} onClick={() => void exportFromServer("moodle", () => exportCourseMoodle(course))}>
-                Moodle
-              </button>
-              <button type="button" disabled={course.assessments.every((assessment) => assessment.questions.length === 0) || exportJob?.phase === "work"} onClick={() => void exportFromServer("gift", () => exportCourseGift(course))}>
-                GIFT
-              </button>
-              <button type="button" disabled={course.assessments.every((assessment) => assessment.questions.length === 0) || exportJob?.phase === "work"} onClick={() => void exportFromServer("csv", () => exportCourseCsv(course))}>
-                CSV
-              </button>
+            <div className="export-menu-panel">
+              <div className="export-group">
+                <p className="export-group-label">Пакет</p>
+                <button
+                  type="button"
+                  disabled={isCourseEmpty(course) || exportJob?.phase === "work"}
+                  onClick={() => void exportFromServer("zip")}
+                >
+                  {exportJob?.phase === "work" && exportJob.kind === "zip" ? "Собираю архив…" : "Архив"}
+                </button>
+              </div>
+              <div className="export-group">
+                <p className="export-group-label">Документы</p>
+                <button type="button" disabled={isCourseEmpty(course) || exportJob?.phase === "work"} onClick={() => void exportFromServer("docx", () => exportCourseDocx(course))}>
+                  Программа
+                </button>
+                <button type="button" disabled={isCourseEmpty(course)} onClick={() => exportCourseMarkdown(course)}>
+                  Текст
+                </button>
+                <button type="button" disabled={isCourseEmpty(course)} onClick={() => exportCourseAudit(course)}>
+                  Отчёт
+                </button>
+                <button type="button" disabled={isCourseEmpty(course) || exportJob?.phase === "work"} onClick={() => void exportFromServer("json", () => exportCourseJson(course))}>
+                  Данные
+                </button>
+              </div>
+              <div className="export-group">
+                <p className="export-group-label">Лекции</p>
+                <button type="button" disabled={course.lectures.length === 0 || exportJob?.phase === "work"} onClick={() => void exportFromServer("pptx", () => exportCoursePptx(course))}>
+                  Презентация
+                </button>
+                <button type="button" disabled={course.lectures.length === 0 || exportJob?.phase === "work"} onClick={() => void exportFromServer("html", () => exportLectureHtml(course))}>
+                  Слайды
+                </button>
+              </div>
+              <div className="export-group">
+                <p className="export-group-label">Тесты</p>
+                <button type="button" disabled={course.assessments.every((assessment) => assessment.questions.length === 0) || exportJob?.phase === "work"} onClick={() => void exportFromServer("moodle", () => exportCourseMoodle(course))}>
+                  Moodle
+                </button>
+                <button type="button" disabled={course.assessments.every((assessment) => assessment.questions.length === 0) || exportJob?.phase === "work"} onClick={() => void exportFromServer("gift", () => exportCourseGift(course))}>
+                  GIFT
+                </button>
+                <button type="button" disabled={course.assessments.every((assessment) => assessment.questions.length === 0) || exportJob?.phase === "work"} onClick={() => void exportFromServer("csv", () => exportCourseCsv(course))}>
+                  CSV
+                </button>
+              </div>
             </div>
           </details>
           {course.frameworkApproved ? (
@@ -628,27 +708,6 @@ function StudioSession({
           ) : null}
         </>
       }
-      note={
-        exportJob?.phase === "work"
-          ? exportWaitLabel(exportJob.kind, exportElapsed, exportJob.place)
-          : exportJob?.phase === "done"
-            ? exportDoneLabel(exportJob.kind)
-            : exportJob?.phase === "error"
-              ? "Выгрузка не собралась"
-              : storageNote
-                ? storageNote
-                : localNotice
-                  ? localNotice
-                  : sourceLine
-                    ? sourceLine
-                    : saveState === "conflict"
-                      ? "Курс уже сохранила другая вкладка. Обновите страницу, чтобы не затереть её правку."
-                      : saveState === "synced"
-                        ? "Сохранено"
-                        : saveState === "saving"
-                          ? "Сохраняю…"
-                          : "Сохранено на этом компьютере"
-      }
       actions={() => (
         <>
           <a href="/courses">
@@ -669,6 +728,14 @@ function StudioSession({
           showDocument && !chatOpen ? " chat-away" : ""
         }`}
       >
+        {chatOpen ? (
+          <button
+            type="button"
+            className="chat-scrim"
+            aria-label="Свернуть ассистента"
+            onClick={() => setChatOpen(false)}
+          />
+        ) : null}
         <ChatPanel
           messages={messages}
           status={status}
@@ -677,23 +744,32 @@ function StudioSession({
           frameworkApproved={course.frameworkApproved}
           kitComplete={kitComplete}
           stage={stage}
+          composerMode={composerMode}
+          onComposerModeChange={setComposerMode}
           onReferencesChange={setExtraReferences}
           onReferenceAdd={addReference}
           onSend={send}
           onStop={() => stop()}
+          onRetry={() => {
+            const lastUser = [...messages].reverse().find((item) => item.role === "user");
+            if (!lastUser) return;
+            const text = messageText(lastUser);
+            if (text) send(text);
+          }}
           onClose={() => setChatOpen(false)}
         />
         <button
           type="button"
-          className="chat-edge chat-edge-open"
+          className={["chat-edge", "chat-edge-open", chatPending ? "is-busy" : ""].filter(Boolean).join(" ")}
           aria-label={chatOpen ? "Скрыть ассистента" : "Открыть ассистента"}
-          title={chatOpen ? "Скрыть ассистента" : "Открыть ассистента"}
+          title={chatPending ? "Идёт генерация" : chatOpen ? "Скрыть ассистента" : "Открыть ассистента"}
           onClick={() => setChatOpen((open) => !open)}
         >
           <svg className="chat-edge-chevron" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <img className="chat-edge-mark" src="/icons/chat.png" alt="" />
+          {chatPending ? <span className="chat-fab-badge" aria-label="Идёт генерация" /> : null}
         </button>
         {showDocument ? (
         <div className="pane pane-doc">
@@ -714,6 +790,10 @@ function StudioSession({
             }}
             onGatherFramework={() => {
               setChatOpen(true);
+              setComposerMode("free");
+              window.setTimeout(() => {
+                document.getElementById("course-request")?.focus();
+              }, 40);
               if (briefReady && !chatPending) send(FRAMEWORK_PROMPT);
             }}
             onGatherKit={() => {
@@ -731,6 +811,7 @@ function StudioSession({
               send(refreshOutdatedPrompt(labels));
             }}
             onOpenChat={() => setChatOpen(true)}
+            onGoPlan={() => setTab("structure")}
           />
         </div>
         ) : null}

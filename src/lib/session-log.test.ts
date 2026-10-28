@@ -9,6 +9,7 @@ import {
   messageText,
   messageTools,
   persistLog,
+  uniqueLabels,
 } from "@/lib/session-log";
 
 describe("session log", () => {
@@ -87,5 +88,35 @@ describe("session log", () => {
     vi.stubGlobal("fetch", fetchImpl);
     persistLog(action);
     await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalled());
+  });
+});
+
+describe("uniqueLabels", () => {
+  it("keeps first occurrence and drops duplicates", () => {
+    expect(uniqueLabels(["Бриф", "Бриф", "Бриф", "План", "Бриф", "Лекция"])).toEqual([
+      "Бриф",
+      "План",
+      "Лекция",
+    ]);
+  });
+
+  it("returns empty for empty input", () => {
+    expect(uniqueLabels([])).toEqual([]);
+  });
+});
+
+describe("messageTools dedupe", () => {
+  it("shows each tool label once", () => {
+    const message = {
+      id: "m1",
+      role: "assistant",
+      parts: [
+        { type: "tool-update_brief", toolCallId: "1", state: "output-available", input: {}, output: {} },
+        { type: "tool-update_brief", toolCallId: "2", state: "output-available", input: {}, output: {} },
+        { type: "tool-set_structure", toolCallId: "3", state: "output-available", input: {}, output: {} },
+        { type: "tool-update_brief", toolCallId: "4", state: "output-available", input: {}, output: {} },
+      ],
+    } as unknown as UIMessage;
+    expect(messageTools(message)).toEqual(["бриф", "план"]);
   });
 });

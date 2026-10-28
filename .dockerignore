@@ -17,3 +17,7 @@ materials/*
 !public/icons/
 !public/icons/**
 checkpoint-*.html
+
+# local agent scratch / probes (never ship into image)
+_*
+_snap/

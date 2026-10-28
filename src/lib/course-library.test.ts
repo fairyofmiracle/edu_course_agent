@@ -164,8 +164,11 @@ describe("библиотека курсов", () => {
     expect(course.brief.durationHours).toBe(16);
     expect(course.modules[0].hours).toBe(10);
     expect(adaptCourseCopy(course, { audience: "", durationHours: 36, attestationHours: 2 }).ok).toBe(false);
-    expect(adaptCourseCopy(course, { audience: "Преподаватели", durationHours: 15, attestationHours: 0 }).ok).toBe(
+    expect(adaptCourseCopy(course, { audience: "Преподаватели", durationHours: 0, attestationHours: 0 }).ok).toBe(
       false,
+    );
+    expect(adaptCourseCopy(course, { audience: "Преподаватели", durationHours: 8, attestationHours: 0 }).ok).toBe(
+      true,
     );
     expect(adaptCourseCopy(course, { audience: "Преподаватели", durationHours: 16.2, attestationHours: 0 }).ok).toBe(
       false,

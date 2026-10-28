@@ -99,8 +99,8 @@ type RequestComposerProps = {
   kitComplete: boolean;
   stage: "ask" | "framework" | "kit";
   pending: boolean;
-  mode?: Mode;
-  onModeChange?: (mode: Mode) => void;
+  mode: Mode;
+  onModeChange: (mode: Mode) => void;
   onReferencesChange: (value: string) => void;
   onReferenceAdd: (reference: CourseBrief["references"][number]) => void;
   onSend: (text: string, brief?: Partial<CourseBrief>) => void;
@@ -113,19 +113,16 @@ export function RequestComposer({
   kitComplete,
   stage,
   pending,
-  mode: modeProp,
+  mode,
   onModeChange,
   onReferencesChange,
   onReferenceAdd,
   onSend,
   onStop,
 }: RequestComposerProps) {
-  const [modeState, setModeState] = useState<Mode>("free");
-  const mode = modeProp ?? modeState;
   const setMode = (next: Mode | ((value: Mode) => Mode)) => {
     const resolved = typeof next === "function" ? next(mode) : next;
-    if (onModeChange) onModeChange(resolved);
-    else setModeState(resolved);
+    onModeChange(resolved);
   };
   const [input, setInput] = useState("");
   const [fields, setFields] = useState<TemplateFields>(emptyTemplate);
@@ -370,13 +367,13 @@ export function RequestComposer({
     fields.audience.trim().length > 0 &&
     fields.goals.trim().length > 0 &&
     Number.isFinite(templateHours) &&
-    templateHours >= 16;
+    templateHours >= 0.5;
 
   const sendTemplate = () => {
     if (pending) return;
     if (!templateReady) {
       setFormError(
-        "Заполните название, аудиторию, цель и объём от 16 часов. Без этого запрос не уходит.",
+        "Заполните название, аудиторию, цель и объём часов (от 0,5, шаг 0,5). Без этого запрос не уходит.",
       );
       return;
     }
@@ -391,27 +388,7 @@ export function RequestComposer({
   };
 
   return (
-    <form className="composer" onSubmit={submit}>
-      <div className="composer-mode" role="tablist" aria-label="Режим запроса">
-        <button
-          type="button"
-          role="tab"
-          className={mode === "free" ? "active" : undefined}
-          aria-selected={mode === "free"}
-          onClick={() => setMode("free")}
-        >
-          Чат
-        </button>
-        <button
-          type="button"
-          role="tab"
-          className={mode === "template" ? "active" : undefined}
-          aria-selected={mode === "template"}
-          onClick={() => setMode("template")}
-        >
-          Шаблон
-        </button>
-      </div>
+    <form className={`composer${mode === "template" ? " composer-template" : ""}`} onSubmit={submit} noValidate>
       {mode === "template" ? (
         <div className="template-grid">
           <label>
@@ -429,7 +406,7 @@ export function RequestComposer({
             <input
               type="number"
               required
-              min={16}
+              min={0.5}
               value={fields.durationHours}
               onChange={(event) => setField("durationHours", event.target.value)}
               placeholder="72"
@@ -550,34 +527,6 @@ export function RequestComposer({
                 }
               }}
             />
-            <div className="chat-compose-actions">
-              <button
-                type="button"
-                className="dock-icon"
-                title={recording ? "Стоп запись" : "Голос"}
-                aria-label={recording ? "Стоп запись" : "Голос"}
-                aria-pressed={recording}
-                onClick={() => void toggleVoice()}
-                disabled={busyFile || pending}
-              >
-                <MicIcon />
-              </button>
-              {pending ? (
-                <button type="button" className="dock-send" aria-label="Стоп" title="Стоп" onClick={onStop}>
-                  <StopIcon />
-                </button>
-              ) : (
-                <button
-                  type="submit"
-                  className="dock-send"
-                  aria-label="Отправить"
-                  title="Отправить"
-                  disabled={recording || !input.trim()}
-                >
-                  <SendIcon />
-                </button>
-              )}
-            </div>
           </div>
         ) : null}
         <div className="chat-dock-bar">
@@ -616,23 +565,34 @@ export function RequestComposer({
             <span className="dock-caption">Материал</span>
           </button>
           <span className="dock-spacer" />
-          {mode === "template" ? (
-            pending ? (
-              <button type="button" className="dock-send" aria-label="Стоп" title="Стоп" onClick={onStop}>
-                <StopIcon />
-              </button>
-            ) : (
-              <button
-                type="submit"
-                className="dock-send"
-                aria-label="Собрать по шаблону"
-                title="Собрать по шаблону"
-                disabled={!templateReady}
-              >
-                <SendIcon />
-              </button>
-            )
-          ) : null}
+          {pending ? (
+            <button type="button" className="dock-send" aria-label="Стоп" title="Стоп" onClick={onStop}>
+              <StopIcon />
+            </button>
+          ) : mode === "template" ? (
+            <button
+              type="button"
+              className="dock-send dock-send-label"
+              aria-label="Отправить"
+              title="Отправить"
+              disabled={!templateReady || pending}
+              onClick={() => sendTemplate()}
+            >
+              <SendIcon />
+              <span>Отправить</span>
+            </button>
+          ) : (
+            <button
+              type="submit"
+              className="dock-send dock-send-label"
+              aria-label="Отправить"
+              title="Отправить"
+              disabled={recording || !input.trim()}
+            >
+              <SendIcon />
+              <span>Отправить</span>
+            </button>
+          )}
           <input
             ref={fileRef}
             type="file"
@@ -726,15 +686,6 @@ export function RequestComposer({
   );
 }
 
-function MicIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="9" y="3.5" width="6" height="10" rx="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      <path d="M12 17v3M9 20h6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 function FileIcon() {
   return <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/file.png)" }} aria-hidden="true" />;

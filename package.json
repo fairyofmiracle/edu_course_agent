@@ -21,12 +21,12 @@
     "ai": "^7.0.128",
     "docx": "^9.11.0",
     "mermaid": "^12.1.0",
-    "next": "16.3.8",
+    "next": "16.4.3",
     "pptxgenjs": "4.0.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "unpdf": "^1.8.1",
-    "zod": "^4.6.5"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -35,12 +35,14 @@
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^3.2.4",
     "eslint": "^9",
-    "eslint-config-next": "16.3.8",
+    "eslint-config-next": "16.4.3",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^3.2.4"
   },
   "overrides": {
-    "image-size": "2.0.4"
+    "image-size": "2.0.4",
+    "undici": "7.30.1",
+    "dompurify": "3.4.17"
   }
 }

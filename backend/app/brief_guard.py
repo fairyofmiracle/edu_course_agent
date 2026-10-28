@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from typing import Any
+import json
 
 HOURS = re.compile(
     r"(\d+)\s*(?:(?:академическ\w*|учебн\w*)\s+|ак\.?\s*)?"
@@ -726,10 +727,11 @@ PROFANITY_REPLY = (
 )
 _PROFANITY = re.compile(
     r"(?:"
-    r"\b(?:"
+    r"(?<![A-Za-zА-Яа-яЁё])(?:"
     r"бля(?:д|т|ть|ди|дск)?\w*"
-    r"|сука\w*"
-    r"|хуй\w*|хуя\w*|хуе\w*|хуё\w*"
+    r"|сука\w*|сучк\w*"
+    r"|ж+о+п+\w*"
+    r"|хуй\w*|хуя\w*|хуе\w*|хуё\w*|нахуй\w*|нахер\w*|похуй\w*"
     r"|пизд\w*"
     r"|еба\w*|ёба\w*|ебл\w*|ёбл\w*|ебу\w*|ёбу\w*|ебан\w*|ёбан\w*"
     r"|муда\w*|мудил\w*"
@@ -740,7 +742,7 @@ _PROFANITY = re.compile(
     r"|у[её]б\w*"
     r")"
     r"|"
-    r"\b(?:"
+    r"(?<![A-Za-z])(?:"
     r"fuck\w*|fucking|motherfuck\w*"
     r"|shit\w*|bullshit"
     r"|asshole\w*|dickhead\w*"
@@ -754,15 +756,95 @@ _PROFANITY = re.compile(
 )
 
 
+def _collapse_repeats(text: str) -> str:
+    # ЖОООПААА → ЖОПА so elongated slang still matches stems.
+    return re.sub(r"(.)\1{2,}", r"\1\1", text or "")
+
+
 def contains_profanity(text: str) -> bool:
-    return bool(_PROFANITY.search(text or ""))
+    raw = text or ""
+    return bool(_PROFANITY.search(raw) or _PROFANITY.search(_collapse_repeats(raw)))
+
+
+VOLUME_ONLY_REPLY = re.compile(
+    r"^\s*(?:объ[её]м\s*[:—-]?\s*)?\d+(?:[.,]\d+)?\s*"
+    r"(?:академическ\S*\s+|ак\.?\s*)?(?:час(?:а|ов)?|ч)\b",
+    re.IGNORECASE,
+)
+
+
+def is_unusable_title(text: str) -> bool:
+    cleaned = (text or "").strip()
+    if len(cleaned) < 2:
+        return True
+    if GARBAGE_TITLE.search(cleaned):
+        return True
+    if letter_ratio(cleaned) < 0.45:
+        return True
+    if contains_profanity(cleaned):
+        return True
+    if VOLUME_ONLY_REPLY.search(cleaned) or BARE_DURATION.search(cleaned):
+        return True
+    if VOLUME_FIELD_TITLE.search(cleaned):
+        return True
+    return False
+
+
+BARE_DURATION = re.compile(
+    r"^(?:месяц(?:а|ев)?|недел[яюи]|день|дня|дней|год(?:а|ов)?|час(?:а|ов)?)\.?$",
+    re.IGNORECASE,
+)
+
+FIELD_LABEL_TITLE = re.compile(
+    r"^(?:тип\s+программы|объ[её]м(?:\s+часов)?|слушатели|аудитория|"
+    r"форма\s+обучени\w*|итоговая\s+аттестация)\.?$",
+    re.IGNORECASE,
+)
+
+
+def clarifying_title_from_reply(text: str) -> str:
+    cleaned = (text or "").strip()
+    if not cleaned or SERVICE_PROMPT.search(cleaned):
+        return ""
+    if contains_profanity(cleaned):
+        return ""
+    if VOLUME_ONLY_REPLY.search(cleaned):
+        return ""
+    if BARE_DURATION.search(cleaned):
+        return ""
+    if is_offtopic_request(cleaned):
+        return ""
+    cleaned = re.sub(
+        r"^(?:назван\w*|тема|программ\w*)\s*[:—-]\s*",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    ).strip()
+    if len(cleaned) < 2 or is_unusable_title(cleaned):
+        return ""
+    title = re.split(r"[\n;]", cleaned)[0].strip()[:160]
+    if title:
+        title = title[0].upper() + title[1:]
+    return title if title and not is_unusable_title(title) else ""
+
+
+VOLUME_FIELD_TITLE = re.compile(
+    r"^(?:объ[её]м|длительность|продолжительность|часов?|hours?|duration)\.?$",
+    re.IGNORECASE,
+)
 
 
 def title_from_request(text: str) -> str:
     text = repair_typos(text)
+    if VOLUME_ONLY_REPLY.search((text or "").strip()):
+        return ""
     quoted = re.search(r"«([^»]{3,160})»", text)
     if quoted:
-        return quoted.group(1).strip()
+        # Specialty / profile quotes are not the course title
+        # (e.g. специальности «Информационные системы…»).
+        prefix = text[max(0, quoted.start() - 48) : quoted.start()].casefold()
+        if not re.search(r"специальност|направлени|профил", prefix):
+            return quoted.group(1).strip()
     cleaned = LEAD.sub("", text.strip())
     about = re.search(
         r"(?:курс|программ\w*)\s+по\s+([^.,]{3,80})",
@@ -798,6 +880,12 @@ def title_from_request(text: str) -> str:
         title = title[0].upper() + title[1:]
     title = title[:160]
     if is_offtopic_request(text) or contains_profanity(text) or contains_profanity(title):
+        return ""
+    if (
+        VOLUME_FIELD_TITLE.search(title)
+        or BARE_DURATION.search(title)
+        or FIELD_LABEL_TITLE.search(title)
+    ):
         return ""
     # Short extracted topic ("Python") is OK when the request already framed a course.
     if is_garbage_title(title) and not has_title_markers(text):
@@ -1145,12 +1233,20 @@ def guard_brief(
         brief.pop("title", None)
         brief.pop("goals", None)
     elif not established and not brief.get("title", "").strip():
-        title = title_from_request(first if first else last_turn)
+        # 1) Strict extract from last then first (needs course markers).
+        # 2) Soft clarifying accept ONLY for the last turn (answer to «название?»).
+        title = ""
+        for source in (last_turn, first):
+            if source and str(source).strip():
+                title = title_from_request(source)
+                if title:
+                    break
+        if not title and last_turn and str(last_turn).strip():
+            title = clarifying_title_from_reply(last_turn)
         if title:
             brief["title"] = title
     candidate = str(brief.get("title") or "").strip()
-    # Never accept profanity in a new title. If course already has a clean title,
-    # drop only a bad *incoming* candidate — keep established.
+    # Never accept profanity / unusable junk. Soft single-word answer is OK once user replied.
     if candidate and contains_profanity(candidate):
         brief.pop("title", None)
         dropped.append("title")
@@ -1158,7 +1254,7 @@ def guard_brief(
     if candidate and (
         is_offtopic_request(candidate)
         or (
-            is_garbage_title(candidate)
+            is_unusable_title(candidate)
             and not has_title_markers(candidate)
             and not any(has_title_markers(item) for item in texts)
         )
@@ -1180,7 +1276,7 @@ def guard_brief(
 
     if not brief.get("goals") and not current.get("goals"):
         title = str(brief.get("title") or current.get("title") or "").strip()
-        if title and not GENERIC_GOAL.search(title) and not is_garbage_title(title):
+        if title and not GENERIC_GOAL.search(title) and not is_unusable_title(title):
             brief["goals"] = [f"Подготовить слушателей по теме «{title}»"]
 
     hours = brief.get("durationHours", current.get("durationHours", 0))
@@ -1195,3 +1291,41 @@ def guard_brief(
             brief["constraints"] = cleaned[:12]
     return brief, dropped
 
+
+THINKING_LEAK = re.compile(
+    r"(?is)"
+    r"(?:<think>.*?</think>)|"
+    r"(?:^|\n)\s*(?:модель\s+думает|thinking|reasoning)\s*[.…:]*\s*(?=\n|$)|"
+    r"^\s*(?:думаю|thinking\s*\.?\.?\.?)\s*$"
+)
+
+
+def _strip_tool_json_dumps(text: str) -> str:
+    """Remove model tool dumps like {"tool":"...","arguments":{...}} from visible text."""
+    cleaned = text or ""
+    cleaned = re.sub(
+        r"(?is)```(?:json)?\s*(\{[\s\S]*?\"tool\"\s*:[\s\S]*?\})\s*```",
+        "",
+        cleaned,
+    )
+    decoder = json.JSONDecoder()
+    while True:
+        match = re.search(r"\{\s*\"tool\"\s*:", cleaned)
+        if not match:
+            break
+        start = match.start()
+        try:
+            _, end = decoder.raw_decode(cleaned[start:])
+        except json.JSONDecodeError:
+            # Truncated dump: drop from the tool object start through end of text.
+            cleaned = cleaned[:start]
+            break
+        cleaned = cleaned[:start] + cleaned[start + end :]
+    return cleaned
+
+
+def strip_assistant_text(text: str) -> str:
+    cleaned = THINKING_LEAK.sub("", text or "")
+    cleaned = _strip_tool_json_dumps(cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+    return cleaned

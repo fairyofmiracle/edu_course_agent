@@ -1,8 +1,10 @@
 import { academicHours, balanceModules } from "@/lib/hours-balance";
 import {
   courseDocumentSchema,
+  isCourseEmpty,
   type CourseDocument,
 } from "@/lib/course-schema";
+import { courseReadiness, type CourseReadiness } from "@/lib/course-readiness";
 import type { UIMessage } from "ai";
 
 export const LIBRARY_KEY = "edu-course-agent:library";
@@ -20,6 +22,7 @@ export type CourseSummary = {
   durationHours: number;
   attestationHours: number;
   updatedAt: string;
+  readiness?: CourseReadiness;
 };
 
 export type CopyAdaptation = {
@@ -59,8 +62,8 @@ export function adaptCourseCopy(
   if (!audience || audience.length > 400) {
     return { ok: false, error: "Укажите аудиторию, до 400 символов." };
   }
-  if (!halfHour(adaptation.durationHours) || adaptation.durationHours < 16) {
-    return { ok: false, error: "Объём — число от 16 часов с шагом 0,5." };
+  if (!halfHour(adaptation.durationHours) || adaptation.durationHours < 0.5) {
+    return { ok: false, error: "Объём — число от 0,5 часа с шагом 0,5." };
   }
   if (!halfHour(adaptation.attestationHours) || adaptation.attestationHours < 0) {
     return { ok: false, error: "Часы аттестации — число от 0 с шагом 0,5." };
@@ -122,7 +125,7 @@ export function forgetCourse(
   }
 }
 
-export type LibraryWrite = "saved" | "course-only" | "failed";
+export type LibraryWrite = "saved" | "course-only" | "failed" | "skipped";
 
 function writeStorage(storage: Pick<Storage, "setItem">, key: string, value: string) {
   try {
@@ -138,6 +141,15 @@ export function rememberCourse(
   messages: UIMessage[],
   storage: Pick<Storage, "getItem" | "setItem">,
 ): LibraryWrite {
+  if (isCourseEmpty(course) && messages.length === 0) {
+    // Пустой черновик (в т.ч. бывший дефолт «Новая программа») в каталог не кладём.
+    const library = readLibrary(storage);
+    if (course.id in library) {
+      delete library[course.id];
+      writeStorage(storage, LIBRARY_KEY, JSON.stringify(library));
+    }
+    return "skipped";
+  }
   const library = readLibrary(storage);
   library[course.id] = { course, messages };
   if (writeStorage(storage, LIBRARY_KEY, JSON.stringify(library))) return "saved";
@@ -182,7 +194,28 @@ export function groupByDirection<T extends { title: string }>(items: T[]) {
     });
 }
 
-export function listLibrary(storage: Pick<Storage, "getItem">): CourseSummary[] {
+
+/** Убрать из каталога пустые «Новая программа» без содержания и диалога. */
+export function pruneEmptyLibraryDrafts(
+  storage: Pick<Storage, "getItem"> & Partial<Pick<Storage, "setItem">>,
+) {
+  if (typeof storage.setItem !== "function") return 0;
+  const library = readLibrary(storage);
+  let removed = 0;
+  for (const [id, entry] of Object.entries(library)) {
+    if (isCourseEmpty(entry.course) && entry.messages.length === 0) {
+      delete library[id];
+      removed += 1;
+    }
+  }
+  if (removed) writeStorage(storage as Pick<Storage, "setItem">, LIBRARY_KEY, JSON.stringify(library));
+  return removed;
+}
+
+export function listLibrary(
+  storage: Pick<Storage, "getItem"> & Partial<Pick<Storage, "setItem">>,
+): CourseSummary[] {
+  pruneEmptyLibraryDrafts(storage);
   return Object.values(readLibrary(storage))
     .map(({ course }) => ({
       id: course.id,
@@ -192,6 +225,7 @@ export function listLibrary(storage: Pick<Storage, "getItem">): CourseSummary[] 
       durationHours: course.brief.durationHours,
       attestationHours: course.brief.attestationHours,
       updatedAt: course.updatedAt,
+      readiness: courseReadiness(course),
     }))
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 }
@@ -201,4 +235,14 @@ export function loadLibraryCourse(
   courseId: string,
 ): StoredCourse | null {
   return readLibrary(storage)[courseId] ?? null;
+}
+
+export type HoursFilter = "all" | "lt36" | "36to72" | "gte72";
+
+export function matchesHoursFilter(hours: number, filter: HoursFilter) {
+  if (filter === "all") return true;
+  if (!hours || hours <= 0) return false;
+  if (filter === "lt36") return hours < 36;
+  if (filter === "36to72") return hours >= 36 && hours <= 72;
+  return hours >= 72;
 }

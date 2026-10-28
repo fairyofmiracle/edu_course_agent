@@ -37,6 +37,18 @@ export function messageText(message: UIMessage) {
     .trim();
 }
 
+
+export function uniqueLabels(labels: string[]) {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const label of labels) {
+    if (seen.has(label)) continue;
+    seen.add(label);
+    out.push(label);
+  }
+  return out;
+}
+
 export function messageTools(message: UIMessage) {
   const names: string[] = [];
   for (const part of message.parts) {
@@ -44,7 +56,7 @@ export function messageTools(message: UIMessage) {
     const raw = getToolName(part);
     names.push(TOOL_LABELS[raw] ?? raw);
   }
-  return names;
+  return uniqueLabels(names);
 }
 
 export function failedChecks(items: FrameworkItem[]) {

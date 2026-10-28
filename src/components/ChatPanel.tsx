@@ -1,10 +1,11 @@
 "use client";
 
 import { displayServicePrompt } from "@/lib/agent/service-prompts";
+import { uniqueLabels } from "@/lib/session-log";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { RequestComposer } from "@/components/RequestComposer";
-import { chatWaitLabel, queueWaitLabel, usageLine, workProgress } from "@/lib/job-status";
+import { chatWaitLabel, queueWaitLabel, workProgress } from "@/lib/job-status";
 import { userFacingError } from "@/lib/user-error";
 import { useElapsed } from "@/lib/use-elapsed";
 import type { CourseBrief } from "@/lib/course-schema";
@@ -53,6 +54,7 @@ function isIntakeAsk(text: string) {
   return text.includes("Не хватает данных");
 }
 
+
 function questionCard(text: string) {
   const lines = text
     .split("\n")
@@ -75,6 +77,8 @@ const TOOL_LABELS: Record<string, string> = {
   revise_section: "Правка",
 };
 
+type ComposerMode = "free" | "template";
+
 type ChatPanelProps = {
   messages: UIMessage[];
   status: string;
@@ -83,10 +87,13 @@ type ChatPanelProps = {
   frameworkApproved: boolean;
   kitComplete: boolean;
   stage: "ask" | "framework" | "kit";
+  composerMode?: ComposerMode;
+  onComposerModeChange?: (mode: ComposerMode) => void;
   onReferencesChange: (value: string) => void;
   onReferenceAdd: (reference: CourseBrief["references"][number]) => void;
   onSend: (text: string, brief?: Partial<CourseBrief>) => void;
   onStop: () => void;
+  onRetry?: () => void;
   onClose?: () => void;
 };
 
@@ -98,10 +105,13 @@ export function ChatPanel({
   frameworkApproved,
   kitComplete,
   stage,
+  composerMode: composerModeProp,
+  onComposerModeChange,
   onReferencesChange,
   onReferenceAdd,
   onSend,
   onStop,
+  onRetry,
   onClose,
 }: ChatPanelProps) {
   const pending = status === "submitted" || status === "streaming";
@@ -117,21 +127,17 @@ export function ChatPanel({
     (pending && queueData?.status ? queueWaitLabel(queueData.status, queueData.position ?? 0) : "") ||
     chatWaitLabel(elapsedMs);
   const progress = pending ? workProgress(stage, elapsedMs) : null;
-  const spent = [...messages]
-    .reverse()
-    .flatMap((message) => message.parts)
-    .find((part) => part.type === "data-usage");
-  const spentData =
-    spent && spent.type === "data-usage" && spent.data && typeof spent.data === "object" ? spent.data : null;
-  const spentLine = usageLine(
-    spentData as { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null,
-  );
   const stillAsking = messages.at(-1)?.parts.some((part) => part.type === "text" && isIntakeAsk(part.text)) ?? false;
   const [doneFlash, setDoneFlash] = useState(false);
   const [picks, setPicks] = useState<Record<string, string>>({});
   const [ownAttestation, setOwnAttestation] = useState("");
   const [ownHours, setOwnHours] = useState("");
-  const [composerMode, setComposerMode] = useState<"free" | "template">("free");
+  const [composerModeState, setComposerModeState] = useState<ComposerMode>("free");
+  const composerMode = composerModeProp ?? composerModeState;
+  const setComposerMode = (mode: ComposerMode) => {
+    setComposerModeState(mode);
+    onComposerModeChange?.(mode);
+  };
   const wasPending = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -164,9 +170,38 @@ export function ChatPanel({
           <h2>Методий</h2>
           {progress ? <p className="work-caption">{progress.label}</p> : null}
         </div>
+        <div className="chat-head-tools">
+          <div className="composer-mode chat-head-mode" role="tablist" aria-label="Режим запроса">
+            <button
+              type="button"
+              role="tab"
+              className={composerMode === "free" ? "active" : undefined}
+              aria-selected={composerMode === "free"}
+              onClick={() => setComposerMode("free")}
+            >
+              Чат
+            </button>
+            <button
+              type="button"
+              role="tab"
+              className={composerMode === "template" ? "active" : undefined}
+              aria-selected={composerMode === "template"}
+              onClick={() => setComposerMode("template")}
+            >
+              Шаблон
+            </button>
+          </div>
+          {onClose ? (
+            <button type="button" className="chat-collapse" onClick={onClose}>
+              Свернуть
+            </button>
+          ) : null}
+        </div>
       </header>
 
+      {composerMode === "free" ? (
       <div className="messages" aria-live="polite">
+
         {messages.length === 0 ? (
           <div className="chat-start">
             <p className="chat-empty">С чего начнём?</p>
@@ -201,9 +236,11 @@ export function ChatPanel({
             const asking = texts.some((part) => isIntakeAsk(part.text));
             const wrote = asking
               ? []
-              : tools
-                  .filter((part) => part.state !== "output-error")
-                  .map((part) => TOOL_LABELS[getToolName(part)] ?? getToolName(part));
+              : uniqueLabels(
+                  tools
+                    .filter((part) => part.state !== "output-error")
+                    .map((part) => TOOL_LABELS[getToolName(part)] ?? getToolName(part)),
+                );
             const failed = tools.filter((part) => part.state === "output-error");
             if (texts.length === 0 && tools.length === 0 && failed.length === 0) return null;
             return (
@@ -325,10 +362,17 @@ export function ChatPanel({
                 ) : null}
                 {wrote.length > 0 ? <p className="tool-line">В программу: {wrote.join(", ")}</p> : null}
                 {failed.map((part, index) => (
-                  <p key={`${message.id}-fail-${index}`} className="tool-line failed">
-                    Не записалось: {TOOL_LABELS[getToolName(part)] ?? getToolName(part)}
-                    {part.errorText ? ` — ${part.errorText}` : ""}
-                  </p>
+                  <div key={`${message.id}-fail-${index}`} className="chat-fail-row">
+                    <p className="tool-line failed">
+                      Не записалось: {TOOL_LABELS[getToolName(part)] ?? getToolName(part)}
+                      {part.errorText ? ` — ${part.errorText}` : ""}
+                    </p>
+                    {onRetry && message.id === messages.at(-1)?.id && !pending ? (
+                      <button type="button" className="chat-retry" onClick={onRetry}>
+                        Повторить
+                      </button>
+                    ) : null}
+                  </div>
                 ))}
               </article>
             );
@@ -342,10 +386,19 @@ export function ChatPanel({
           </article>
         ) : null}
         {doneFlash && !pending && !stillAsking ? <p className="chat-note">Программа обновлена.</p> : null}
-        {spentLine ? <p className="chat-note">{spentLine}</p> : null}
-        {error ? <p className="chat-error">{userFacingError(error)}</p> : null}
+        {error ? (
+          <div className="chat-fail-row">
+            <p className="chat-error">{userFacingError(error)}</p>
+            {onRetry && !pending ? (
+              <button type="button" className="chat-retry" onClick={onRetry}>
+                Повторить
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <div ref={bottomRef} />
       </div>
+      ) : null}
 
       <RequestComposer
         extraReferences={extraReferences}
@@ -357,7 +410,10 @@ export function ChatPanel({
         onModeChange={setComposerMode}
         onReferencesChange={onReferencesChange}
         onReferenceAdd={onReferenceAdd}
-        onSend={onSend}
+        onSend={(text, brief) => {
+          onSend(text, brief);
+          if (composerMode === "template") setComposerMode("free");
+        }}
         onStop={onStop}
       />
     </aside>

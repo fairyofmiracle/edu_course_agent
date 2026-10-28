@@ -397,7 +397,8 @@ def test_complete_uses_reasoning_and_rejects_empty_choices(monkeypatch) -> None:
             tools=[],
         )
     )
-    assert message["content"] == "думаю"
+    # reasoning-only "думаю" is stripped — empty content stays empty
+    assert not str(message.get("content") or "").strip()
 
 
 def test_complete_retries_then_succeeds(monkeypatch) -> None:
@@ -532,3 +533,14 @@ def test_begin_turn_resets_token_budget() -> None:
     assert client.turn_usage["total_tokens"] == 0
     assert client.usage["total_tokens"] == 11
     assert client.budget_left()
+
+
+def test_parse_keeps_prose_strips_tool_json() -> None:
+    message = parse_assistant_message(
+        "Материалы обновлены.\n\n"
+        '{"tool":"update_brief","arguments":{"title":"Сети","durationHours":16}}'
+    )
+    assert message["tool_calls"][0]["function"]["name"] == "update_brief"
+    assert "\"tool\":" not in (message.get("content") or "")
+    assert "Материалы обновлены" in (message.get("content") or "")
+

@@ -1,20 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CompetencyMap } from "@/components/CompetencyMap";
 import { SourceChecks } from "@/components/SourceChecks";
 import { StackFreshnessPanel } from "@/components/StackFreshness";
 import { findOutdated } from "@/lib/outdated";
 import { LectureDeck } from "@/components/LectureDeck";
 import { MermaidBlock } from "@/components/MermaidBlock";
-import { auditCourse, type AuditStatus } from "@/lib/course-audit";
+import { auditCourse, type AuditSection, type AuditStatus } from "@/lib/course-audit";
 import { isOfficialPublication } from "@/lib/legal-basis";
 import { isHttpSource } from "@/lib/verbatim";
 import { exportAssessmentDocx, exportSeminarDocx } from "@/lib/export-docx";
-import { briefGaps, moduleKindsGap, programBalanceNote, validateCourseHours } from "@/lib/course-validation";
+import { briefGaps, moduleKindsGap, programBalanceNote } from "@/lib/course-validation";
 import { moduleFlowChart } from "@/lib/presentation/course-to-presentation";
 import { calendarPace } from "@/lib/week-plan";
-import { contentGaps, frameworkItems, hasBuiltMaterials, isFrameworkApproved, outcomeGaps } from "@/lib/framework-check";
+import { hasBuiltMaterials, isFrameworkApproved } from "@/lib/framework-check";
 import {
   BLOOM_LABELS,
   FORMAT_LABELS,
@@ -36,10 +36,10 @@ export type WorkspaceTab =
 const CONTENT_TABS: WorkspaceTab[] = ["lectures", "seminars", "tests"];
 
 const WORKSPACE_TABS: { id: WorkspaceTab; label: string; hint: string }[] = [
-  { id: "overview", label: "Обзор", hint: "Шаблон, аудитория и проверка часов. Каркас утверждают здесь." },
+  { id: "overview", label: "Обзор", hint: "Шаблон, аудитория и таблица часов." },
   { id: "structure", label: "План", hint: "Модули и разбивка часов по неделям. Календарные даты сюда не ставятся." },
   { id: "competencies", label: "Компетенции", hint: "Чему научатся: знания, умения и навыки по каждой компетенции." },
-  { id: "lectures", label: "Лекции", hint: "Черновик модели. Штамп паспорта от формулировок слайдов не зависит." },
+  { id: "lectures", label: "Лекции", hint: "Файлы лекций: открыть просмотр или скачать PPTX." },
   { id: "seminars", label: "Семинары", hint: "Файлы заданий: открыть просмотр или скачать." },
   { id: "tests", label: "Тесты", hint: "Файлы проверки: открыть просмотр или скачать." },
   { id: "checks", label: "Проверка", hint: "Часы, связи, комплект, источники и оценивание каждого результата." },
@@ -56,6 +56,7 @@ type CourseWorkspaceProps = {
   onOpenChat?: () => void;
   onRebuildModule?: (moduleId: string, title: string) => void;
   onRefreshOutdated?: (labels: string[]) => void;
+  onGoPlan?: () => void;
 };
 
 function TabEmpty({
@@ -122,6 +123,7 @@ export function CourseWorkspace({
   onRebuildModule,
   onRefreshOutdated,
   onOpenChat,
+  onGoPlan,
 }: CourseWorkspaceProps) {
   const contentOpen = isFrameworkApproved(course) || hasBuiltMaterials(course);
   const locked = CONTENT_TABS.includes(tab) && !contentOpen;
@@ -161,7 +163,7 @@ export function CourseWorkspace({
                   onCta={gatherFramework}
                 />
               ) : (
-                <CompetencyMap course={course} />
+                <CompetencyMap course={course} onFixLink={onOpenChat} onGoPlan={onGoPlan} />
               )
             ) : null}
             {tab === "lectures" ? (
@@ -247,10 +249,14 @@ function ReferenceList({
   references: CourseDocument["brief"]["references"];
   title: string;
 }) {
+  const count = references.length;
   return (
-    <article>
-      <h3>{title}</h3>
-      {references.length === 0 ? (
+    <details className="materials-block">
+      <summary className="materials-summary">
+        <span>{title}</span>
+        <span className="materials-count">{count ? String(count) : "нет"}</span>
+      </summary>
+      {count === 0 ? (
         <p className="muted">—</p>
       ) : (
         <ul className="ref-list">
@@ -273,131 +279,381 @@ function ReferenceList({
           })}
         </ul>
       )}
-    </article>
+    </details>
   );
 }
 
-function AuditPanel({ course, onRefreshOutdated }: { course: CourseDocument; onRefreshOutdated?: (labels: string[]) => void }) {
+const AUDIT_TOPICS: { section: AuditSection; title: string }[] = [
+  { section: "framework", title: "Каркас и часы" },
+  { section: "content", title: "Материалы и тесты" },
+  { section: "sources", title: "Документы и ссылки" },
+  { section: "freshness", title: "Актуальность" },
+  { section: "meaning", title: "Смысл" },
+];
+
+const SECTION_FIX_HINT: Partial<Record<AuditSection, string>> = {
+  framework: "Обзор",
+  content: "Тесты / Лекции / Семинары",
+  sources: "Обзор",
+  freshness: "Обзор",
+  meaning: "Лекции / Семинары",
+};
+
+function topicStatus(items: { status: AuditStatus }[]): AuditStatus | "empty" {
+  if (items.length === 0) return "empty";
+  if (items.some((item) => item.status === "fail")) return "fail";
+  if (items.some((item) => item.status === "warning")) return "warning";
+  if (items.every((item) => item.status === "disabled")) return "disabled";
+  if (
+    items.some((item) => item.status === "disabled") &&
+    items.every((item) => item.status === "pass" || item.status === "disabled")
+  ) {
+    return "pass";
+  }
+  return "pass";
+}
+
+function statusBadge(status: AuditStatus | "empty") {
+  if (status === "pass") return { className: "ready", label: "готово" };
+  if (status === "warning") return { className: "partial", label: "внимание" };
+  if (status === "fail") return { className: "empty", label: "ошибки" };
+  if (status === "disabled") return { className: "partial", label: "выкл." };
+  return { className: "empty", label: "пусто" };
+}
+
+function topicCountLabel(items: { status: AuditStatus }[]) {
+  const failCount = items.filter((item) => item.status === "fail").length;
+  const warnCount = items.filter((item) => item.status === "warning").length;
+  if (failCount > 0) return `${failCount} ош.`;
+  if (warnCount > 0) return `${warnCount} вним.`;
+  if (items.some((item) => item.status === "pass")) return "ок";
+  if (items.length === 0) return "нет";
+  return `${items.length}`;
+}
+
+function pluralBlockers(n: number) {
+  const mod100 = n % 100;
+  const mod10 = n % 10;
+  if (mod100 > 10 && mod100 < 20) return "блокеров";
+  if (mod10 === 1) return "блокер";
+  if (mod10 >= 2 && mod10 <= 4) return "блокера";
+  return "блокеров";
+}
+
+/** One-line verdict under the console tiles — not an export CTA. */
+function consoleVerdict(
+  summary: Record<AuditStatus, number>,
+  course: CourseDocument,
+): string {
+  const hasFramework = (course.modules?.length ?? 0) > 0 && isFrameworkApproved(course);
+  if (!hasFramework) return "Сначала каркас";
+  if (summary.fail > 0) return `${summary.fail} ${pluralBlockers(summary.fail)}`;
+  if (summary.warning > 0) return "Можно идти к выгрузке — есть внимание";
+  return "Можно идти к выгрузке";
+}
+
+function AuditPanel({
+  course,
+  onRefreshOutdated,
+}: {
+  course: CourseDocument;
+  onRefreshOutdated?: (labels: string[]) => void;
+}) {
   const report = auditCourse(course);
-  const groups: { status: AuditStatus; title: string }[] = [
-    { status: "fail", title: "Не выполнено" },
-    { status: "warning", title: "Вручную" },
-    { status: "pass", title: "Пройдено" },
+  const outdatedHits = findOutdated(course);
+  const outdatedLabels = [...new Set(outdatedHits.map((hit) => hit.label))];
+
+  const bySection = (section: AuditSection) =>
+    report.items.filter((entry) => entry.section === section);
+
+  const defaultOpen =
+    AUDIT_TOPICS.find((topic) => topicStatus(bySection(topic.section)) === "fail")?.section ??
+    AUDIT_TOPICS.find((topic) => topicStatus(bySection(topic.section)) === "warning")?.section ??
+    AUDIT_TOPICS[0].section;
+
+  const [openOverride, setOpenOverride] = useState<AuditSection | null>(null);
+  const [tileFilter, setTileFilter] = useState<AuditStatus | null>(null);
+  const openSection = openOverride ?? defaultOpen;
+
+  const counts: { status: AuditStatus; title: string }[] = [
+    { status: "fail", title: "ошибки" },
+    { status: "warning", title: "внимание" },
+    { status: "pass", title: "пройдено" },
   ];
+
+  const moduleTitle = (moduleId?: string) =>
+    moduleId ? course.modules.find((module) => module.id === moduleId)?.title : undefined;
+
+  function openFromTile(status: AuditStatus) {
+    if (status === "pass") {
+      setTileFilter(null);
+      return;
+    }
+    setTileFilter((prev) => (prev === status ? null : status));
+    const match = AUDIT_TOPICS.find((topic) => {
+      const items = bySection(topic.section).filter((entry) =>
+        topic.section === "meaning" ? entry.id !== "meaning.llm" : true,
+      );
+      return items.some((entry) => entry.status === status);
+    });
+    if (match) setOpenOverride(match.section);
+  }
+
   return (
-    <div className="audit">
-      <div className="audit-counts">
-        {groups.map((group) => (
-          <p key={group.status} className={`audit-count ${group.status}`}>
-            <strong>{report.summary[group.status]}</strong>
-            <span>{group.title}</span>
-          </p>
-        ))}
-      </div>
-      {groups.map((group) => {
-        const items = report.items.filter((entry) => entry.status === group.status);
-        if (items.length === 0 || group.status === "pass") return null;
-        return (
-          <section key={group.status} className="audit-group">
-            {items.map((entry) => (
-              <article key={entry.id} className={`audit-card ${entry.status}`}>
-                <h3>{entry.label}</h3>
-                {entry.details ? <span>{entry.details}</span> : null}
-              </article>
-            ))}
-          </section>
-        );
-      })}
-      <details className="audit-passed">
-        <summary>Пройдено: {report.summary.pass}</summary>
-        {report.items
-          .filter((entry) => entry.status === "pass")
-          .map((entry) => (
-            <p key={entry.id}>{entry.label}</p>
+    <div className="audit audit-stages">
+      <div className="audit-console" role="status">
+        <div className="audit-counts">
+          {counts.map((group) => (
+            <button
+              key={group.status}
+              type="button"
+              className={`audit-count ${group.status}${tileFilter === group.status ? " is-active" : ""}`}
+              onClick={() => openFromTile(group.status)}
+              aria-pressed={tileFilter === group.status}
+              title={
+                group.status === "pass"
+                  ? "Сбросить фильтр"
+                  : `Открыть этап с «${group.title}»`
+              }
+            >
+              <strong>{report.summary[group.status]}</strong>
+              <span>{group.title}</span>
+            </button>
           ))}
-      </details>
-      <ReferenceList references={course.brief.references} title="Источники" />
-      <SourceChecks course={course} />
-      
-      {(() => {
-        const hits = findOutdated(course);
-        if (hits.length === 0) return null;
-        const labels = [...new Set(hits.map((h) => h.label))];
-        return (
-          <article className="outdated-panel">
-            <h3>Устаревшие технологии</h3>
-            <ul className="audit-list">
-              {hits.map((hit) => (
-                <li key={`${hit.id}:${hit.place}`} className="warning">
-                  <strong>{hit.label}:</strong> {hit.note}
-                  <span>{hit.place}</span>
-                </li>
-              ))}
-            </ul>
-            {onRefreshOutdated ? (
-              <div className="pane-actions" style={{ marginTop: 8 }}>
-                <button
-                  type="button"
-                  title="Заменить устаревшие технологии в каркасе через чат"
-                  onClick={() => onRefreshOutdated(labels)}
-                >
-                  Обновить устаревшее
-                </button>
-              </div>
-            ) : null}
-          </article>
-        );
-      })()}
-      <StackFreshnessPanel course={course} />
+        </div>
+        <p className="audit-console-summary">{consoleVerdict(report.summary, course)}</p>
+      </div>
+
+      <div className="audit-stage-list" role="list">
+        {AUDIT_TOPICS.map((topic, index) => {
+          const rawItems = bySection(topic.section);
+          // meaning.llm is rendered inside MeaningReview — hide the disabled stub card
+          const items =
+            topic.section === "meaning"
+              ? rawItems.filter((entry) => entry.id !== "meaning.llm")
+              : rawItems;
+          const status = topicStatus(items.length ? items : rawItems);
+          const badge = statusBadge(status);
+          const isOpen = openSection === topic.section;
+          const problems = items.filter((entry) => {
+            if (entry.status !== "fail" && entry.status !== "warning") return false;
+            if (tileFilter && entry.status !== tileFilter) return false;
+            return true;
+          });
+          const passCount = items.filter((entry) => entry.status === "pass").length;
+          const stageDone = status === "pass" || status === "disabled";
+
+          return (
+            <section
+              key={topic.section}
+              className={`audit-stage${isOpen ? " is-open" : ""}${stageDone ? " is-done" : ""}`}
+              data-section={topic.section}
+              role="listitem"
+            >
+              <button
+                type="button"
+                className="audit-stage-head"
+                aria-expanded={isOpen}
+                onClick={() => setOpenOverride(topic.section)}
+              >
+                <span className="audit-stage-index" aria-hidden="true">
+                  {index + 1}
+                </span>
+                <span className="audit-topic-title">
+                  <span className={`check-badge ${badge.className}`}>{badge.label}</span>
+                  <span className="audit-stage-name">{topic.title}</span>
+                </span>
+                <span className="materials-count">{topicCountLabel(items)}</span>
+              </button>
+
+              {isOpen ? (
+                <div className="audit-stage-body">
+                  {problems.length === 0 &&
+                  topic.section !== "sources" &&
+                  topic.section !== "freshness" &&
+                  topic.section !== "meaning" ? (
+                    <p className="muted">Замечаний нет.</p>
+                  ) : null}
+
+                  {problems.length > 0 ? (
+                    <div className="audit-topic-body">
+                      {problems.map((entry) => {
+                        const modTitle = moduleTitle(entry.moduleId);
+                        const fixHint = SECTION_FIX_HINT[topic.section];
+                        return (
+                          <article key={entry.id} className={`audit-card ${entry.status}`}>
+                            <h3>{entry.label}</h3>
+                            {entry.details ? <span>{entry.details}</span> : null}
+                            {entry.moduleId || fixHint ? (
+                              <span className="audit-fix">
+                                Где править
+                                {modTitle ? `: «${modTitle}»` : ""}
+                                {fixHint ? ` · ${fixHint}` : ""}
+                              </span>
+                            ) : null}
+                          </article>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+
+                  {passCount > 0 ? (
+                    <p className="audit-passed-line muted">Пройдено: {passCount}</p>
+                  ) : null}
+
+                  {topic.section === "sources" ? (
+                    <div className="audit-stage-extra">
+                      <ReferenceList references={course.brief.references} title="Источники" />
+                      <SourceChecks course={course} />
+                    </div>
+                  ) : null}
+
+                  {topic.section === "freshness" ? (
+                    <div className="audit-stage-extra">
+                      {outdatedHits.length > 0 ? (
+                        <article className="outdated-panel">
+                          <h3>Устаревшие технологии</h3>
+                          <ul className="audit-list">
+                            {outdatedHits.map((hit) => (
+                              <li key={`${hit.id}:${hit.place}`} className="warning">
+                                <strong>{hit.label}:</strong> {hit.note}
+                                <span>{hit.place}</span>
+                              </li>
+                            ))}
+                          </ul>
+                          {onRefreshOutdated ? (
+                            <div className="pane-actions" style={{ marginTop: 8 }}>
+                              <button
+                                type="button"
+                                title="Заменить устаревшие технологии в каркасе через чат"
+                                onClick={() => onRefreshOutdated(outdatedLabels)}
+                              >
+                                Обновить
+                              </button>
+                            </div>
+                          ) : null}
+                        </article>
+                      ) : (
+                        <p className="muted">Устаревших меток не найдено.</p>
+                      )}
+                      <StackFreshnessPanel course={course} />
+                    </div>
+                  ) : null}
+
+                  {topic.section === "meaning" ? (
+                    <MeaningReview
+                      course={course}
+                      hits={items.filter(
+                        (entry) => entry.status === "fail" || entry.status === "warning",
+                      )}
+                      passCount={passCount}
+                    />
+                  ) : null}
+                </div>
+              ) : null}
+            </section>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-function FrameworkCheck({ course }: { course: CourseDocument }) {
-  const items = frameworkItems(course);
-  const gaps = contentGaps(course);
-  const hourErrors = validateCourseHours(course);
+function MeaningReview({
+  course,
+  hits,
+  passCount,
+}: {
+  course: CourseDocument;
+  hits: { id: string; status: AuditStatus; label: string; details?: string; moduleId?: string }[];
+  passCount: number;
+}) {
+  const [state, setState] = useState<
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "disabled"; details: string }
+    | { status: "pass" | "warning" | "fail"; notes: string[]; details?: string }
+    | { status: "error"; details: string }
+  >({ status: "idle" });
+
+  const run = useCallback(async () => {
+    setState({ status: "loading" });
+    try {
+      const response = await fetch("/api/backend/api/audit/meaning-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ course }),
+      });
+      if (!response.ok) {
+        setState({ status: "error", details: `HTTP ${response.status}` });
+        return;
+      }
+      const data = (await response.json()) as {
+        status: "disabled" | "pass" | "warning" | "fail";
+        notes?: string[];
+        details?: string;
+      };
+      if (data.status === "disabled") {
+        setState({
+          status: "disabled",
+          details: data.details || "LLM недоступен — ревью пропущено.",
+        });
+        return;
+      }
+      setState({
+        status: data.status,
+        notes: data.notes || [],
+        details: data.details,
+      });
+    } catch (error) {
+      setState({
+        status: "error",
+        details: error instanceof Error ? error.message : "Сбой недоступен",
+      });
+    }
+  }, [course]);
+
   return (
-    <article>
-      <h3>Проверка каркаса</h3>
-      <ul className="check-list">
-        {items.map((item) => (
-          <li key={item.id} className={item.ok ? "ok" : "bad"}>
-            {item.label}
-          </li>
-        ))}
-      </ul>
-      {course.assessments.length > 0 && gaps.length > 0 ? (
-        <p className="voice-error">
-          Вопросы не закрывают компетенции: {gaps.join(", ")}
-        </p>
-      ) : null}
-      {course.assessments.length > 0 && outcomeGaps(course).length > 0 ? (
-        <p className="voice-error">
-          Нет вопроса на результат: {outcomeGaps(course).join("; ")}
-        </p>
-      ) : null}
-      {course.brief.durationHours > 0 && course.modules.length > 0 && (
+    <article className="audit-meaning-block">
+      <div className="audit-meaning-head">
         <div>
-          <h4>Проверка учебных часов</h4>
-
-          {hourErrors.length === 0 ? (
-            <p className="muted">
-              ✓ Баланс учебных часов соблюдён.
-            </p>
-          ) : (
-            <ul className="check-list">
-              {hourErrors.map((error, index) => (
-                <li key={`${index}-${error}`} className="bad">
-                  {error}
-                </li>
-              ))}
-            </ul>
-          )}
+          <h3>Ревью смысла</h3>
+          <p className="muted">
+            Чеклист ловит пустое, шаблон и дубли. LLM — кратко: связность с ЦА, пробелы,
+            противоречия. Без ключа шлюза кнопка вернёт «выкл.» и не блокирует выгрузку.
+          </p>
         </div>
-      )}
+        <button type="button" onClick={() => void run()} disabled={state.status === "loading"}>
+          {state.status === "loading" ? "Ревью…" : "Запросить LLM-ревью"}
+        </button>
+      </div>
 
+      {hits.length === 0 && passCount > 0 ? (
+        <p className="muted">Чеклист: пустых и шаблонных блоков не найдено.</p>
+      ) : null}
 
+      {hits.length > 0 ? (
+        <ul className="audit-list audit-meaning-hits">
+          {hits.map((entry) => (
+            <li key={entry.id} className={entry.status}>
+              <strong>{entry.label}</strong>
+              {entry.details ? <span>{entry.details}</span> : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {state.status === "disabled" ? <p className="muted">{state.details}</p> : null}
+      {state.status === "error" ? <p className="voice-error">{state.details}</p> : null}
+      {state.status === "pass" || state.status === "warning" || state.status === "fail" ? (
+        <ul className="audit-list">
+          {(state.notes.length ? state.notes : [state.details || "Замечаний нет."]).map((note) => (
+            <li key={note} className={state.status}>
+              {note}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </article>
   );
 }
@@ -410,99 +666,44 @@ function kitOf(course: CourseDocument, moduleId: string) {
   };
 }
 
-function ModuleBoard({ course, onRebuildModule }: { course: CourseDocument; onRebuildModule?: (moduleId: string, title: string) => void }) {
-  const [moduleId, setModuleId] = useState(course.modules[0]?.id ?? "");
-  const selected = course.modules.find((item) => item.id === moduleId) ?? course.modules[0];
-  if (!selected) return null;
-  const marks = kitOf(course, selected.id);
-  const topics = selected.plan.length
-    ? selected.plan
-    : selected.topics.map((title) => ({
-        title,
-        lectureHours: 0,
-        practiceHours: 0,
-        labHours: 0,
-        selfStudyHours: 0,
-      }));
-  return (
-    <div className="module-board">
-      <div className="module-rail" role="list">
-        {course.modules.map((item, index) => {
-          const kit = kitOf(course, item.id);
-          const gap = moduleKindsGap(item);
-          return (
-            <button
-              key={item.id}
-              type="button"
-              role="listitem"
-              className={[item.id === selected.id ? "active" : "", gap ? "hours-bad" : ""].filter(Boolean).join(" ")}
-              title={gap ?? undefined}
-              onClick={() => setModuleId(item.id)}
-            >
-              <span className="mono">{String(index + 1).padStart(2, "0")}</span>
-              <strong>{item.title}</strong>
-              <span className="hours">{item.hours} ч</span>
-              {gap ? <span className="hours-gap">{gap}</span> : null}
-              <span className="kit-marks" aria-label="Комплект модуля">
-                <i className={kit.lecture ? "on" : ""}>Л</i>
-                <i className={kit.seminar ? "on" : ""}>З</i>
-                <i className={kit.test ? "on" : ""}>Т</i>
-              </span>
-            </button>
-          );
-        })}
-      </div>
-      <article className="module-detail">
-        <p className="kicker">Модуль</p>
-        <h3>{selected.title}</h3>
-        {onRebuildModule && isFrameworkApproved(course) ? (
-          <div className="pane-actions" style={{ margin: "8px 0 12px" }}>
-            <button
-              type="button"
-              title="Пересобрать лекции, семинар и тест только для этого модуля"
-              onClick={() => onRebuildModule(selected.id, selected.title)}
-            >
-              Пересобрать материалы модуля
-            </button>
-          </div>
-        ) : null}
-        <p className="muted">
-          {selected.hours} ч
-          {selected.competencyIds.length
-            ? ` · ${selected.competencyIds.map((id) => competencyName(course, id)).join(", ")}`
-            : ""}
-        </p>
-        <span className="kit-marks detail-marks">
-          <i className={marks.lecture ? "on" : ""}>Лекция</i>
-          <i className={marks.seminar ? "on" : ""}>Задание</i>
-          <i className={marks.test ? "on" : ""}>Тест</i>
-        </span>
-        <h4>Темы</h4>
-        <ol className="plan-list">
-          {topics.map((topic) => (
-            <li key={topic.title}>
-              <strong>{topic.title}</strong>
-              {selected.plan.length ? <span>{topicHoursLine(topic)}</span> : null}
-            </li>
-          ))}
-        </ol>
-        <h4>Результаты</h4>
-        <ul>
-          {selected.learningOutcomes.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-        <MermaidBlock chart={moduleFlowChart(selected)} />
-      </article>
-    </div>
-  );
-}
-
-function Overview({ course }: { course: CourseDocument }) {
+function Overview({
+  course,
+}: {
+  course: CourseDocument;
+}) {
   const { brief } = course;
   const gaps = briefGaps(course);
+  const isBlank = !brief.title.trim() && course.modules.length === 0;
   return (
     <div className="overview">
+      {isBlank ? (
+        <>
+        <section className="about-card passport-stub">
+          <p className="passport-kicker">Паспорт-заготовка</p>
+          <h2>О программе</h2>
+          <dl className="meta-grid passport-grid">
+            <div>
+              <dt>Название</dt>
+              <dd className="passport-placeholder">Например, Основы кибербезопасности</dd>
+            </div>
+            <div>
+              <dt>Аудитория</dt>
+              <dd className="passport-placeholder">Кто будет учиться</dd>
+            </div>
+            <div>
+              <dt>Объём часов</dt>
+              <dd className="passport-placeholder">Например, 24 ч (шаг 0,5)</dd>
+            </div>
+            <div>
+              <dt>Формат</dt>
+              <dd className="passport-placeholder">Очно, смешанный или практикум</dd>
+            </div>
+          </dl>
+        </section>
+
+        </>
+      ) : (
+      <>
       {!brief.title && course.modules.length === 0 && gaps.length > 0 ? (
         <p className="program-soon">Пока нет: {gaps.join(", ")}.</p>
       ) : null}
@@ -538,9 +739,11 @@ function Overview({ course }: { course: CourseDocument }) {
           </div>
         </dl>
       </section>
+      </>
+      )}
       {course.modules.length > 0 ? (
         <>
-        <table className="hours-table">
+        <div className="table-scroll"><table className="hours-table">
           <thead>
             <tr>
               <th>Модуль</th>
@@ -582,7 +785,7 @@ function Overview({ course }: { course: CourseDocument }) {
               <td>{course.brief.attestationHours}</td>
             </tr>
           </tbody>
-        </table>
+        </table></div>
         </>
       ) : null}
       <div className="two-col">
@@ -603,8 +806,8 @@ function Overview({ course }: { course: CourseDocument }) {
           </ul>
         </article>
       </div>
-      <FrameworkCheck course={course} />
-      <ReferenceList references={brief.references} title="Референсы" />
+
+      <ReferenceList references={brief.references} title="Материалы" />
     </div>
   );
 }
@@ -673,63 +876,122 @@ function weekWord(count: number) {
   return "недель";
 }
 
-function WeekPlan({ course }: { course: CourseDocument }) {
-  const total = snapHalf(course.modules.reduce((sum, item) => sum + item.hours, 0));
-  const pace = calendarPace(course.brief.constraints, total);
-  const [perWeek, setPerWeek] = useState(pace?.perWeek ?? 4);
-  useEffect(() => {
-    setPerWeek(pace?.perWeek ?? 4);
-  }, [course.id, pace?.line, pace?.perWeek]);
-  const weeks = weeksOf(course.modules, perWeek);
-  const sameAsGraph = pace?.weeks != null && weeks.length === pace.weeks;
+function ModuleWeekRuler({
+  weeks,
+  moduleId,
+}: {
+  weeks: Array<Array<{ id: string }>>;
+  moduleId: string;
+}) {
+  if (weeks.length === 0) return null;
   return (
-    <section className="week-plan">
-      <header className="week-plan-head">
-        <div>
-          <p className="kicker">По неделям</p>
-          <h3>Разбивка часов</h3>
-          <p className="muted">
-            {pace?.line ? `${pace.line} ` : ""}
-            {formatHours(total)} ч
-            {sameAsGraph
-              ? ` на ${weeks.length} ${weekWord(weeks.length)}, по ${formatHours(perWeek)} ч.`
-              : ` · сейчас ${weeks.length} ${weekWord(weeks.length)} по ${formatHours(perWeek)} ч.`}
-          </p>
-        </div>
-        <label>
-          Часов в неделю
-          <input
-            type="number"
-            min={0.5}
-            max={40}
-            step={0.5}
-            value={perWeek}
-            onChange={(event) => {
-              const next = snapHalf(Number(event.target.value));
-              if (next >= 0.5 && next <= 40) setPerWeek(next);
-            }}
+    <div className="module-week-ruler" aria-label="Недели модуля в курсе" role="list">
+      {weeks.map((pieces, index) => {
+        const on = pieces.some((piece) => piece.id === moduleId);
+        return (
+          <span
+            key={`ruler-${moduleId}-${index}`}
+            role="listitem"
+            className={["week-dot", on ? "on" : ""].filter(Boolean).join(" ")}
+            title={`Неделя ${index + 1}${on ? " — этот модуль" : ""}`}
+            aria-label={`Неделя ${index + 1}${on ? ", модуль здесь" : ""}`}
           />
-        </label>
-      </header>
-      <div className="week-board">
-        {weeks.map((pieces, index) => (
-          <article key={`week-${index}`} className="week-card">
-            <p className="kicker">Неделя {index + 1}</p>
-            <ul>
-              {pieces.map((piece, pieceIndex) => (
-                <li key={`${piece.id}-${pieceIndex}`}>
-                  <strong>{piece.title}</strong>
-                  <span>
-                    {piece.continued ? "продолжение, " : ""}
-                    {formatHours(piece.hours)} ч
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </article>
-        ))}
-      </div>
-    </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function ModuleCard({
+  course,
+  module,
+  index,
+  open,
+  onToggle,
+  weeks,
+  onRebuildModule,
+}: {
+  course: CourseDocument;
+  module: CourseDocument["modules"][number];
+  index: number;
+  open: boolean;
+  onToggle: () => void;
+  weeks: Array<Array<{ id: string; title: string; hours: number; continued: boolean }>>;
+  onRebuildModule?: (moduleId: string, title: string) => void;
+}) {
+  const marks = kitOf(course, module.id);
+  const gap = moduleKindsGap(module);
+  const topics = module.plan.length
+    ? module.plan
+    : module.topics.map((title) => ({
+        title,
+        lectureHours: 0,
+        practiceHours: 0,
+        labHours: 0,
+        selfStudyHours: 0,
+      }));
+  const weekIndexes = weeks
+    .map((pieces, weekIndex) => (pieces.some((piece) => piece.id === module.id) ? weekIndex + 1 : null))
+    .filter((value): value is number => value != null);
+
+  return (
+    <article
+      className={["module-first-card", open ? "open" : "", gap ? "hours-bad" : ""].filter(Boolean).join(" ")}
+    >
+      <button type="button" className="module-first-head" aria-expanded={open} onClick={onToggle}>
+        <span className="mono module-first-num">{String(index + 1).padStart(2, "0")}</span>
+        <span className="module-first-main">
+          <strong>{module.title}</strong>
+          <span className="module-first-meta muted">
+            {formatHours(module.hours)} ч
+            {weekIndexes.length ? ` · нед. ${weekIndexes.join(", ")}` : ""}
+            {module.competencyIds.length
+              ? ` · ${module.competencyIds.map((id) => competencyName(course, id)).join(", ")}`
+              : ""}
+          </span>
+          <ModuleWeekRuler weeks={weeks} moduleId={module.id} />
+        </span>
+        <span className="kit-marks" aria-label="Комплект модуля">
+          <i className={marks.lecture ? "on" : ""}>Л</i>
+          <i className={marks.seminar ? "on" : ""}>З</i>
+          <i className={marks.test ? "on" : ""}>Т</i>
+        </span>
+      </button>
+      {open ? (
+        <div className="module-first-body">
+          {onRebuildModule && isFrameworkApproved(course) ? (
+            <div className="pane-actions">
+              <button
+                type="button"
+                title="Пересобрать лекции, семинары и тесты только для этого модуля"
+                onClick={() => onRebuildModule(module.id, module.title)}
+              >
+                Пересобрать материалы модуля
+              </button>
+            </div>
+          ) : null}
+          <h4>Темы</h4>
+          <ol className="plan-list">
+            {topics.map((topic) => (
+              <li key={topic.title}>
+                <strong>{topic.title}</strong>
+                {module.plan.length ? <span>{topicHoursLine(topic)}</span> : null}
+              </li>
+            ))}
+          </ol>
+          <h4>Результаты</h4>
+          <ul>
+            {module.learningOutcomes.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+          <details className="module-schema">
+            <summary>Схема</summary>
+            <MermaidBlock chart={moduleFlowChart(module)} />
+          </details>
+        </div>
+      ) : null}
+    </article>
   );
 }
 
@@ -737,13 +999,68 @@ function Structure({ course, onRebuildModule }: { course: CourseDocument; onRebu
   if (course.modules.length === 0) {
     return null;
   }
+  const total = snapHalf(course.modules.reduce((sum, item) => sum + item.hours, 0));
+  const pace = calendarPace(course.brief.constraints, total);
+  const [perWeek, setPerWeek] = useState(pace?.perWeek ?? 4);
+  const [openId, setOpenId] = useState(course.modules[0]?.id ?? "");
+
+  useEffect(() => {
+    setPerWeek(pace?.perWeek ?? 4);
+  }, [course.id, pace?.line, pace?.perWeek]);
+
+  useEffect(() => {
+    if (!course.modules.some((item) => item.id === openId)) {
+      setOpenId(course.modules[0]?.id ?? "");
+    }
+  }, [course.modules, openId]);
+
+  const weeks = weeksOf(course.modules, perWeek);
+  const sameAsGraph = pace?.weeks != null && weeks.length === pace.weeks;
+
+  const bumpHours = (delta: number) => {
+    const next = snapHalf(perWeek + delta);
+    if (next >= 0.5 && next <= 40) setPerWeek(next);
+  };
+
   return (
-    <div className="structure">
-      <WeekPlan course={course} />
-      <ModuleBoard course={course} onRebuildModule={onRebuildModule} />
+    <div className="structure structure-light structure-modules-first">
+      <header className="plan-tempo-head">
+        <p className="plan-tempo-line">
+          {pace?.line ? `${pace.line} · ` : ""}
+          {formatHours(total)} ч
+          {sameAsGraph
+            ? ` · ${weeks.length} ${weekWord(weeks.length)} · ${formatHours(perWeek)} ч/нед.`
+            : ` · сетка ${weeks.length} ${weekWord(weeks.length)} по ${formatHours(perWeek)} ч`}
+        </p>
+        <div className="week-hours-stepper" aria-label="Часов в неделю">
+          <button type="button" className="stepper-btn" aria-label="Меньше часов в неделю" onClick={() => bumpHours(-0.5)}>
+            −
+          </button>
+          <span className="week-hours-value">{formatHours(perWeek)} ч/нед.</span>
+          <button type="button" className="stepper-btn" aria-label="Больше часов в неделю" onClick={() => bumpHours(0.5)}>
+            +
+          </button>
+        </div>
+      </header>
+      <div className="module-first-list" role="list">
+        {course.modules.map((module, index) => (
+          <div key={module.id} role="listitem">
+            <ModuleCard
+              course={course}
+              module={module}
+              index={index}
+              open={module.id === openId}
+              onToggle={() => setOpenId((prev) => (prev === module.id ? "" : module.id))}
+              weeks={weeks}
+              onRebuildModule={onRebuildModule}
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
+
 
 function competencyName(course: CourseDocument, id: string) {
   return course.competencies.nodes.find((node) => node.id === id)?.name ?? id;
@@ -820,6 +1137,7 @@ function Seminars({ course }: { course: CourseDocument }) {
 
 function Tests({ course }: { course: CourseDocument }) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const [showKeysFor, setShowKeysFor] = useState<Record<string, boolean>>({});
   if (course.assessments.length === 0) {
     return null;
   }
@@ -829,6 +1147,7 @@ function Tests({ course }: { course: CourseDocument }) {
         const courseModule = course.modules.find((item) => item.id === assessment.moduleId);
         const title = courseModule?.title ?? assessment.moduleId;
         const open = openId === assessment.moduleId;
+        const showKeys = Boolean(showKeysFor[assessment.moduleId]);
         return (
           <li key={assessment.moduleId} className={open ? "open" : ""}>
             <div className="file-row">
@@ -848,6 +1167,21 @@ function Tests({ course }: { course: CourseDocument }) {
             </div>
             {open ? (
               <article className="plan-sheet file-preview">
+                <div className="pane-actions keys-toggle">
+                  <button
+                    type="button"
+                    aria-pressed={showKeys}
+                    title={showKeys ? "Скрыть правильные ответы" : "Показать правильные ответы методисту"}
+                    onClick={() =>
+                      setShowKeysFor((prev) => ({
+                        ...prev,
+                        [assessment.moduleId]: !showKeys,
+                      }))
+                    }
+                  >
+                    {showKeys ? "Скрыть ключи" : "Показать ключи"}
+                  </button>
+                </div>
                 {assessment.questions.map((question, index) => (
                   <div key={`${question.stem}-${index}`} className="task">
                     <p className="plan-lead">
@@ -855,27 +1189,42 @@ function Tests({ course }: { course: CourseDocument }) {
                     </p>
                     {question.options?.length ? (
                       <ul>
-                        {question.options.map((option) => (
-                          <li key={option} className={option === question.answer ? "correct" : undefined}>
-                            {option === question.answer ? "Ключ. " : ""}
-                            {option}
-                          </li>
-                        ))}
+                        {question.options.map((option) => {
+                          const isKey = option === question.answer;
+                          return (
+                            <li
+                              key={option}
+                              className={showKeys && isKey ? "correct" : undefined}
+                            >
+                              {showKeys && isKey ? "Ключ. " : ""}
+                              {option}
+                            </li>
+                          );
+                        })}
                       </ul>
-                    ) : (
+                    ) : showKeys ? (
                       <p className="answer">Ключ: {question.answer}</p>
+                    ) : (
+                      <p className="muted">Открытый ответ · ключ скрыт</p>
                     )}
-                    <p className="muted">
-                      {question.explanation}
-                      {question.learningOutcome ? ` · результат: ${question.learningOutcome}` : ""}
-                      {" · "}
-                      {competencyName(course, question.competencyId)}
-                      {" · "}
-                      {BLOOM_LABELS[
-                        course.competencies.nodes.find((node) => node.id === question.competencyId)?.bloomLevel ??
-                          "apply"
-                      ]}
-                    </p>
+                    {showKeys ? (
+                      <p className="muted">
+                        {question.explanation}
+                        {question.learningOutcome ? ` · результат: ${question.learningOutcome}` : ""}
+                        {" · "}
+                        {competencyName(course, question.competencyId)}
+                        {" · "}
+                        {BLOOM_LABELS[
+                          course.competencies.nodes.find((node) => node.id === question.competencyId)?.bloomLevel ??
+                            "apply"
+                        ]}
+                      </p>
+                    ) : (
+                      <p className="muted">
+                        {competencyName(course, question.competencyId)}
+                        {question.learningOutcome ? ` · результат: ${question.learningOutcome}` : ""}
+                      </p>
+                    )}
                   </div>
                 ))}
               </article>

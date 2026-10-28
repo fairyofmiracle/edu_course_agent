@@ -22,7 +22,7 @@ export function queueWaitLabel(status: string, position = 0): string {
 
 export function chatWaitLabel(elapsedMs: number): string {
   if (elapsedMs < 2500) return "Отправляю запрос…";
-  if (elapsedMs < 20000) return "Модель думает…";
+  if (elapsedMs < 20000) return "Готовлю ответ…";
   if (elapsedMs < 60000) return "Жду ответ шлюза…";
   return "Модель пишет комплект. Это может занять несколько минут.";
 }

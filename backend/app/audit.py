@@ -9,6 +9,7 @@ from .legal_basis import is_official_publication, legal_basis_items
 from .models import CourseDocument
 from .outdated import find_outdated
 from .rationale import module_rationales
+from .meaning_audit import meaning_audit_items
 from .verbatim import reference_notes, verbatim_spans
 
 KIND_FIELDS = ("lectureHours", "practiceHours", "labHours", "selfStudyHours")
@@ -49,7 +50,7 @@ def _half_step(value: Any) -> bool:
 def _summary(items: list[dict[str, Any]]) -> dict[str, int]:
     return {
         state: sum(1 for item in items if item["status"] == state)
-        for state in ("pass", "warning", "fail")
+        for state in ("pass", "warning", "fail", "disabled")
     }
 
 
@@ -499,6 +500,8 @@ def audit_course(course: dict[str, Any]) -> dict[str, Any]:
             "details": ", ".join(invented) if invented else "Номер приказа и код трудовой функции сверяются с файлом и условиями запроса.",
         }
     )
+
+    items.extend(meaning_audit_items(course))
 
     return {"summary": _summary(items), "items": items}
 

@@ -127,9 +127,14 @@ export function frameworkItems(course: CourseDocument): FrameworkItem[] {
     },
     {
       id: "hours",
-      label: hoursOk
-        ? `Часы сходятся: ${sum} из ${target} ч`
-        : `Часы не сходятся: ${sum} из ${target || 0} ч`,
+      label: (() => {
+        if (course.modules.length === 0 || target <= 0) {
+          return "Часы появятся после плана и объёма";
+        }
+        return hoursOk
+          ? `Часы сходятся: ${sum} из ${target} ч`
+          : `Часы не сходятся: ${sum} из ${target} ч`;
+      })(),
       ok: hoursOk,
     },
     {

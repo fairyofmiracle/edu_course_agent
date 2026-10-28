@@ -1,4 +1,4 @@
-from app.curriculum_rules.validator import validate_hour_constraints
+from backend.app.curriculum_rules.validator import validate_hour_constraints
 
 
 def test_detects_conflicting_min_and_max() -> None:

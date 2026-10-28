@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any, Literal
 
-from .brief_guard import VOLUME_CLARIFY_NOTE, is_offtopic_request, is_garbage_title, contains_profanity, PROFANITY_REPLY
+from .brief_guard import VOLUME_CLARIFY_NOTE, is_offtopic_request, is_garbage_title, is_unusable_title, contains_profanity, PROFANITY_REPLY
 from .domain import framework_fingerprint, framework_items
 from .catalog import block_count, is_data_analysis, is_internship
 from .kit_content import has_stub_lectures, has_stub_questions, outcome_gaps
@@ -125,7 +125,7 @@ def missing_brief_lines(course: CourseDocument) -> list[str]:
     brief = course.brief
     missing: list[str] = []
     title = (brief.title or "").strip()
-    if not title or is_garbage_title(title):
+    if not title or is_unusable_title(title):
         missing.append("название программы")
     if brief.program_kind == "unset":
         missing.append("тип программы")
@@ -333,10 +333,15 @@ def plan_step(
             "kind": "tool",
             "tool": "set_competency_map",
             "task": (
-                "Собери 3 короткие компетенции со знаниями и умениями."
+                "Собери 3 короткие компетенции со знаниями и умениями. "
+                "У каждой укажи bloomLevel (remember|understand|apply|analyze|evaluate|create) "
+                "и распредели уровни Bloom — не все в apply."
                 if short
                 else "Собери 3–5 компетенций со знаниями, умениями и навыками. "
-                "Код трудовой функции не выдумывай."
+                "У каждой укажи bloomLevel (remember|understand|apply|analyze|evaluate|create) — "
+                "Знать/Понимать/Применять/Анализировать/Оценивать/Создавать; "
+                "распредели уровни по узлам, не складывай всё в apply. "
+                "Все компетенции свяжи с модулями."
             ),
         }
     hours = course.brief.duration_hours

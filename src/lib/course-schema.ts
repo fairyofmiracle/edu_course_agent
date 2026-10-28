@@ -220,11 +220,31 @@ export function createEmptyCourse(): CourseDocument {
   };
 }
 
+
+/** Подпись в UI, когда название ещё не задали. В документ не пишем. */
+export const DEFAULT_COURSE_TITLE = "Новая программа";
+
+export function isBlankCourseTitle(title: string | undefined | null): boolean {
+  const t = (title ?? "").trim();
+  return !t || t === DEFAULT_COURSE_TITLE;
+}
+
+export function displayCourseTitle(title: string | undefined | null): string {
+  const t = (title ?? "").trim();
+  return t || DEFAULT_COURSE_TITLE;
+}
+
 export function isCourseEmpty(course: CourseDocument): boolean {
   return (
-    !course.brief.title &&
+    isBlankCourseTitle(course.brief.title) &&
+    !course.brief.audience.trim() &&
+    !(course.brief.durationHours > 0) &&
+    course.brief.goals.length === 0 &&
     course.modules.length === 0 &&
-    course.competencies.nodes.length === 0
+    course.competencies.nodes.length === 0 &&
+    course.lectures.length === 0 &&
+    course.seminars.length === 0 &&
+    course.assessments.length === 0
   );
 }
 

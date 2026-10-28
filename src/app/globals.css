@@ -5697,14 +5697,14 @@ button,
   }
 }
 
-/* === Audit flat layout: page → list, max 2 layers === */
+/* === Audit flat layout: page → list, max 2 layers (menu polish) === */
 .audit-flat {
   --audit-fail: #9a4a4a;
   --audit-warn: #a07a2e;
   --audit-ok: #44eb99;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .audit-metrics {
@@ -5718,7 +5718,7 @@ button,
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 10px 14px;
+  gap: 10px 16px;
 }
 
 .audit-metric {
@@ -5726,13 +5726,20 @@ button,
   align-items: baseline;
   gap: 6px;
   margin: 0;
-  padding: 4px 0;
+  padding: 4px 2px;
   min-height: 36px;
   border: 0;
+  border-radius: 6px;
   background: transparent;
   color: var(--ink);
   cursor: pointer;
   font: inherit;
+  outline: none;
+  transition: box-shadow 0.15s ease, color 0.15s ease;
+}
+
+.audit-metric:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--audit-ok) 40%, transparent);
 }
 
 .audit-metric strong {
@@ -5783,6 +5790,8 @@ button,
   color: var(--ink-soft);
   font-size: 13px;
   cursor: pointer;
+  outline: none;
+  transition: color 0.15s ease, background 0.15s ease;
 }
 
 .audit-flat .audit-collapse-all:hover {
@@ -5790,19 +5799,24 @@ button,
   background: color-mix(in srgb, #44eb99 8%, transparent);
 }
 
+.audit-flat .audit-collapse-all:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--audit-ok) 40%, transparent);
+}
+
 .audit-flat-layout {
   display: grid;
-  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
-  gap: 0 20px;
+  grid-template-columns: minmax(188px, 228px) minmax(0, 1fr);
+  gap: 0 24px;
   align-items: start;
   min-height: 0;
 }
 
+/* Rail = neat vertical menu */
 .audit-rail {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 0;
+  gap: 4px;
+  padding: 2px 0;
   margin: 0;
   border: 0;
   background: transparent;
@@ -5814,23 +5828,41 @@ button,
   gap: 10px;
   width: 100%;
   margin: 0;
-  padding: 8px 10px;
-  min-height: 40px;
+  padding: 9px 12px 9px 11px;
+  min-height: 42px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
   color: var(--ink);
   text-align: left;
   cursor: pointer;
   font: inherit;
+  outline: none;
+  transition: background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
 }
 
 .audit-rail-item:hover {
-  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  background: color-mix(in srgb, var(--ink) 4.5%, transparent);
+}
+
+.audit-rail-item:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--audit-ok) 42%, transparent);
 }
 
 .audit-rail-item.is-active {
-  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--audit-ok) 72%, transparent);
+}
+
+.audit-rail-item.is-active:focus-visible {
+  box-shadow:
+    inset 3px 0 0 color-mix(in srgb, var(--audit-ok) 72%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--audit-ok) 35%, transparent);
+}
+
+.audit-rail-item.is-active .audit-rail-name {
+  font-weight: 600;
+  color: var(--ink);
 }
 
 .audit-rail-item.is-weak .audit-rail-name {
@@ -5853,6 +5885,7 @@ button,
   font-weight: 550;
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 
 .audit-rail-ok {
@@ -5861,6 +5894,7 @@ button,
   font-size: 13px;
   min-width: 1em;
   text-align: right;
+  flex-shrink: 0;
 }
 
 .audit-rail-item.is-weak .audit-rail-ok,
@@ -5889,7 +5923,7 @@ button,
 /* ONE content surface — no second card frame */
 .audit-panel {
   margin: 0;
-  padding: 4px 0 0;
+  padding: 2px 0 0;
   border: 0;
   background: transparent;
   min-width: 0;
@@ -5899,7 +5933,7 @@ button,
   display: flex;
   align-items: baseline;
   gap: 10px;
-  margin: 0 0 10px;
+  margin: 0 0 14px;
 }
 
 .audit-panel-head h3 {
@@ -5919,13 +5953,14 @@ button,
   font-size: 13.5px;
 }
 
+/* Flat list: air between rows, no hairline frames */
 .audit-flat-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 6px;
 }
 
 .audit-flat-row {
@@ -5933,14 +5968,14 @@ button,
   align-items: flex-start;
   gap: 10px;
   margin: 0;
-  padding: 8px 0;
+  padding: 10px 8px;
   border: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  border-radius: 8px;
   background: transparent;
 }
 
-.audit-flat-row:last-child {
-  border-bottom: 0;
+.audit-flat-row:hover {
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
 }
 
 .audit-flat-row.fail .audit-flat-label {
@@ -5950,7 +5985,7 @@ button,
 .audit-flat-row-text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
 }
 
@@ -5958,20 +5993,20 @@ button,
   font-size: 13.5px;
   font-weight: 550;
   color: var(--ink);
-  line-height: 1.35;
+  line-height: 1.4;
 }
 
 .audit-flat-detail {
   font-size: 12.5px;
   color: var(--ink-soft);
-  line-height: 1.35;
+  line-height: 1.4;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .audit-flat .audit-passed-line {
-  margin: 8px 0 0;
+  margin: 12px 0 0;
   font-size: 12.5px;
   opacity: 0.65;
 }
@@ -5980,8 +6015,8 @@ button,
   display: flex;
   flex-wrap: wrap;
   gap: 8px 14px;
-  margin-top: 12px;
-  padding-top: 4px;
+  margin-top: 14px;
+  padding-top: 2px;
 }
 
 .audit-text-action {
@@ -5997,6 +6032,8 @@ button,
   text-decoration: underline;
   text-underline-offset: 3px;
   text-decoration-color: color-mix(in srgb, var(--ink-soft) 45%, transparent);
+  outline: none;
+  border-radius: 4px;
 }
 
 .audit-text-action:hover,
@@ -6005,9 +6042,13 @@ button,
   color: var(--ink);
 }
 
+.audit-text-action:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--audit-ok) 40%, transparent);
+}
+
 /* Inline expand — no third card shell */
 .audit-inline {
-  margin-top: 10px;
+  margin-top: 12px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -6038,36 +6079,56 @@ button,
 @media (max-width: 720px) {
   .audit-flat-layout {
     grid-template-columns: 1fr;
-    gap: 10px;
+    gap: 12px;
   }
 
+  /* Chips stay on one scrollable row — never wrap */
   .audit-rail {
     flex-direction: row;
     flex-wrap: nowrap;
     overflow-x: auto;
-    gap: 6px;
-    padding-bottom: 4px;
+    overflow-y: hidden;
+    gap: 8px;
+    padding: 2px 2px 6px;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
   }
 
   .audit-rail-item {
     flex: 0 0 auto;
     width: auto;
-    max-width: 200px;
+    max-width: none;
     min-height: 44px;
-    padding: 8px 12px;
-    border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+    padding: 8px 14px;
+    gap: 8px;
+    border: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
     border-radius: 999px;
     background: transparent;
+    box-shadow: none;
+  }
+
+  .audit-rail-item:hover {
+    background: color-mix(in srgb, var(--ink) 4%, transparent);
   }
 
   .audit-rail-item.is-active {
-    border-color: color-mix(in srgb, var(--audit-ok) 40%, var(--line));
-    background: color-mix(in srgb, var(--ink) 4%, transparent);
+    border-color: color-mix(in srgb, var(--audit-ok) 45%, var(--line));
+    background: color-mix(in srgb, var(--ink) 5%, transparent);
+    box-shadow: none;
+  }
+
+  .audit-rail-item.is-active:focus-visible {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--audit-ok) 40%, transparent);
   }
 
   .audit-rail-name {
     font-size: 13px;
+    max-width: 9.5em;
+  }
+
+  /* Keep chips compact so the row does not feel broken */
+  .audit-rail-ok.muted {
+    display: none;
   }
 
   .audit-flat-layout:not(.has-selection) .audit-panel {
@@ -6080,7 +6141,16 @@ button,
     min-height: 44px;
   }
 
+  .audit-flat-list {
+    gap: 8px;
+  }
+
+  .audit-flat-row {
+    padding: 10px 6px;
+  }
+
   .audit-flat-detail {
     white-space: normal;
   }
 }
+

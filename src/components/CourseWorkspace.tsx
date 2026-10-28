@@ -459,7 +459,7 @@ function AuditPanel({
       </div>
 
       <div className={`audit-flat-layout${selected ? " has-selection" : ""}`}>
-        <nav className="audit-rail" aria-label="Этапы проверки">
+        <nav className="audit-rail" role="tablist" aria-label="Этапы проверки">
           {stages.map(({ topic, status, countLabel, weak }) => {
             const isActive = selected === topic.section;
             return (

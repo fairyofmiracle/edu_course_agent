@@ -16,6 +16,7 @@ import {
 } from "@/lib/course-schema";
 import {
   academicHours,
+  applyHourConstraints,
   attachCompetencyIds,
   balanceModules,
   flattenInternshipHours,
@@ -91,10 +92,13 @@ function withBalancedModules(course: CourseDocument): CourseDocument {
   return {
     ...course,
     competencies,
-    modules: balanceModules(
-      attachCompetencyIds(linked.modules, ids),
-      course.brief.durationHours,
-      course.brief.attestationHours,
+    modules: applyHourConstraints(
+      balanceModules(
+        attachCompetencyIds(linked.modules, ids),
+        course.brief.durationHours,
+        course.brief.attestationHours,
+      ),
+      course.brief.hourConstraints ?? [],
     ),
   };
 }

@@ -372,3 +372,125 @@ export function balanceModules(
     }),
   );
 }
+
+
+type HourConstraint = {
+  field: KindKey;
+  operator: "min" | "max" | "eq";
+  value: number;
+  source: string;
+};
+
+/**
+ * Применяет ограничения по видам учебной нагрузки.
+ *
+ * Сохраняет общую продолжительность модулей.
+ * Перераспределяет часы с шагом 0.5.
+ * Синхронизирует тематические планы.
+ */
+export function applyHourConstraints(
+  modules: CourseModule[],
+  constraints: HourConstraint[] = [],
+): CourseModule[] {
+  if (modules.length === 0 || constraints.length === 0) {
+    return modules;
+  }
+
+  const next = modules.map((module) => ({ ...module }));
+
+  // Собираем ограничения для каждого вида нагрузки.
+  const bounds = new Map<
+    KindKey,
+    { min: number; max: number }
+  >();
+
+  for (const key of KIND_KEYS) {
+    bounds.set(key, { min: 0, max: Infinity });
+  }
+
+  for (const constraint of constraints) {
+    const bound = bounds.get(constraint.field);
+    if (!bound) continue;
+
+    const value = Math.round(constraint.value * 2) / 2;
+
+    if (constraint.operator === "min") {
+      bound.min = Math.max(bound.min, value);
+    } else if (constraint.operator === "max") {
+      bound.max = Math.min(bound.max, value);
+    } else {
+      bound.min = value;
+      bound.max = value;
+    }
+  }
+
+  const total = (key: KindKey) =>
+    next.reduce((sum, module) => sum + module[key], 0);
+
+  // Переносим часы между видами нагрузки.
+  const transfer = (
+    from: KindKey,
+    to: KindKey,
+    amount: number,
+  ) => {
+    let remaining = amount;
+
+    for (const module of next) {
+      if (remaining <= 0) break;
+
+      const available = module[from];
+      const moved = Math.min(available, remaining);
+
+      module[from] -= moved;
+      module[to] += moved;
+
+      remaining -= moved;
+    }
+
+    return remaining;
+  };
+
+  // Сначала обеспечиваем минимумы.
+  for (const key of KIND_KEYS) {
+    const bound = bounds.get(key)!;
+    let deficit = bound.min - total(key);
+
+    if (deficit <= 0) continue;
+
+    for (const donor of KIND_KEYS) {
+      if (donor === key || deficit <= 0) continue;
+
+      const donorBound = bounds.get(donor)!;
+      const available = Math.max(
+        0,
+        total(donor) - donorBound.min,
+      );
+
+      const amount = Math.min(deficit, available);
+      deficit = transfer(donor, key, amount);
+    }
+  }
+
+  // Затем обеспечиваем максимумы.
+  for (const key of KIND_KEYS) {
+    const bound = bounds.get(key)!;
+    let excess = total(key) - bound.max;
+
+    if (excess <= 0) continue;
+
+    for (const recipient of KIND_KEYS) {
+      if (recipient === key || excess <= 0) continue;
+
+      const recipientBound = bounds.get(recipient)!;
+      const capacity = Math.max(
+        0,
+        recipientBound.max - total(recipient),
+      );
+
+      const amount = Math.min(excess, capacity);
+      excess = transfer(key, recipient, amount);
+    }
+  }
+
+  return next.map((module) => syncTopicPlan(module));
+}

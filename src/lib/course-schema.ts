@@ -24,6 +24,18 @@ export const referenceSchema = z.object({
   note: absent(z.string().max(1500).optional()),
 });
 
+export const hourConstraintSchema = z.object({
+  field: z.enum([
+    "lectureHours",
+    "practiceHours",
+    "labHours",
+    "selfStudyHours",
+  ]),
+  operator: z.enum(["min", "max", "eq"]),
+  value: z.number().nonnegative(),
+  source: z.string().default("methodist"),
+});
+
 export const briefSchema = z.object({
   title: z.string().max(180).default(""),
   audience: z.string().max(400).default(""),
@@ -36,6 +48,7 @@ export const briefSchema = z.object({
   attestationForm: z.string().max(180).default(""),
   goals: z.array(z.string().min(1).max(300)).max(12).default([]),
   constraints: z.array(z.string().min(1).max(300)).max(12).default([]),
+  hourConstraints: z.array(hourConstraintSchema).default([]),
   references: z.array(referenceSchema).max(20).default([]),
 });
 

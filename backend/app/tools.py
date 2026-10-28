@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+import math
 import json
 import re
 from typing import Any
@@ -48,6 +48,15 @@ MODULE_SCHEMA = {
         "id": {"type": "string"},
         "title": {"type": "string"},
         "hours": {"type": "number"},
+        "workloadWeight": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": (
+                "Относительная педагогическая трудоёмкость модуля. "
+                "Чем выше значение, тем больше времени требуется "
+                "на освоение материала. Это не академические часы."
+            ),
+        },
         "lectureHours": {"type": "number"},
         "practiceHours": {"type": "number"},
         "labHours": {"type": "number"},
@@ -260,11 +269,19 @@ def coerce_structure_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
             extra = lecture + practice + lab + self_study - hours
             take = min(lecture, extra)
             lecture -= take
+        workload_weight = raw.get("workloadWeight")
+        try:
+            workload_weight = float(workload_weight)
+            if not math.isfinite(workload_weight) or workload_weight <= 0:
+                workload_weight = None
+        except (TypeError, ValueError):
+            workload_weight = None
         coerced.append(
             {
                 "id": raw.get("id") or f"m{index + 1}",
                 "title": title,
                 "hours": hours,
+                "workloadWeight": workload_weight,
                 "lectureHours": lecture,
                 "practiceHours": practice,
                 "labHours": lab,

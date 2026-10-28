@@ -23,6 +23,36 @@ class Reference(ApiModel):
     note: str | None = Field(default=None, max_length=1500)
 
 
+class HourConstraint(ApiModel):
+    """Структурированное ограничение академических часов."""
+
+    field: Literal[
+        "hours",
+        "lectureHours",
+        "practiceHours",
+        "labHours",
+        "selfStudyHours",
+        "attestationHours",
+    ]
+
+    operator: Literal["eq", "min", "max"]
+
+    value: float = Field(
+        ge=0,
+        description="Количество академических часов.",
+    )
+
+    source: Literal[
+        "methodist",
+        "regulation",
+    ] = "methodist"
+
+    @field_validator("value")
+    @classmethod
+    def hours_use_half_step(cls, value: float) -> float:
+        return half_hour_step(value)
+
+
 class Brief(ApiModel):
     title: str = Field(default="", max_length=180)
     audience: str = Field(default="", max_length=400)
@@ -63,6 +93,11 @@ class Brief(ApiModel):
     )
     goals: list[str] = Field(default_factory=list, max_length=12)
     constraints: list[str] = Field(default_factory=list, max_length=12)
+    hour_constraints: list[HourConstraint] = Field(
+        default_factory=list,
+        alias="hourConstraints",
+        description="Структурированные ограничения академических часов.",
+    )
     references: list[Reference] = Field(default_factory=list, max_length=20)
 
     @field_validator("duration_hours", "attestation_hours")
@@ -117,6 +152,29 @@ class CourseModule(ApiModel):
     id: str
     title: str
     hours: float = Field(description="Объём модуля в академических часах, шаг 0,5.")
+    workload_weight: float | None = Field(
+        default=None,
+        alias="workloadWeight",
+        gt=0,
+        description="Относительная трудоёмкость модуля для распределения часов.",
+    )
+    fixed_hours: float | None = Field(
+        default=None,
+        alias="fixedHours",
+        ge=0,
+        description=(
+            "Фиксированная продолжительность модуля, "
+            "явно заданная методистом. "
+            "Не изменяется при автоматическом распределении часов."
+        ),
+    )
+
+    @field_validator("fixed_hours")
+    @classmethod
+    def fixed_hours_use_half_step(cls, value: float | None) -> float | None:
+        if value is None:
+            return None
+        return half_hour_step(value)    
     lecture_hours: float = Field(default=0, alias="lectureHours")
     practice_hours: float = Field(default=0, alias="practiceHours")
     lab_hours: float = Field(default=0, alias="labHours")

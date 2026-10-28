@@ -144,20 +144,80 @@ def _fill_plan(module: dict[str, Any]) -> dict[str, Any]:
 
 
 def balance_modules(
-    modules: list[dict[str, Any]], duration_hours: float, attestation_hours: float
+    modules: list[dict[str, Any]],
+    duration_hours: float,
+    attestation_hours: float,
 ) -> list[dict[str, Any]]:
     if not modules:
         return []
+
     filled = [_fill_plan(module) for module in modules]
     target = academic_hours(max(0, duration_hours - attestation_hours))
-    if target <= 0:
-        return filled
-    hours = allocate_integer(
-        target,
-        [float(module.get("hours") or 0) for module in filled],
-        keep_zero=False,
+
+    # Индексы модулей с фиксированными часами.
+    fixed_indices = [
+        index
+        for index, module in enumerate(filled)
+        if module.get("fixedHours") is not None
+    ]
+
+    # Сумма фиксированных часов.
+    fixed_total = sum(
+        academic_hours(filled[index]["fixedHours"])
+        for index in fixed_indices
     )
-    return [_fill_plan({**module, "hours": hours[index]}) for index, module in enumerate(filled)]
+
+    if fixed_total > target:
+        raise ValueError(
+            f"Фиксированные часы модулей ({fixed_total}) "
+            f"превышают доступный бюджет ({target})"
+        )
+
+    remaining = target - fixed_total
+
+    # Модули, часы которых можно перераспределять.
+    flexible_indices = [
+        index
+        for index in range(len(filled))
+        if index not in fixed_indices
+    ]
+
+    if not flexible_indices and remaining > 0:
+        raise ValueError(
+            f"Все модули имеют фиксированные часы, "
+            f"но осталось нераспределённых часов: {remaining}"
+        )
+
+    # Начинаем с фиксированных значений.
+    hours = [0.0] * len(filled)
+
+    for index in fixed_indices:
+        hours[index] = academic_hours(filled[index]["fixedHours"])
+
+    # Остаток распределяем по весам.
+    if flexible_indices:
+        weights = [
+            float(
+                filled[index].get("workloadWeight")
+                or filled[index].get("hours")
+                or 1
+            )
+            for index in flexible_indices
+        ]
+
+        allocated = allocate_integer(
+            remaining,
+            weights,
+            keep_zero=False,
+        )
+
+        for index, allocated_hours in zip(flexible_indices, allocated):
+            hours[index] = allocated_hours
+
+    return [
+        _fill_plan({**module, "hours": hours[index]})
+        for index, module in enumerate(filled)
+    ]
 
 
 def _link_competencies(course: dict[str, Any]) -> None:
@@ -359,10 +419,28 @@ def _merge_modules(existing: list[Any], incoming: list[Any]) -> list[Any]:
             novel.append(item)
     if not replacements:
         return [*existing, *incoming]
-    merged = [
-        replacements.get(str(item.get("id")), item) if isinstance(item, dict) else item
-        for item in existing
-    ]
+    merged = []
+
+    for item in existing:
+        if not isinstance(item, dict):
+            merged.append(item)
+            continue
+
+        module_id = str(item.get("id"))
+        replacement = replacements.get(module_id)
+
+        if replacement is None:
+            merged.append(item)
+            continue
+
+        updated = dict(replacement)
+
+        # Если новый вес не указан, сохраняем предыдущий.
+        if updated.get("workloadWeight") is None:
+            updated["workloadWeight"] = item.get("workloadWeight")
+
+        merged.append(updated)
+
     return [*merged, *novel]
 
 
@@ -385,6 +463,37 @@ def apply_patches(course: CourseDocument, patches: list[dict[str, Any]]) -> Cour
     return next_course
 
 
+def _merge_hour_constraints(
+    existing: list[dict[str, Any]],
+    incoming: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Объединяет ограничения часов, сохраняя существующие."""
+
+    merged = [dict(item) for item in existing]
+
+    for new_item in incoming:
+        key = (
+            new_item.get("field"),
+            new_item.get("operator"),
+            new_item.get("source"),
+        )
+
+        for index, old_item in enumerate(merged):
+            old_key = (
+                old_item.get("field"),
+                old_item.get("operator"),
+                old_item.get("source"),
+            )
+
+            if old_key == key:
+                merged[index] = dict(new_item)
+                break
+        else:
+            merged.append(dict(new_item))
+
+    return merged
+
+
 def apply_patch(course: CourseDocument, patch: dict[str, Any]) -> CourseDocument:
     if patch.get("type") not in PATCH_TYPES:
         return course
@@ -392,7 +501,14 @@ def apply_patch(course: CourseDocument, patch: dict[str, Any]) -> CourseDocument
     patch_type = patch["type"]
     try:
         if patch_type == "update_brief":
-            value["brief"].update(patch.get("brief") or {})
+            brief_update = dict(patch.get("brief") or {})
+
+            if "hourConstraints" in brief_update:
+                brief_update["hourConstraints"] = _merge_hour_constraints(
+                    value["brief"].get("hourConstraints") or [],
+                    brief_update["hourConstraints"] or [],
+                )
+            value["brief"].update(brief_update)
         elif patch_type == "set_competency_map":
             value["competencies"] = patch["competencies"]
         elif patch_type == "set_structure":

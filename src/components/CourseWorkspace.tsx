@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CompetencyMap } from "@/components/CompetencyMap";
 import { SourceChecks } from "@/components/SourceChecks";
 import { StackFreshnessPanel } from "@/components/StackFreshness";
@@ -313,22 +313,12 @@ function topicStatus(items: { status: AuditStatus }[]): AuditStatus | "empty" {
   return "pass";
 }
 
-function statusBadge(status: AuditStatus | "empty") {
-  if (status === "pass") return { className: "ready", label: "готово" };
-  if (status === "warning") return { className: "partial", label: "внимание" };
-  if (status === "fail") return { className: "empty", label: "ошибки" };
-  if (status === "disabled") return { className: "partial", label: "выкл." };
-  return { className: "empty", label: "пусто" };
-}
-
 function topicCountLabel(items: { status: AuditStatus }[]) {
   const failCount = items.filter((item) => item.status === "fail").length;
   const warnCount = items.filter((item) => item.status === "warning").length;
-  if (failCount > 0) return `${failCount} ош.`;
-  if (warnCount > 0) return `${warnCount} вним.`;
-  if (items.some((item) => item.status === "pass")) return "ок";
-  if (items.length === 0) return "нет";
-  return `${items.length}`;
+  if (failCount > 0) return `${failCount}`;
+  if (warnCount > 0) return `${warnCount} вниман.`;
+  return null;
 }
 
 function pluralBlockers(n: number) {
@@ -340,7 +330,7 @@ function pluralBlockers(n: number) {
   return "блокеров";
 }
 
-/** One-line verdict under the console tiles — not an export CTA. */
+/** One-line verdict under the console tiles - not an export CTA. */
 function consoleVerdict(
   summary: Record<AuditStatus, number>,
   course: CourseDocument,
@@ -348,9 +338,11 @@ function consoleVerdict(
   const hasFramework = (course.modules?.length ?? 0) > 0 && isFrameworkApproved(course);
   if (!hasFramework) return "Сначала каркас";
   if (summary.fail > 0) return `${summary.fail} ${pluralBlockers(summary.fail)}`;
-  if (summary.warning > 0) return "Можно идти к выгрузке — есть внимание";
+  if (summary.warning > 0) return "Есть что проверить — см. внимание";
   return "Можно идти к выгрузке";
 }
+
+const PROBLEM_VISIBLE = 5;
 
 function AuditPanel({
   course,
@@ -362,18 +354,15 @@ function AuditPanel({
   const report = auditCourse(course);
   const outdatedHits = findOutdated(course);
   const outdatedLabels = [...new Set(outdatedHits.map((hit) => hit.label))];
+  const listRef = useRef<HTMLDivElement | null>(null);
 
   const bySection = (section: AuditSection) =>
     report.items.filter((entry) => entry.section === section);
 
-  const defaultOpen =
-    AUDIT_TOPICS.find((topic) => topicStatus(bySection(topic.section)) === "fail")?.section ??
-    AUDIT_TOPICS.find((topic) => topicStatus(bySection(topic.section)) === "warning")?.section ??
-    AUDIT_TOPICS[0].section;
-
-  const [openOverride, setOpenOverride] = useState<AuditSection | null>(null);
+  // Scanner: everything collapsed by default — no auto-open of fail stage.
+  const [openSection, setOpenSection] = useState<AuditSection | null>(null);
   const [tileFilter, setTileFilter] = useState<AuditStatus | null>(null);
-  const openSection = openOverride ?? defaultOpen;
+  const [extraOpen, setExtraOpen] = useState<string | null>(null);
 
   const counts: { status: AuditStatus; title: string }[] = [
     { status: "fail", title: "ошибки" },
@@ -384,56 +373,87 @@ function AuditPanel({
   const moduleTitle = (moduleId?: string) =>
     moduleId ? course.modules.find((module) => module.id === moduleId)?.title : undefined;
 
+  function scrollToSection(section: AuditSection) {
+    requestAnimationFrame(() => {
+      const node = listRef.current?.querySelector(`[data-section="${section}"]`);
+      node?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }
+
   function openFromTile(status: AuditStatus) {
     if (status === "pass") {
       setTileFilter(null);
       return;
     }
-    setTileFilter((prev) => (prev === status ? null : status));
+    const nextFilter = tileFilter === status ? null : status;
+    setTileFilter(nextFilter);
     const match = AUDIT_TOPICS.find((topic) => {
       const items = bySection(topic.section).filter((entry) =>
         topic.section === "meaning" ? entry.id !== "meaning.llm" : true,
       );
       return items.some((entry) => entry.status === status);
     });
-    if (match) setOpenOverride(match.section);
+    if (match) {
+      setOpenSection(match.section);
+      setExtraOpen(null);
+      scrollToSection(match.section);
+    }
+  }
+
+  function toggleSection(section: AuditSection) {
+    setOpenSection((prev) => (prev === section ? null : section));
+    setExtraOpen(null);
+  }
+
+  function collapseAll() {
+    setOpenSection(null);
+    setTileFilter(null);
+    setExtraOpen(null);
   }
 
   return (
-    <div className="audit audit-stages">
+    <div className="audit audit-stages audit-scanner">
       <div className="audit-console" role="status">
-        <div className="audit-counts">
-          {counts.map((group) => (
-            <button
-              key={group.status}
-              type="button"
-              className={`audit-count ${group.status}${tileFilter === group.status ? " is-active" : ""}`}
-              onClick={() => openFromTile(group.status)}
-              aria-pressed={tileFilter === group.status}
-              title={
-                group.status === "pass"
-                  ? "Сбросить фильтр"
-                  : `Открыть этап с «${group.title}»`
-              }
-            >
-              <strong>{report.summary[group.status]}</strong>
-              <span>{group.title}</span>
-            </button>
-          ))}
+        <div className="audit-console-bar">
+          <div className="audit-counts">
+            {counts.map((group) => (
+              <button
+                key={group.status}
+                type="button"
+                className={`audit-count ${group.status}${tileFilter === group.status ? " is-active" : ""}`}
+                onClick={() => openFromTile(group.status)}
+                aria-pressed={tileFilter === group.status}
+                title={
+                  group.status === "pass"
+                    ? "Сбросить фильтр"
+                    : `Открыть этап с «${group.title}»`
+                }
+              >
+                <strong>{report.summary[group.status]}</strong>
+                <span>{group.title}</span>
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="audit-collapse-all"
+            onClick={collapseAll}
+            title="Свернуть все этапы"
+          >
+            Свернуть всё
+          </button>
         </div>
         <p className="audit-console-summary">{consoleVerdict(report.summary, course)}</p>
       </div>
 
-      <div className="audit-stage-list" role="list">
-        {AUDIT_TOPICS.map((topic, index) => {
+      <div className="audit-stage-list" role="list" ref={listRef}>
+        {AUDIT_TOPICS.map((topic) => {
           const rawItems = bySection(topic.section);
-          // meaning.llm is rendered inside MeaningReview — hide the disabled stub card
           const items =
             topic.section === "meaning"
               ? rawItems.filter((entry) => entry.id !== "meaning.llm")
               : rawItems;
           const status = topicStatus(items.length ? items : rawItems);
-          const badge = statusBadge(status);
           const isOpen = openSection === topic.section;
           const problems = items.filter((entry) => {
             if (entry.status !== "fail" && entry.status !== "warning") return false;
@@ -441,12 +461,15 @@ function AuditPanel({
             return true;
           });
           const passCount = items.filter((entry) => entry.status === "pass").length;
-          const stageDone = status === "pass" || status === "disabled";
+          const weak = status === "fail" || status === "warning";
+          const countLabel = topicCountLabel(items);
+          const visibleProblems = problems.slice(0, PROBLEM_VISIBLE);
+          const hiddenCount = Math.max(0, problems.length - PROBLEM_VISIBLE);
 
           return (
             <section
               key={topic.section}
-              className={`audit-stage${isOpen ? " is-open" : ""}${stageDone ? " is-done" : ""}`}
+              className={`audit-stage${isOpen ? " is-open" : ""}${weak ? " is-weak" : " is-quiet"}`}
               data-section={topic.section}
               role="listitem"
             >
@@ -454,16 +477,22 @@ function AuditPanel({
                 type="button"
                 className="audit-stage-head"
                 aria-expanded={isOpen}
-                onClick={() => setOpenOverride(topic.section)}
+                onClick={() => toggleSection(topic.section)}
               >
-                <span className="audit-stage-index" aria-hidden="true">
-                  {index + 1}
-                </span>
-                <span className="audit-topic-title">
-                  <span className={`check-badge ${badge.className}`}>{badge.label}</span>
-                  <span className="audit-stage-name">{topic.title}</span>
-                </span>
-                <span className="materials-count">{topicCountLabel(items)}</span>
+                <span
+                  className={`audit-stage-dot ${status === "empty" ? "empty" : status}`}
+                  aria-hidden="true"
+                />
+                <span className="audit-stage-name">{topic.title}</span>
+                {countLabel ? (
+                  <span className={`audit-stage-count ${status}`}>{countLabel}</span>
+                ) : status === "pass" || status === "disabled" ? (
+                  <span className="audit-stage-ok" aria-label="готово">
+                    ✓
+                  </span>
+                ) : (
+                  <span className="audit-stage-ok muted" />
+                )}
               </button>
 
               {isOpen ? (
@@ -475,9 +504,9 @@ function AuditPanel({
                     <p className="muted">Замечаний нет.</p>
                   ) : null}
 
-                  {problems.length > 0 ? (
+                  {visibleProblems.length > 0 ? (
                     <div className="audit-topic-body">
-                      {problems.map((entry) => {
+                      {visibleProblems.map((entry) => {
                         const modTitle = moduleTitle(entry.moduleId);
                         const fixHint = SECTION_FIX_HINT[topic.section];
                         return (
@@ -494,6 +523,9 @@ function AuditPanel({
                           </article>
                         );
                       })}
+                      {hiddenCount > 0 ? (
+                        <p className="muted audit-more">Ещё {hiddenCount}</p>
+                      ) : null}
                     </div>
                   ) : null}
 
@@ -503,51 +535,87 @@ function AuditPanel({
 
                   {topic.section === "sources" ? (
                     <div className="audit-stage-extra">
-                      <ReferenceList references={course.brief.references} title="Источники" />
-                      <SourceChecks course={course} />
+                      <details
+                        className="audit-action-row"
+                        open={extraOpen === "sources-refs"}
+                        onToggle={(event) => {
+                          const open = (event.currentTarget as HTMLDetailsElement).open;
+                          setExtraOpen(open ? "sources-refs" : null);
+                        }}
+                      >
+                        <summary>Проверить ссылки и источники</summary>
+                        <div className="audit-action-body">
+                          <ReferenceList references={course.brief.references} title="Источники" />
+                          <SourceChecks course={course} />
+                        </div>
+                      </details>
                     </div>
                   ) : null}
 
                   {topic.section === "freshness" ? (
                     <div className="audit-stage-extra">
-                      {outdatedHits.length > 0 ? (
-                        <article className="outdated-panel">
-                          <h3>Устаревшие технологии</h3>
-                          <ul className="audit-list">
-                            {outdatedHits.map((hit) => (
-                              <li key={`${hit.id}:${hit.place}`} className="warning">
-                                <strong>{hit.label}:</strong> {hit.note}
-                                <span>{hit.place}</span>
-                              </li>
-                            ))}
-                          </ul>
-                          {onRefreshOutdated ? (
-                            <div className="pane-actions" style={{ marginTop: 8 }}>
-                              <button
-                                type="button"
-                                title="Заменить устаревшие технологии в каркасе через чат"
-                                onClick={() => onRefreshOutdated(outdatedLabels)}
-                              >
-                                Обновить
-                              </button>
-                            </div>
-                          ) : null}
-                        </article>
-                      ) : (
-                        <p className="muted">Устаревших меток не найдено.</p>
-                      )}
-                      <StackFreshnessPanel course={course} />
+                      <details
+                        className="audit-action-row"
+                        open={extraOpen === "freshness"}
+                        onToggle={(event) => {
+                          const open = (event.currentTarget as HTMLDetailsElement).open;
+                          setExtraOpen(open ? "freshness" : null);
+                        }}
+                      >
+                        <summary>
+                          {outdatedHits.length > 0
+                            ? `Обновить устаревшее (${outdatedHits.length})`
+                            : "Проверить актуальность стека"}
+                        </summary>
+                        <div className="audit-action-body">
+                          {outdatedHits.length > 0 ? (
+                            <article className="outdated-panel">
+                              <h3>Устаревшие технологии</h3>
+                              <ul className="audit-list">
+                                {outdatedHits.map((hit) => (
+                                  <li key={`${hit.id}:${hit.place}`} className="warning">
+                                    <strong>{hit.label}:</strong> {hit.note}
+                                    <span>{hit.place}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                              {onRefreshOutdated ? (
+                                <div className="pane-actions" style={{ marginTop: 8 }}>
+                                  <button
+                                    type="button"
+                                    title="Заменить устаревшие технологии в каркасе через чат"
+                                    onClick={() => onRefreshOutdated(outdatedLabels)}
+                                  >
+                                    Обновить
+                                  </button>
+                                </div>
+                              ) : null}
+                            </article>
+                          ) : (
+                            <p className="muted">Устаревших меток не найдено.</p>
+                          )}
+                          <StackFreshnessPanel course={course} />
+                        </div>
+                      </details>
                     </div>
                   ) : null}
 
                   {topic.section === "meaning" ? (
-                    <MeaningReview
-                      course={course}
-                      hits={items.filter(
-                        (entry) => entry.status === "fail" || entry.status === "warning",
-                      )}
-                      passCount={passCount}
-                    />
+                    <div className="audit-stage-extra">
+                      <details
+                        className="audit-action-row"
+                        open={extraOpen === "meaning-llm"}
+                        onToggle={(event) => {
+                          const open = (event.currentTarget as HTMLDetailsElement).open;
+                          setExtraOpen(open ? "meaning-llm" : null);
+                        }}
+                      >
+                        <summary>LLM-ревью</summary>
+                        <div className="audit-action-body">
+                          <MeaningLlmReview course={course} />
+                        </div>
+                      </details>
+                    </div>
                   ) : null}
                 </div>
               ) : null}
@@ -559,15 +627,7 @@ function AuditPanel({
   );
 }
 
-function MeaningReview({
-  course,
-  hits,
-  passCount,
-}: {
-  course: CourseDocument;
-  hits: { id: string; status: AuditStatus; label: string; details?: string; moduleId?: string }[];
-  passCount: number;
-}) {
+function MeaningLlmReview({ course }: { course: CourseDocument }) {
   const [state, setState] = useState<
     | { status: "idle" }
     | { status: "loading" }
@@ -616,32 +676,14 @@ function MeaningReview({
   return (
     <article className="audit-meaning-block">
       <div className="audit-meaning-head">
-        <div>
-          <h3>Ревью смысла</h3>
-          <p className="muted">
-            Чеклист ловит пустое, шаблон и дубли. LLM — кратко: связность с ЦА, пробелы,
-            противоречия. Без ключа шлюза кнопка вернёт «выкл.» и не блокирует выгрузку.
-          </p>
-        </div>
+        <p className="muted" style={{ margin: 0 }}>
+          Кратко: связность с ЦА, пробелы, противоречия. Без ключа — «выкл.», выгрузку не
+          блокирует.
+        </p>
         <button type="button" onClick={() => void run()} disabled={state.status === "loading"}>
           {state.status === "loading" ? "Ревью…" : "Запросить LLM-ревью"}
         </button>
       </div>
-
-      {hits.length === 0 && passCount > 0 ? (
-        <p className="muted">Чеклист: пустых и шаблонных блоков не найдено.</p>
-      ) : null}
-
-      {hits.length > 0 ? (
-        <ul className="audit-list audit-meaning-hits">
-          {hits.map((entry) => (
-            <li key={entry.id} className={entry.status}>
-              <strong>{entry.label}</strong>
-              {entry.details ? <span>{entry.details}</span> : null}
-            </li>
-          ))}
-        </ul>
-      ) : null}
 
       {state.status === "disabled" ? <p className="muted">{state.details}</p> : null}
       {state.status === "error" ? <p className="voice-error">{state.details}</p> : null}
@@ -657,6 +699,7 @@ function MeaningReview({
     </article>
   );
 }
+
 
 function kitOf(course: CourseDocument, moduleId: string) {
   return {

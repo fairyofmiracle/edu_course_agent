@@ -420,7 +420,7 @@ function AuditPanel({
               <button
                 key={group.status}
                 type="button"
-                className={`audit-count ${group.status}${tileFilter === group.status ? " is-active" : ""}`}
+                className={`audit-count ${group.status}${report.summary[group.status] > 0 ? " has-hits" : ""}${tileFilter === group.status ? " is-active" : ""}`}
                 onClick={() => openFromTile(group.status)}
                 aria-pressed={tileFilter === group.status}
                 title={
@@ -485,7 +485,7 @@ function AuditPanel({
                 />
                 <span className="audit-stage-name">{topic.title}</span>
                 {countLabel ? (
-                  <span className={`audit-stage-count ${status}`}>{countLabel}</span>
+                  <span className="audit-stage-count">{countLabel}</span>
                 ) : status === "pass" || status === "disabled" ? (
                   <span className="audit-stage-ok" aria-label="готово">
                     ✓
@@ -510,7 +510,7 @@ function AuditPanel({
                         const modTitle = moduleTitle(entry.moduleId);
                         const fixHint = SECTION_FIX_HINT[topic.section];
                         return (
-                          <article key={entry.id} className={`audit-card ${entry.status}`}>
+                          <article key={entry.id} className={`audit-card audit-scan-item ${entry.status}`}>
                             <h3>{entry.label}</h3>
                             {entry.details ? <span>{entry.details}</span> : null}
                             {entry.moduleId || fixHint ? (

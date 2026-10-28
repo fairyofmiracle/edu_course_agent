@@ -5892,3 +5892,228 @@ button,
     min-height: 44px;
   }
 }
+
+/* === Audit scanner muted palette (no rainbow) === */
+.audit-scanner {
+  --audit-fail: #9a4a4a;
+  --audit-warn: #a07a2e;
+  --audit-ok: #44eb99;
+}
+
+.audit-scanner .audit-console {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+
+.audit-scanner .audit-console .audit-counts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+/* Neutral tiles; soft accent only when there are hits */
+.audit-scanner .audit-console .audit-count {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: none;
+  color: var(--ink);
+}
+
+.audit-scanner .audit-console .audit-count strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.audit-scanner .audit-console .audit-count span {
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.audit-scanner .audit-console .audit-count.fail.has-hits {
+  border-color: color-mix(in srgb, var(--audit-fail) 28%, var(--line));
+  background: color-mix(in srgb, var(--audit-fail) 6%, var(--panel));
+}
+
+.audit-scanner .audit-console .audit-count.fail.has-hits strong {
+  color: var(--audit-fail);
+}
+
+.audit-scanner .audit-console .audit-count.warning.has-hits {
+  border-color: color-mix(in srgb, var(--audit-warn) 22%, var(--line));
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--audit-warn) 18%, transparent);
+}
+
+.audit-scanner .audit-console .audit-count.warning.has-hits strong {
+  color: var(--ink);
+}
+
+.audit-scanner .audit-console .audit-count.pass,
+.audit-scanner .audit-console .audit-count.pass strong {
+  color: var(--ink);
+}
+
+.audit-scanner .audit-console .audit-count.pass.has-hits {
+  border-color: var(--line);
+  background: var(--panel);
+}
+
+.audit-scanner .audit-console .audit-count.is-active {
+  border-color: color-mix(in srgb, var(--audit-ok) 40%, var(--line));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--audit-ok) 16%, transparent);
+}
+
+.audit-scanner .audit-console-summary {
+  margin: 10px 0 0;
+  font-size: 14px;
+  font-weight: 560;
+  color: var(--ink-soft);
+}
+
+/* Compact stage rows: quiet when ok, soft left accent when weak */
+.audit-scanner .audit-stage-list {
+  border-left: 0;
+  margin-left: 0;
+  padding-left: 0;
+  gap: 4px;
+}
+
+.audit-scanner .audit-stage {
+  border: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.audit-scanner .audit-stage.is-quiet {
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--line) 70%, transparent);
+  background: transparent;
+}
+
+.audit-scanner .audit-stage.is-weak {
+  border-color: var(--line);
+  border-left: 3px solid color-mix(in srgb, var(--audit-warn) 55%, var(--line));
+  background: color-mix(in srgb, var(--audit-warn) 4%, var(--panel));
+}
+
+.audit-scanner .audit-stage.is-weak:has(.audit-stage-dot.fail) {
+  border-left-color: color-mix(in srgb, var(--audit-fail) 55%, var(--line));
+  background: color-mix(in srgb, var(--audit-fail) 4%, var(--panel));
+}
+
+.audit-scanner .audit-stage.is-open {
+  border-color: var(--line);
+  background: var(--panel);
+  box-shadow: none;
+  opacity: 1;
+}
+
+.audit-scanner .audit-stage.is-open.is-weak {
+  border-left-width: 3px;
+}
+
+.audit-scanner .audit-stage-dot {
+  width: 7px;
+  height: 7px;
+  background: color-mix(in srgb, var(--ink-soft) 45%, transparent);
+}
+
+.audit-scanner .audit-stage-dot.fail {
+  background: var(--audit-fail);
+}
+
+.audit-scanner .audit-stage-dot.warning {
+  background: var(--audit-warn);
+}
+
+.audit-scanner .audit-stage-dot.pass {
+  background: color-mix(in srgb, var(--ink-soft) 35%, transparent);
+}
+
+.audit-scanner .audit-stage-dot.disabled,
+.audit-scanner .audit-stage-dot.empty {
+  background: color-mix(in srgb, var(--ink-soft) 28%, transparent);
+}
+
+.audit-scanner .audit-stage-count {
+  color: var(--ink-soft);
+  font-weight: 550;
+  font-size: 12px;
+}
+
+.audit-scanner .audit-stage-ok {
+  color: color-mix(in srgb, var(--ink-soft) 70%, transparent);
+  font-weight: 500;
+}
+
+.audit-scanner .audit-stage.is-quiet .audit-stage-ok {
+  color: color-mix(in srgb, var(--audit-ok) 55%, var(--ink-soft));
+}
+
+/* Problem items: left hairline + soft tint, not filled rainbow cards */
+.audit-scanner .audit-card,
+.audit-scanner .audit-scan-item {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.audit-scanner .audit-scan-item.fail,
+.audit-scanner .audit-topic-body .audit-card.fail {
+  border-left-color: var(--audit-fail);
+  background: color-mix(in srgb, var(--audit-fail) 5%, var(--panel));
+  border-top-color: var(--line);
+  border-right-color: var(--line);
+  border-bottom-color: var(--line);
+}
+
+.audit-scanner .audit-scan-item.warning,
+.audit-scanner .audit-topic-body .audit-card.warning {
+  border-left-color: var(--audit-warn);
+  background: color-mix(in srgb, var(--audit-warn) 5%, var(--panel));
+  border-top-color: var(--line);
+  border-right-color: var(--line);
+  border-bottom-color: var(--line);
+}
+
+.audit-scanner .audit-scan-item.pass,
+.audit-scanner .audit-topic-body .audit-card.pass {
+  border-left-color: var(--line);
+  background: var(--panel);
+}
+
+.audit-scanner .audit-list li.fail {
+  border-left-color: var(--audit-fail);
+  background: color-mix(in srgb, var(--audit-fail) 4%, var(--chat-soft, var(--panel)));
+}
+
+.audit-scanner .audit-list li.warning {
+  border-left-color: var(--audit-warn);
+  background: color-mix(in srgb, var(--audit-warn) 4%, var(--chat-soft, var(--panel)));
+}
+
+.audit-scanner .audit-list li.pass {
+  border-left-color: color-mix(in srgb, var(--ink-soft) 35%, transparent);
+  background: var(--chat-soft, var(--panel));
+}
+
+.audit-scanner .audit-passed-line {
+  opacity: 0.65;
+}
+
+.audit-scanner .audit-action-row {
+  background: transparent;
+}
+
+.audit-scanner .audit-meaning-block {
+  background: transparent;
+  border: 1px solid var(--line);
+}
+

@@ -202,3 +202,13 @@ export function loadLibraryCourse(
 ): StoredCourse | null {
   return readLibrary(storage)[courseId] ?? null;
 }
+
+export type HoursFilter = "all" | "lt36" | "36to72" | "gte72";
+
+export function matchesHoursFilter(hours: number, filter: HoursFilter) {
+  if (filter === "all") return true;
+  if (!hours || hours <= 0) return false;
+  if (filter === "lt36") return hours < 36;
+  if (filter === "36to72") return hours >= 36 && hours <= 72;
+  return hours >= 72;
+}

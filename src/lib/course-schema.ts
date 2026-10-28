@@ -197,7 +197,7 @@ export function createEmptyCourse(): CourseDocument {
         : `course-${Date.now()}`,
     updatedAt: new Date().toISOString(),
     brief: {
-      title: "",
+      title: "Новая программа",
       audience: "",
       level: "intermediate",
       durationHours: 0,

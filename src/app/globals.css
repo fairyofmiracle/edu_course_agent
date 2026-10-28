@@ -24,6 +24,14 @@
   --font-display: var(--font-involve), "Segoe UI", sans-serif;
   --font-serif: var(--font-involve), "Segoe UI", sans-serif;
   --font-mono: var(--font-ibm-mono), ui-monospace, monospace;
+  --touch-min: 44px;
+  --touch-menu: 44px;
+  --caption-size: 13px;
+  --caption-size-mobile: 13px;
+  --sheet-max-h: min(88vh, 720px);
+  --sheet-radius: 16px;
+  --header-tool: 44px;
+
   color-scheme: dark;
 }
 
@@ -1303,6 +1311,7 @@ button.primary {
 .catalog-list li {
   position: relative;
   min-width: 0;
+  min-height: 220px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -1315,6 +1324,7 @@ button.primary {
 .card-flip {
   position: relative;
   height: 100%;
+  min-height: 220px;
   transform-style: preserve-3d;
   transition: transform 0.55s ease;
 }
@@ -3809,7 +3819,9 @@ html[data-theme="light"] .hours-gap {
   }
 
   .site-save-note {
-    display: none;
+    display: block;
+    max-width: 34vw;
+    font-size: 11px;
   }
 
   .catalog-list .catalog-tools {
@@ -4068,4 +4080,275 @@ button,
 .keys-toggle {
   margin: 0 0 12px;
   justify-content: flex-end;
+}
+
+
+.chat-fail-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.chat-retry {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chat-retry:hover {
+  border-color: var(--ink);
+}
+
+.chat-usage {
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* --- queued UX: catalog panel, touch 44, save note, overlay, badges, structure --- */
+.studio-main {
+  position: relative;
+}
+
+.side-tab-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  margin: 0;
+  border-radius: 0;
+  border: 0;
+}
+
+.site-save-note {
+  display: block;
+  margin: 0;
+  max-width: 220px;
+  color: var(--shell-muted);
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.check-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: lowercase;
+}
+.check-badge.ready {
+  background: color-mix(in srgb, #1f7a3f 18%, transparent);
+  color: #1f7a3f;
+}
+.check-badge.empty {
+  background: color-mix(in srgb, #8a1f1f 14%, transparent);
+  color: #8a1f1f;
+}
+
+.framework-compact .compact-checks {
+  margin: 8px 0 0;
+}
+.kit-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+.kit-legend i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-right: 4px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 700;
+}
+.kit-legend i.on {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: var(--accent);
+}
+.kit-legend-hint {
+  color: var(--ink-soft);
+}
+.structure-hint {
+  margin: 0 0 12px;
+}
+.structure-light .module-rail button {
+  padding: 10px 12px;
+  gap: 6px;
+}
+.structure-light .module-detail {
+  padding: 16px;
+}
+
+.catalog-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--panel);
+  overflow: hidden;
+  min-height: 200px;
+}
+.catalog-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 16px 14px;
+  flex: 1;
+}
+.catalog-card-panel {
+  border-top: 1px solid var(--line);
+  padding: 14px 16px 16px;
+  background: color-mix(in srgb, var(--panel) 92%, var(--ink));
+}
+.catalog-list li.is-open .catalog-card {
+  border-color: var(--ink);
+}
+.catalog-tool-btn {
+  display: inline-flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: auto !important;
+  min-width: var(--touch-min) !important;
+  min-height: var(--touch-min) !important;
+  height: auto !important;
+  padding: 6px 10px !important;
+}
+.catalog-tool-label {
+  font-size: 11px;
+  line-height: 1.1;
+  color: var(--ink-soft);
+}
+.catalog-list .catalog-tools {
+  opacity: 1;
+  display: flex;
+  gap: 8px;
+}
+
+.catalog-hours-filter button {
+  min-height: var(--touch-min);
+}
+
+.card-back .library-actions button,
+.catalog-card-panel .library-actions button {
+  min-height: var(--touch-min);
+  padding: 8px 14px;
+}
+
+@media (max-width: 720px) {
+  .site-save-note {
+    display: block;
+    max-width: 36vw;
+    font-size: 11px;
+  }
+  .site-nav .top-actions > a,
+  .site-nav .top-actions > button,
+  .site-nav .nav-sections .journal-tab,
+  .nav-help {
+    min-height: var(--touch-min);
+  }
+  .site-tools-header .export-menu summary {
+    min-width: var(--touch-min);
+    min-height: var(--touch-min);
+  }
+  .export-summary-text {
+    /* slim header: icon-first on narrow */
+  }
+  .catalog-list {
+    grid-template-columns: 1fr;
+  }
+  .table-scroll {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .side-tab-overlay {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    max-height: var(--sheet-max-h);
+    border-radius: var(--sheet-radius) var(--sheet-radius) 0 0;
+    box-shadow: 0 -8px 40px color-mix(in srgb, var(--ink) 18%, transparent);
+  }
+  .chat-field, .composer textarea, #course-request {
+    scroll-margin-bottom: 120px;
+  }
+}
+
+/* Disabled / empty audit should not look broken */
+.audit-card.disabled,
+.audit-card.empty,
+.source-check.disabled {
+  opacity: 0.85;
+  border-style: dashed;
+}
+.audit .muted-disabled {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+
+@media (max-width: 720px) {
+  .side-tab-overlay::before {
+    content: "";
+    display: block;
+    width: 42px;
+    height: 4px;
+    margin: 10px auto 6px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--ink) 25%, transparent);
+  }
+  .site-tools-header .export-summary-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  .library-actions button,
+  .catalog-tool-btn,
+  .passport-actions button,
+  .chat-retry,
+  .composer button {
+    min-height: var(--touch-min);
+    min-width: var(--touch-min);
+  }
+  .site-nav .menu-toggle,
+  .site-nav .nav-help,
+  .theme-toggle {
+    min-width: var(--touch-min);
+    min-height: var(--touch-min);
+  }
+  caption, .table-caption, .muted.small, .field-caption {
+    font-size: var(--caption-size-mobile);
+  }
 }

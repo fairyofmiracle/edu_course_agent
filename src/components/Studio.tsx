@@ -583,6 +583,25 @@ function StudioSession({
       subtitle={courseSubtitle(course)}
       chatOpen={chatOpen}
       onOpenChat={() => setChatOpen(true)}
+      note={
+        exportJob?.phase === "work"
+          ? exportWaitLabel(exportJob.kind, exportElapsed, exportJob.place)
+          : exportJob?.phase === "done"
+            ? exportDoneLabel(exportJob.kind)
+            : exportJob?.phase === "error"
+              ? "Выгрузка не собралась"
+              : storageNote
+                ? storageNote
+                : saveState === "conflict"
+                  ? "Курс уже сохранила другая вкладка. Обновите страницу."
+                  : saveState === "synced"
+                    ? "Сохранено"
+                    : saveState === "saving"
+                      ? "Сохраняю…"
+                      : saveState === "offline"
+                        ? "Нет связи с сервером"
+                        : ""
+      }
       activity={activity}
       tools={
         <>
@@ -712,6 +731,12 @@ function StudioSession({
           onReferenceAdd={addReference}
           onSend={send}
           onStop={() => stop()}
+          onRetry={() => {
+            const lastUser = [...messages].reverse().find((item) => item.role === "user");
+            if (!lastUser) return;
+            const text = messageText(lastUser);
+            if (text) send(text);
+          }}
           onClose={() => setChatOpen(false)}
         />
         <button
@@ -745,6 +770,10 @@ function StudioSession({
             }}
             onGatherFramework={() => {
               setChatOpen(true);
+              setComposerMode("free");
+              window.setTimeout(() => {
+                document.getElementById("course-request")?.focus();
+              }, 40);
               if (briefReady && !chatPending) send(FRAMEWORK_PROMPT);
             }}
             onGatherKit={() => {

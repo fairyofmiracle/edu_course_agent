@@ -53,6 +53,16 @@ function isIntakeAsk(text: string) {
   return text.includes("Не хватает данных");
 }
 
+
+function usageFromMessage(message: UIMessage) {
+  const part = message.parts.find((item) => item.type === "data-usage");
+  if (!part || part.type !== "data-usage" || !part.data || typeof part.data !== "object") return "";
+  return usageLine(
+    part.data as { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number },
+  );
+}
+
+
 function questionCard(text: string) {
   const lines = text
     .split("\n")
@@ -91,6 +101,7 @@ type ChatPanelProps = {
   onReferenceAdd: (reference: CourseBrief["references"][number]) => void;
   onSend: (text: string, brief?: Partial<CourseBrief>) => void;
   onStop: () => void;
+  onRetry?: () => void;
   onClose?: () => void;
 };
 
@@ -108,6 +119,7 @@ export function ChatPanel({
   onReferenceAdd,
   onSend,
   onStop,
+  onRetry,
   onClose,
 }: ChatPanelProps) {
   const pending = status === "submitted" || status === "streaming";
@@ -245,7 +257,8 @@ export function ChatPanel({
                   .filter((part) => part.state !== "output-error")
                   .map((part) => TOOL_LABELS[getToolName(part)] ?? getToolName(part));
             const failed = tools.filter((part) => part.state === "output-error");
-            if (texts.length === 0 && tools.length === 0 && failed.length === 0) return null;
+            const turnUsage = message.role === "assistant" ? usageFromMessage(message) : "";
+            if (texts.length === 0 && tools.length === 0 && failed.length === 0 && !turnUsage) return null;
             return (
               <article key={message.id} className={`turn ${message.role}`}>
                 {texts.length > 0 ? (
@@ -365,11 +378,19 @@ export function ChatPanel({
                 ) : null}
                 {wrote.length > 0 ? <p className="tool-line">В программу: {wrote.join(", ")}</p> : null}
                 {failed.map((part, index) => (
-                  <p key={`${message.id}-fail-${index}`} className="tool-line failed">
-                    Не записалось: {TOOL_LABELS[getToolName(part)] ?? getToolName(part)}
-                    {part.errorText ? ` — ${part.errorText}` : ""}
-                  </p>
+                  <div key={`${message.id}-fail-${index}`} className="chat-fail-row">
+                    <p className="tool-line failed">
+                      Не записалось: {TOOL_LABELS[getToolName(part)] ?? getToolName(part)}
+                      {part.errorText ? ` — ${part.errorText}` : ""}
+                    </p>
+                    {onRetry && message.id === messages.at(-1)?.id && !pending ? (
+                      <button type="button" className="chat-retry" onClick={onRetry}>
+                        Повторить
+                      </button>
+                    ) : null}
+                  </div>
                 ))}
+                {turnUsage ? <p className="chat-note chat-usage">{turnUsage}</p> : null}
               </article>
             );
           })
@@ -382,8 +403,17 @@ export function ChatPanel({
           </article>
         ) : null}
         {doneFlash && !pending && !stillAsking ? <p className="chat-note">Программа обновлена.</p> : null}
-        {spentLine ? <p className="chat-note">{spentLine}</p> : null}
-        {error ? <p className="chat-error">{userFacingError(error)}</p> : null}
+        {spentLine ? <p className="chat-note chat-usage" aria-live="polite">{spentLine}</p> : null}
+        {error ? (
+          <div className="chat-fail-row">
+            <p className="chat-error">{userFacingError(error)}</p>
+            {onRetry && !pending ? (
+              <button type="button" className="chat-retry" onClick={onRetry}>
+                Повторить
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <div ref={bottomRef} />
       </div>
       ) : null}

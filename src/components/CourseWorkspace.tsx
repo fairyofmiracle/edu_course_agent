@@ -143,7 +143,7 @@ export function CourseWorkspace({
           />
         ) : (
           <>
-            {tab === "overview" ? <Overview course={course} onFillInChat={onFillInChat} onFillByTemplate={onFillByTemplate} /> : null}
+            {tab === "overview" ? <Overview course={course} onFillInChat={onFillInChat} onFillByTemplate={onFillByTemplate} frameworkReady={frameworkReady} onApproveFramework={onApproveFramework} onGatherFramework={gatherFramework} /> : null}
             {tab === "structure" ? (
               course.modules.length === 0 ? (
                 <TabEmpty
@@ -165,7 +165,7 @@ export function CourseWorkspace({
                   onCta={gatherFramework}
                 />
               ) : (
-                <CompetencyMap course={course} />
+                <CompetencyMap course={course} onFixLink={onOpenChat} />
               )
             ) : null}
             {tab === "lectures" ? (
@@ -290,6 +290,7 @@ function AuditPanel({ course, onRefreshOutdated }: { course: CourseDocument; onR
   ];
   return (
     <div className="audit">
+      <FrameworkCheck course={course} />
       <div className="audit-counts">
         {groups.map((group) => (
           <p key={group.status} className={`audit-count ${group.status}`}>
@@ -367,6 +368,7 @@ function FrameworkCheck({ course }: { course: CourseDocument }) {
       <ul className="check-list">
         {items.map((item) => (
           <li key={item.id} className={item.ok ? "ok" : "bad"}>
+            <span className={`check-badge ${item.ok ? "ready" : "empty"}`}>{item.ok ? "готово" : "нужно"}</span>
             {item.label}
           </li>
         ))}
@@ -430,6 +432,12 @@ function ModuleBoard({ course, onRebuildModule }: { course: CourseDocument; onRe
       }));
   return (
     <div className="module-board">
+      <p className="kit-legend muted" aria-label="Обозначения комплекта">
+        <span><i className="on">Л</i> лекция</span>
+        <span><i className="on">З</i> задание</span>
+        <span><i className="on">Т</i> тест</span>
+        <span className="kit-legend-hint">Цветная метка — материал уже есть</span>
+      </p>
       <div className="module-rail" role="list">
         {course.modules.map((item, index) => {
           const kit = kitOf(course, item.id);
@@ -506,10 +514,16 @@ function Overview({
   course,
   onFillInChat,
   onFillByTemplate,
+  frameworkReady,
+  onApproveFramework,
+  onGatherFramework,
 }: {
   course: CourseDocument;
   onFillInChat?: () => void;
   onFillByTemplate?: () => void;
+  frameworkReady?: boolean;
+  onApproveFramework?: () => void;
+  onGatherFramework?: () => void;
 }) {
   const { brief } = course;
   const gaps = briefGaps(course);
@@ -659,7 +673,35 @@ function Overview({
           </ul>
         </article>
       </div>
-      <FrameworkCheck course={course} />
+      <article className="framework-compact">
+        <h3>Статус каркаса</h3>
+        <p className="muted">
+          {frameworkItems(course).every((item) => item.ok)
+            ? "Каркас готов к утверждению."
+            : `Готово ${frameworkItems(course).filter((item) => item.ok).length} из ${frameworkItems(course).length}. Полный список — во вкладке «Проверка».`}
+        </p>
+        <ul className="check-list compact-checks">
+          {frameworkItems(course)
+            .filter((item) => !item.ok)
+            .slice(0, 3)
+            .map((item) => (
+              <li key={item.id} className="bad">
+                {item.label}
+              </li>
+            ))}
+        </ul>
+        <div className="passport-actions passport-actions-below">
+          {frameworkReady && onApproveFramework ? (
+            <button type="button" className="primary" id="framework-approve-overview" onClick={onApproveFramework}>
+              Утвердить каркас
+            </button>
+          ) : onGatherFramework ? (
+            <button type="button" className="primary" onClick={onGatherFramework}>
+              Собрать каркас
+            </button>
+          ) : null}
+        </div>
+      </article>
       <ReferenceList references={brief.references} title="Референсы" />
     </div>
   );
@@ -739,7 +781,7 @@ function WeekPlan({ course }: { course: CourseDocument }) {
   const weeks = weeksOf(course.modules, perWeek);
   const sameAsGraph = pace?.weeks != null && weeks.length === pace.weeks;
   return (
-    <section className="week-plan">
+    <section className="week-plan week-plan-clear">
       <header className="week-plan-head">
         <div>
           <p className="kicker">По неделям</p>
@@ -794,7 +836,8 @@ function Structure({ course, onRebuildModule }: { course: CourseDocument; onRebu
     return null;
   }
   return (
-    <div className="structure">
+    <div className="structure structure-light">
+      <p className="muted structure-hint">Учебный план по неделям и модули. Даты календаря сюда не ставятся.</p>
       <WeekPlan course={course} />
       <ModuleBoard course={course} onRebuildModule={onRebuildModule} />
     </div>
@@ -964,73 +1007,6 @@ function Tests({ course }: { course: CourseDocument }) {
                         {question.learningOutcome ? ` · результат: ${question.learningOutcome}` : ""}
                       </p>
                     )}
-                  </div>
-                ))}
-              </article>
-            ) : null}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}: { course: CourseDocument }) {
-  const [openId, setOpenId] = useState<string | null>(null);
-  if (course.assessments.length === 0) {
-    return null;
-  }
-  return (
-    <ul className="file-list">
-      {course.assessments.map((assessment) => {
-        const courseModule = course.modules.find((item) => item.id === assessment.moduleId);
-        const title = courseModule?.title ?? assessment.moduleId;
-        const open = openId === assessment.moduleId;
-        return (
-          <li key={assessment.moduleId} className={open ? "open" : ""}>
-            <div className="file-row">
-              <div>
-                <p className="kicker">Тест</p>
-                <strong>{title}</strong>
-                <p className="muted">{assessment.questions.length} вопр.</p>
-              </div>
-              <div className="deck-nav">
-                <button type="button" onClick={() => setOpenId(open ? null : assessment.moduleId)}>
-                  {open ? "Закрыть" : "Открыть"}
-                </button>
-                <button type="button" onClick={() => void exportAssessmentDocx(course, assessment.moduleId)}>
-                  Скачать
-                </button>
-              </div>
-            </div>
-            {open ? (
-              <article className="plan-sheet file-preview">
-                {assessment.questions.map((question, index) => (
-                  <div key={`${question.stem}-${index}`} className="task">
-                    <p className="plan-lead">
-                      <span className="qtype">{QUESTION_LABELS[question.type]}</span> {index + 1}. {question.stem}
-                    </p>
-                    {question.options?.length ? (
-                      <ul>
-                        {question.options.map((option) => (
-                          <li key={option} className={option === question.answer ? "correct" : undefined}>
-                            {option === question.answer ? "Ключ. " : ""}
-                            {option}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="answer">Ключ: {question.answer}</p>
-                    )}
-                    <p className="muted">
-                      {question.explanation}
-                      {question.learningOutcome ? ` · результат: ${question.learningOutcome}` : ""}
-                      {" · "}
-                      {competencyName(course, question.competencyId)}
-                      {" · "}
-                      {BLOOM_LABELS[
-                        course.competencies.nodes.find((node) => node.id === question.competencyId)?.bloomLevel ??
-                          "apply"
-                      ]}
-                    </p>
                   </div>
                 ))}
               </article>

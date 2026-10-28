@@ -6,6 +6,7 @@ type CompetencyNode = CourseDocument["competencies"]["nodes"][number];
 
 type CompetencyMapProps = {
   course: CourseDocument;
+  onFixLink?: () => void;
 };
 
 function linkedModules(course: CourseDocument, node: CompetencyNode) {
@@ -14,7 +15,20 @@ function linkedModules(course: CourseDocument, node: CompetencyNode) {
     .map((item) => item.title);
 }
 
-export function CompetencyMap({ course }: CompetencyMapProps) {
+
+function coverageOf(course: CourseDocument, competencyId: string) {
+  const seminars = (course.seminars ?? []).filter((s) => {
+    const own = (s as { competencyId?: string }).competencyId === competencyId;
+    const tasks = (s as { tasks?: { competencyId?: string }[] }).tasks ?? [];
+    return own || tasks.some((t) => t.competencyId === competencyId);
+  }).length;
+  const tests = (course.assessments ?? []).filter((a) =>
+    (a.questions ?? []).some((q) => q.competencyId === competencyId),
+  ).length;
+  return { seminars, tests };
+}
+
+export function CompetencyMap({ course, onFixLink }: CompetencyMapProps) {
   const { nodes } = course.competencies;
   if (nodes.length === 0) {
     return null;
@@ -35,8 +49,9 @@ export function CompetencyMap({ course }: CompetencyMapProps) {
                 {node.id} · {BLOOM_LABELS[node.bloomLevel]}
               </p>
               <h3>{node.name}</h3>
+              {(() => { const cov = coverageOf(course, node.id); return <p className="muted coverage-line">Семинары: {cov.seminars} · Тесты: {cov.tests}</p>; })()}
               {node.laborFunctionCode ? <p className="muted">{node.laborFunctionCode}</p> : null}
-              <p className="muted">{titles.length ? titles.join(" · ") : "Модуль ещё не связан"}</p>
+              <p className="muted">{titles.length ? titles.join(" · ") : "Модуль ещё не связан"}{!titles.length && onFixLink ? <>{" "}<button type="button" className="text-action" onClick={onFixLink}>Связать в чате</button></> : null}</p>
               <h4>Знания</h4>
               <ul>
                 {(node.knowledge.length ? node.knowledge : ["—"]).map((item) => (

@@ -119,7 +119,6 @@ export function CourseCatalog() {
 
   const needle = query.trim().toLowerCase();
   const visible = items.filter((item) => {
-    if (!item.title.trim() && !item.audience.trim()) return false;
     if (!matchesHoursFilter(item.durationHours, hoursFilter)) return false;
     if (!needle) return true;
     return `${item.title} ${item.audience}`.toLowerCase().includes(needle);
@@ -204,10 +203,16 @@ export function CourseCatalog() {
     <SiteFrame
       title="Мои курсы"
       actions={() => (
-        <Link href="/?new=1">
-          <NavIcon name="plus" />
-          Новый курс
-        </Link>
+        <>
+          <Link href="/courses" aria-current="page">
+            <NavIcon name="courses" />
+            Мои курсы
+          </Link>
+          <Link href="/?new=1">
+            <NavIcon name="plus" />
+            Новый курс
+          </Link>
+        </>
       )}
     >
       <section className="catalog-page">
@@ -242,11 +247,11 @@ export function CourseCatalog() {
                 <h2>{group.label}</h2>
                 <ul className="catalog-list">
                   {group.courses.map((item) => {
-                    const flipped = draft.id === item.id || pendingDelete === item.id;
+                    const panelOpen = draft.id === item.id || pendingDelete === item.id;
                     return (
-                      <li key={item.id} className={flipped ? "is-flipped" : undefined}>
-                        <div className="card-flip">
-                          <div className="card-face card-front" inert={flipped || undefined} aria-hidden={flipped}>
+                      <li key={item.id} className={panelOpen ? "is-open" : undefined}>
+                        <div className="catalog-card">
+                          <div className="catalog-card-main">
                             <button
                               type="button"
                               className="catalog-open"
@@ -257,7 +262,7 @@ export function CourseCatalog() {
                               }}
                             >
                               <strong className="catalog-theme">
-                                {item.title.trim() || "Без названия"}
+                                {item.title.trim() || "Новая программа"}
                               </strong>
                               <span className="catalog-hours">
                                 {item.durationHours ? `${item.durationHours} ч` : "Часы не заданы"}
@@ -269,6 +274,7 @@ export function CourseCatalog() {
                             <span className="library-actions catalog-tools">
                               <button
                                 type="button"
+                                className="catalog-tool-btn"
                                 aria-label="Копия"
                                 title="Копия"
                                 disabled={busy}
@@ -286,9 +292,11 @@ export function CourseCatalog() {
                                 }}
                               >
                                 <CopyIcon />
+                                <span className="catalog-tool-label">Копия</span>
                               </button>
                               <button
                                 type="button"
+                                className="catalog-tool-btn"
                                 aria-label="Удалить"
                                 title="Удалить"
                                 disabled={busy}
@@ -304,10 +312,12 @@ export function CourseCatalog() {
                                 }}
                               >
                                 <TrashIcon />
+                                <span className="catalog-tool-label">Удалить</span>
                               </button>
                             </span>
                           </div>
-                          <div className="card-face card-back" inert={!flipped || undefined} aria-hidden={!flipped}>
+                          {panelOpen ? (
+                          <div className="catalog-card-panel" role="region">
                             {draft.id === item.id ? (
                               <form
                                 className="copy-form"
@@ -426,6 +436,7 @@ export function CourseCatalog() {
                               </div>
                             )}
                           </div>
+                          ) : null}
                         </div>
                       </li>
                     );

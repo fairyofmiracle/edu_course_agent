@@ -211,7 +211,11 @@ export function CourseCatalog() {
   return (
     <SiteFrame
       title="Мои курсы"
-      subtitle={`${items.length} ${programWord(items.length)}`}
+      subtitle={
+        needle || hoursFilter !== "all"
+          ? `${items.length} ${programWord(items.length)} · в фильтре ${visible.length}`
+          : `${items.length} ${programWord(items.length)}`
+      }
       actions={() => (
         <>
           <Link href="/courses" aria-current="page">
@@ -226,19 +230,12 @@ export function CourseCatalog() {
       )}
     >
       <section className="catalog-page">
-        <div className="catalog-count-row" aria-live="polite">
-          <p className="catalog-count">
-            <strong>{items.length}</strong> {programWord(items.length)}
-            {needle || hoursFilter !== "all" ? (
-              <span className="catalog-count-filtered">
-                {" "}
-                · в списке {visible.length}
-              </span>
-            ) : null}
+        {note ? (
+          <p className="kicker catalog-note" aria-live="polite">
+            {note}
           </p>
-          {note ? <p className="kicker catalog-note">{note}</p> : null}
-        </div>
-        <div className="catalog-filters">
+        ) : null}
+<div className="catalog-filters">
           <input
             className="catalog-search"
             value={query}

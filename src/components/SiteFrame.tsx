@@ -52,18 +52,20 @@ export function SiteFrame({
 
 
   useEffect(() => {
-    if (!panel) return;
+    if (!panel && !menuOpen) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setPanel(null);
+      if (event.key !== "Escape") return;
+      if (panel) setPanel(null);
+      else if (menuOpen) setMenuOpen(false);
     };
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    if (panel || menuOpen) document.body.style.overflow = "hidden";
     return () => {
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
-  }, [panel]);
+  }, [panel, menuOpen]);
 
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";

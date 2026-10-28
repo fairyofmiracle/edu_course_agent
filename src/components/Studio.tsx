@@ -325,6 +325,19 @@ function StudioSession({
   const stage = frameworkApproved ? "kit" : course.modules.length ? "framework" : "ask";
   const showDocument = true;
   const chatPending = status === "submitted" || status === "streaming";
+
+  useEffect(() => {
+    if (!chatOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (document.querySelector(".side-tab-overlay")) return;
+      if (document.querySelector('.studio[data-menu="open"]')) return;
+      setChatOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [chatOpen]);
+
   const chatElapsed = useElapsed(chatPending);
   const activity = chatPending ? workProgress(stage, chatElapsed) : null;
   useEffect(() => {
@@ -747,15 +760,16 @@ function StudioSession({
         />
         <button
           type="button"
-          className="chat-edge chat-edge-open"
+          className={["chat-edge", "chat-edge-open", chatPending ? "is-busy" : ""].filter(Boolean).join(" ")}
           aria-label={chatOpen ? "Скрыть ассистента" : "Открыть ассистента"}
-          title={chatOpen ? "Скрыть ассистента" : "Открыть ассистента"}
+          title={chatPending ? "Идёт генерация" : chatOpen ? "Скрыть ассистента" : "Открыть ассистента"}
           onClick={() => setChatOpen((open) => !open)}
         >
           <svg className="chat-edge-chevron" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <img className="chat-edge-mark" src="/icons/chat.png" alt="" />
+          {chatPending ? <span className="chat-fab-badge" aria-label="Идёт генерация" /> : null}
         </button>
         {showDocument ? (
         <div className="pane pane-doc">

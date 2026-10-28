@@ -4,7 +4,7 @@ import { displayServicePrompt } from "@/lib/agent/service-prompts";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { RequestComposer } from "@/components/RequestComposer";
-import { chatWaitLabel, queueWaitLabel, usageLine, workProgress } from "@/lib/job-status";
+import { chatWaitLabel, queueWaitLabel, workProgress } from "@/lib/job-status";
 import { userFacingError } from "@/lib/user-error";
 import { useElapsed } from "@/lib/use-elapsed";
 import type { CourseBrief } from "@/lib/course-schema";
@@ -51,15 +51,6 @@ function hoursAnswer(value: string) {
 
 function isIntakeAsk(text: string) {
   return text.includes("Не хватает данных");
-}
-
-
-function usageFromMessage(message: UIMessage) {
-  const part = message.parts.find((item) => item.type === "data-usage");
-  if (!part || part.type !== "data-usage" || !part.data || typeof part.data !== "object") return "";
-  return usageLine(
-    part.data as { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number },
-  );
 }
 
 
@@ -135,15 +126,6 @@ export function ChatPanel({
     (pending && queueData?.status ? queueWaitLabel(queueData.status, queueData.position ?? 0) : "") ||
     chatWaitLabel(elapsedMs);
   const progress = pending ? workProgress(stage, elapsedMs) : null;
-  const spent = [...messages]
-    .reverse()
-    .flatMap((message) => message.parts)
-    .find((part) => part.type === "data-usage");
-  const spentData =
-    spent && spent.type === "data-usage" && spent.data && typeof spent.data === "object" ? spent.data : null;
-  const spentLine = usageLine(
-    spentData as { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null,
-  );
   const stillAsking = messages.at(-1)?.parts.some((part) => part.type === "text" && isIntakeAsk(part.text)) ?? false;
   const [doneFlash, setDoneFlash] = useState(false);
   const [picks, setPicks] = useState<Record<string, string>>({});
@@ -257,8 +239,7 @@ export function ChatPanel({
                   .filter((part) => part.state !== "output-error")
                   .map((part) => TOOL_LABELS[getToolName(part)] ?? getToolName(part));
             const failed = tools.filter((part) => part.state === "output-error");
-            const turnUsage = message.role === "assistant" ? usageFromMessage(message) : "";
-            if (texts.length === 0 && tools.length === 0 && failed.length === 0 && !turnUsage) return null;
+            if (texts.length === 0 && tools.length === 0 && failed.length === 0) return null;
             return (
               <article key={message.id} className={`turn ${message.role}`}>
                 {texts.length > 0 ? (
@@ -390,7 +371,6 @@ export function ChatPanel({
                     ) : null}
                   </div>
                 ))}
-                {turnUsage ? <p className="chat-note chat-usage">{turnUsage}</p> : null}
               </article>
             );
           })
@@ -403,7 +383,6 @@ export function ChatPanel({
           </article>
         ) : null}
         {doneFlash && !pending && !stillAsking ? <p className="chat-note">Программа обновлена.</p> : null}
-        {spentLine ? <p className="chat-note chat-usage" aria-live="polite">{spentLine}</p> : null}
         {error ? (
           <div className="chat-fail-row">
             <p className="chat-error">{userFacingError(error)}</p>

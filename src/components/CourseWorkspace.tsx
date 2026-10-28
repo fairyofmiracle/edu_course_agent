@@ -251,10 +251,14 @@ function ReferenceList({
   references: CourseDocument["brief"]["references"];
   title: string;
 }) {
+  const count = references.length;
   return (
-    <article>
-      <h3>{title}</h3>
-      {references.length === 0 ? (
+    <details className="materials-block">
+      <summary className="materials-summary">
+        <span>{title}</span>
+        <span className="materials-count">{count ? String(count) : "нет"}</span>
+      </summary>
+      {count === 0 ? (
         <p className="muted">—</p>
       ) : (
         <ul className="ref-list">
@@ -277,7 +281,7 @@ function ReferenceList({
           })}
         </ul>
       )}
-    </article>
+    </details>
   );
 }
 
@@ -673,23 +677,7 @@ function Overview({
           </ul>
         </article>
       </div>
-      <article className="framework-compact">
-        <h3>Статус каркаса</h3>
-        <p className="muted">
-          {frameworkItems(course).every((item) => item.ok)
-            ? "Каркас готов к утверждению."
-            : `Готово ${frameworkItems(course).filter((item) => item.ok).length} из ${frameworkItems(course).length}. Полный список — во вкладке «Проверка».`}
-        </p>
-        <ul className="check-list compact-checks">
-          {frameworkItems(course)
-            .filter((item) => !item.ok)
-            .slice(0, 3)
-            .map((item) => (
-              <li key={item.id} className="bad">
-                {item.label}
-              </li>
-            ))}
-        </ul>
+      {(frameworkReady && onApproveFramework) || onGatherFramework ? (
         <div className="passport-actions passport-actions-below">
           {frameworkReady && onApproveFramework ? (
             <button type="button" className="primary" id="framework-approve-overview" onClick={onApproveFramework}>
@@ -701,8 +689,8 @@ function Overview({
             </button>
           ) : null}
         </div>
-      </article>
-      <ReferenceList references={brief.references} title="Референсы" />
+      ) : null}
+      <ReferenceList references={brief.references} title="Материалы" />
     </div>
   );
 }

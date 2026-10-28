@@ -6,7 +6,6 @@ import {
   exportKindName,
   exportWaitLabel,
   fileWaitLabel,
-  usageLine,
   workProgress,
 } from "./job-status";
 
@@ -36,14 +35,10 @@ describe("job status labels", () => {
     expect(exportDoneLabel("moodle")).toBe("Moodle готов");
   });
 
-  it("прогресс и токены читаются без нового запроса к модели", () => {
+  it("прогресс оценивается без нового запроса к модели", () => {
     expect(workProgress("ask", 0).label).toMatch(/примерно ещё/);
     expect(workProgress("ask", 39_000).label).toBe("Почти готово");
     expect(workProgress("kit", 10_000).ratio).toBeGreaterThan(0);
     expect(workProgress("kit", 10_000).ratio).toBeLessThan(1);
-    expect(usageLine(null)).toBe("");
-    expect(usageLine({ prompt_tokens: 1200, completion_tokens: 300, total_tokens: 1500 }).replace(/\s/g, " ")).toBe(
-      "Токены: 1 200 на вход, 300 на выход, 1 500 всего",
-    );
   });
 });

@@ -2332,14 +2332,22 @@ button.primary {
 
 .journal-tabs {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: flex-end;
   gap: 4px;
   margin: 0;
   padding: 0;
   border-bottom: 1px solid var(--line);
-  overflow: visible;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+}
+
+.journal-tabs .journal-tab {
+  scroll-snap-align: start;
+  flex: 0 0 auto;
 }
 
 .journal-tabs::-webkit-scrollbar {
@@ -4466,5 +4474,131 @@ button,
   }
   caption, .table-caption, .muted.small, .field-caption {
     font-size: var(--caption-size-mobile);
+  }
+}
+
+
+/* --- Materials (collapsible sources) --- */
+.materials-block {
+  margin: 16px 0 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.materials-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.materials-summary::-webkit-details-marker {
+  display: none;
+}
+
+.materials-summary::after {
+  content: "▾";
+  color: var(--ink-soft);
+  font-size: 12px;
+  transition: transform 0.15s ease;
+}
+
+.materials-block[open] > .materials-summary::after {
+  transform: rotate(180deg);
+}
+
+.materials-count {
+  margin-left: auto;
+  margin-right: 8px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.materials-block .ref-list,
+.materials-block > .muted {
+  margin: 0;
+  padding: 0 14px 14px;
+}
+
+
+.chat-fab-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff5a5a;
+  box-shadow: 0 0 0 2px var(--accent);
+  animation: chat-fab-pulse 1.2s ease-in-out infinite;
+}
+
+.chat-edge-open {
+  position: relative;
+}
+
+.chat-edge-open.is-busy {
+  box-shadow: 0 8px 20px rgb(17 17 17 / 20%), 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+@keyframes chat-fab-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.75; }
+}
+
+@media (max-width: 420px) {
+  .site-header {
+    gap: 6px;
+    padding: 6px 10px;
+  }
+
+  .site-title {
+    font-size: 15px;
+  }
+
+  .site-subtitle {
+    font-size: 11px;
+  }
+
+  .studio-body > .pane-write {
+    height: min(82dvh, 640px);
+    border-radius: 14px 14px 0 0;
+  }
+
+  .studio-body > .chat-edge-open {
+    width: 52px;
+    height: 52px;
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(12px, calc(12px + env(safe-area-inset-bottom)));
+  }
+
+  .journal-tabs {
+    gap: 2px;
+    padding-bottom: 2px;
+  }
+
+  .journal-tab {
+    padding: 6px 10px 7px;
+    font-size: 12px;
+  }
+
+  .passport-actions-below {
+    gap: 8px;
+  }
+
+  .dock-caption {
+    font-size: 10px;
+  }
+
+  .meta-grid {
+    gap: 8px;
   }
 }

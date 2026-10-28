@@ -532,7 +532,7 @@ function Overview({
             </div>
             <div>
               <dt>Объём часов</dt>
-              <dd className="passport-placeholder">От 16 академических часов</dd>
+              <dd className="passport-placeholder">Например, 24 ч (шаг 0,5)</dd>
             </div>
             <div>
               <dt>Формат</dt>
@@ -596,7 +596,7 @@ function Overview({
       )}
       {course.modules.length > 0 ? (
         <>
-        <table className="hours-table">
+        <div className="table-scroll"><table className="hours-table">
           <thead>
             <tr>
               <th>Модуль</th>
@@ -638,7 +638,7 @@ function Overview({
               <td>{course.brief.attestationHours}</td>
             </tr>
           </tbody>
-        </table>
+        </table></div>
         </>
       ) : null}
       <div className="two-col">

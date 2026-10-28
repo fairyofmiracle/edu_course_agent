@@ -59,8 +59,8 @@ export function adaptCourseCopy(
   if (!audience || audience.length > 400) {
     return { ok: false, error: "Укажите аудиторию, до 400 символов." };
   }
-  if (!halfHour(adaptation.durationHours) || adaptation.durationHours < 16) {
-    return { ok: false, error: "Объём — число от 16 часов с шагом 0,5." };
+  if (!halfHour(adaptation.durationHours) || adaptation.durationHours < 0.5) {
+    return { ok: false, error: "Объём — число от 0,5 часа с шагом 0,5." };
   }
   if (!halfHour(adaptation.attestationHours) || adaptation.attestationHours < 0) {
     return { ok: false, error: "Часы аттестации — число от 0 с шагом 0,5." };

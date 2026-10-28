@@ -312,9 +312,11 @@ html[data-theme="light"] .boot-nib {
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  gap: 4px;
-  width: 40px;
-  height: 40px;
+  gap: 5px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0;
   border: 0;
   border-radius: 12px;
@@ -1351,12 +1353,13 @@ button.primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
-  min-height: 40px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0;
   border: 0;
+  border-radius: 12px;
   background: transparent;
   color: var(--ink-soft);
 }
@@ -3423,8 +3426,8 @@ html[data-theme="light"] .hours-gap {
     position: fixed;
     z-index: 31;
     top: auto;
-    right: 16px;
-    bottom: 16px;
+    right: max(16px, env(safe-area-inset-right));
+    bottom: max(16px, calc(16px + env(safe-area-inset-bottom)));
     left: auto;
     width: 56px;
     height: 56px;
@@ -3692,14 +3695,15 @@ html[data-theme="light"] .hours-gap {
   width: auto;
   height: auto;
   min-width: 44px;
-  min-height: 40px;
-  padding: 4px 6px 2px;
+  min-height: 44px;
+  padding: 4px 8px 4px;
   flex-direction: column;
   gap: 2px;
+  border-radius: 12px;
 }
 
 .dock-caption {
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.1;
   font-weight: 500;
   color: inherit;
@@ -3717,11 +3721,110 @@ html[data-theme="light"] .hours-gap {
   }
 
   .dock-icon.dock-labeled {
-    min-width: 40px;
+    min-width: 44px;
+    min-height: 44px;
   }
 
   .dock-caption {
-    font-size: 9px;
+    font-size: 11px;
+  }
+
+  .chat-scrim {
+    display: block;
+    position: fixed;
+    z-index: 15;
+    inset: 0;
+    border: 0;
+    border-radius: 0;
+    background: rgb(17 17 17 / 36%);
+  }
+
+  .chat-collapse {
+    display: inline-flex;
+  }
+
+  .studio-body > .pane-write {
+    z-index: 16;
+    border-radius: 16px 16px 0 0;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .studio-body > .chat-edge-open {
+    right: max(16px, env(safe-area-inset-right));
+    bottom: max(16px, calc(16px + env(safe-area-inset-bottom)));
+  }
+
+  .chat-dock {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    padding-bottom: max(8px, calc(env(safe-area-inset-bottom) + var(--vv-keyboard, 0px)));
+    background: var(--panel);
+  }
+
+  .studio-body > .pane-write {
+    margin-bottom: var(--vv-keyboard, 0px);
+  }
+
+  .site-header {
+    padding-top: max(8px, env(safe-area-inset-top));
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+
+  .export-summary-icon {
+    display: inline;
+  }
+
+  .export-summary-text {
+    display: none;
+  }
+
+  .site-tools-header .export-menu summary,
+  .site-tools-header .framework-action {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .site-tools-header .framework-action {
+    max-width: 44px;
+    overflow: hidden;
+    text-overflow: clip;
+    white-space: nowrap;
+    font-size: 13px;
+    padding: 0 8px;
+  }
+
+  .site-tools-header .framework-action.primary {
+    max-width: none;
+    font-size: 12px;
+    padding: 0 10px;
+  }
+
+  .site-save-note {
+    display: none;
+  }
+
+  .catalog-list .catalog-tools {
+    opacity: 1;
+  }
+
+  .table-scroll {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .hours-table {
+    min-width: 520px;
   }
 }
 
@@ -3844,3 +3947,119 @@ html[data-theme="light"] .composer textarea::placeholder {
   margin-top: 14px;
 }
 
+
+/* --- Phone ≤480: touch targets, caption, radius sweep --- */
+.chat-scrim {
+  display: none;
+}
+
+.chat-collapse {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.chat-head-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.export-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.export-summary-icon {
+  display: none;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
+/* Consistent radius on controls */
+button,
+.dock-icon,
+.dock-send,
+.dock-accent,
+.passport-secondary,
+.start-chip,
+.journal-tab,
+.template-grid input,
+.template-grid textarea,
+.template-grid select,
+.chat-field,
+.ask-own,
+.composer input,
+.composer textarea,
+.copy-form input,
+.catalog-filters button,
+.library-actions button,
+.site-tools-header .export-menu summary,
+.site-tools-header .framework-action {
+  border-radius: 12px;
+}
+
+.dock-send.dock-send-label,
+.chat-collapse,
+.composer-mode button {
+  border-radius: 999px;
+}
+
+@media (max-width: 480px) {
+  .nav-burger {
+    width: 44px;
+    height: 44px;
+  }
+
+  .dock-caption {
+    font-size: 11px;
+  }
+
+  .site-title {
+    font-size: 16px;
+  }
+
+  .studio-body > .pane-write {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: min(78dvh, 680px);
+    border-radius: 16px 16px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .chat-dock-bar {
+    gap: 4px;
+  }
+
+  .dock-send.dock-send-label {
+    min-height: 44px;
+    padding: 0 14px 0 12px;
+  }
+
+  .catalog-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+.chat-compose-actions:empty {
+  display: none;
+}

@@ -367,13 +367,13 @@ export function RequestComposer({
     fields.audience.trim().length > 0 &&
     fields.goals.trim().length > 0 &&
     Number.isFinite(templateHours) &&
-    templateHours >= 16;
+    templateHours >= 0.5;
 
   const sendTemplate = () => {
     if (pending) return;
     if (!templateReady) {
       setFormError(
-        "Заполните название, аудиторию, цель и объём от 16 часов. Без этого запрос не уходит.",
+        "Заполните название, аудиторию, цель и объём часов (от 0,5, шаг 0,5). Без этого запрос не уходит.",
       );
       return;
     }
@@ -406,7 +406,7 @@ export function RequestComposer({
             <input
               type="number"
               required
-              min={16}
+              min={0.5}
               value={fields.durationHours}
               onChange={(event) => setField("durationHours", event.target.value)}
               placeholder="72"
@@ -527,24 +527,6 @@ export function RequestComposer({
                 }
               }}
             />
-            <div className="chat-compose-actions">
-              {pending ? (
-                <button type="button" className="dock-send" aria-label="Стоп" title="Стоп" onClick={onStop}>
-                  <StopIcon />
-                </button>
-              ) : (
-                <button
-                  type="submit"
-                  className="dock-send dock-send-label"
-                  aria-label="Отправить"
-                  title="Отправить"
-                  disabled={recording || !input.trim()}
-                >
-                  <SendIcon />
-                  <span>Отправить</span>
-                </button>
-              )}
-            </div>
           </div>
         ) : null}
         <div className="chat-dock-bar">
@@ -583,25 +565,34 @@ export function RequestComposer({
             <span className="dock-caption">Материал</span>
           </button>
           <span className="dock-spacer" />
-          {mode === "template" ? (
-            pending ? (
-              <button type="button" className="dock-send" aria-label="Стоп" title="Стоп" onClick={onStop}>
-                <StopIcon />
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="dock-send dock-send-label"
-                aria-label="Отправить"
-                title="Отправить"
-                disabled={!templateReady || pending}
-                onClick={() => sendTemplate()}
-              >
-                <SendIcon />
-                <span>Отправить</span>
-              </button>
-            )
-          ) : null}
+          {pending ? (
+            <button type="button" className="dock-send" aria-label="Стоп" title="Стоп" onClick={onStop}>
+              <StopIcon />
+            </button>
+          ) : mode === "template" ? (
+            <button
+              type="button"
+              className="dock-send dock-send-label"
+              aria-label="Отправить"
+              title="Отправить"
+              disabled={!templateReady || pending}
+              onClick={() => sendTemplate()}
+            >
+              <SendIcon />
+              <span>Отправить</span>
+            </button>
+          ) : (
+            <button
+              type="submit"
+              className="dock-send dock-send-label"
+              aria-label="Отправить"
+              title="Отправить"
+              disabled={recording || !input.trim()}
+            >
+              <SendIcon />
+              <span>Отправить</span>
+            </button>
+          )}
           <input
             ref={fileRef}
             type="file"

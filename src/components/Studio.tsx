@@ -232,6 +232,24 @@ function StudioSession({
   const [extraReferences, setExtraReferences] = useState("");
   const [tab, setTab] = useState<WorkspaceTab>("overview");
   const [chatOpen, setChatOpen] = useState(true);
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const sync = () => {
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      document.documentElement.style.setProperty("--vv-keyboard", `${inset}px`);
+    };
+    sync();
+    vv.addEventListener("resize", sync);
+    vv.addEventListener("scroll", sync);
+    return () => {
+      vv.removeEventListener("resize", sync);
+      vv.removeEventListener("scroll", sync);
+      document.documentElement.style.removeProperty("--vv-keyboard");
+    };
+  }, []);
+
   const [composerMode, setComposerMode] = useState<"free" | "template">("free");
   useEffect(() => {
     const hasDocument = Boolean(
@@ -567,8 +585,9 @@ function StudioSession({
       tools={
         <>
           <details className="export-menu">
-            <summary>
-              {exportJob?.phase === "work" ? "Собираю…" : "Выгрузка"}
+            <summary className="export-summary">
+              <span className="export-summary-text">{exportJob?.phase === "work" ? "Собираю…" : "Выгрузка"}</span>
+              <span className="export-summary-icon" aria-hidden="true">↓</span>
             </summary>
             <div>
               <button
@@ -669,6 +688,14 @@ function StudioSession({
           showDocument && !chatOpen ? " chat-away" : ""
         }`}
       >
+        {chatOpen ? (
+          <button
+            type="button"
+            className="chat-scrim"
+            aria-label="Свернуть ассистента"
+            onClick={() => setChatOpen(false)}
+          />
+        ) : null}
         <ChatPanel
           messages={messages}
           status={status}

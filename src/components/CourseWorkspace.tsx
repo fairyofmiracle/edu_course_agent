@@ -368,7 +368,7 @@ function FrameworkCheck({ course }: { course: CourseDocument }) {
       <ul className="check-list">
         {items.map((item) => (
           <li key={item.id} className={item.ok ? "ok" : "bad"}>
-            <span className={`check-badge ${item.ok ? "ready" : "empty"}`}>{item.ok ? "готово" : "нужно"}</span>
+            <span className={`check-badge ${item.ok ? "ready" : "empty"}`}>{item.ok ? "готово" : "пусто"}</span>
             {item.label}
           </li>
         ))}
@@ -794,19 +794,21 @@ function WeekPlan({ course }: { course: CourseDocument }) {
               : ` · сейчас ${weeks.length} ${weekWord(weeks.length)} по ${formatHours(perWeek)} ч.`}
           </p>
         </div>
-        <label>
+        <label className="week-hours-control">
           Часов в неделю
           <input
-            type="number"
+            type="range"
             min={0.5}
             max={40}
             step={0.5}
             value={perWeek}
+            aria-valuetext={`${formatHours(perWeek)} ч в неделю`}
             onChange={(event) => {
               const next = snapHalf(Number(event.target.value));
               if (next >= 0.5 && next <= 40) setPerWeek(next);
             }}
           />
+          <span className="week-hours-value">{formatHours(perWeek)} ч · тяните ползунок</span>
         </label>
       </header>
       <div className="week-board">

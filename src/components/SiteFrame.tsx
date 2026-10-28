@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { applyTheme, readTheme, storeTheme, type Theme } from "@/lib/theme";
 import { NavIcon } from "@/components/NavIcon";
 import { LAW_273, ORDER_266, ORDER_499, ORDER_629 } from "@/lib/legal-basis";
@@ -37,6 +37,7 @@ export function SiteFrame({
   const [panel, setPanel] = useState<"faq" | "account" | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [methodistName, setMethodistName] = useState(DEFAULT_METHODIST_NAME);
+  const swipeStartX = useRef<number | null>(null);
 
   useEffect(() => {
     const stored = readTheme(window.localStorage);
@@ -141,6 +142,17 @@ export function SiteFrame({
       <nav
         className="site-nav"
         aria-label="Меню студии"
+        onTouchStart={(event) => {
+          swipeStartX.current = event.changedTouches[0]?.clientX ?? null;
+        }}
+        onTouchEnd={(event) => {
+          const start = swipeStartX.current;
+          swipeStartX.current = null;
+          if (start == null || !menuOpen) return;
+          const end = event.changedTouches[0]?.clientX ?? start;
+          // Swipe left closes the drawer on touch layouts.
+          if (start - end > 56) setMenuOpen(false);
+        }}
         onClick={(event) => {
           const target = event.target as HTMLElement;
           const hit = target.closest("a, button");

@@ -625,41 +625,53 @@ function StudioSession({
               <span className="export-summary-text">{exportJob?.phase === "work" ? "Собираю…" : "Выгрузка"}</span>
               <span className="export-summary-icon" aria-hidden="true">↓</span>
             </summary>
-            <div>
-              <button
-                type="button"
-                disabled={isCourseEmpty(course) || exportJob?.phase === "work"}
-                onClick={() => void exportFromServer("zip")}
-              >
-                {exportJob?.phase === "work" && exportJob.kind === "zip" ? "Собираю архив…" : "Архив"}
-              </button>
-              <button type="button" disabled={isCourseEmpty(course) || exportJob?.phase === "work"} onClick={() => void exportFromServer("docx", () => exportCourseDocx(course))}>
-                Программа
-              </button>
-              <button type="button" disabled={course.lectures.length === 0 || exportJob?.phase === "work"} onClick={() => void exportFromServer("pptx", () => exportCoursePptx(course))}>
-                Презентация
-              </button>
-              <button type="button" disabled={course.lectures.length === 0 || exportJob?.phase === "work"} onClick={() => void exportFromServer("html", () => exportLectureHtml(course))}>
-                Слайды
-              </button>
-              <button type="button" disabled={isCourseEmpty(course) || exportJob?.phase === "work"} onClick={() => void exportFromServer("json", () => exportCourseJson(course))}>
-                Данные
-              </button>
-              <button type="button" disabled={isCourseEmpty(course)} onClick={() => exportCourseMarkdown(course)}>
-                Текст
-              </button>
-              <button type="button" disabled={isCourseEmpty(course)} onClick={() => exportCourseAudit(course)}>
-                Отчёт
-              </button>
-              <button type="button" disabled={course.assessments.every((assessment) => assessment.questions.length === 0) || exportJob?.phase === "work"} onClick={() => void exportFromServer("moodle", () => exportCourseMoodle(course))}>
-                Moodle
-              </button>
-              <button type="button" disabled={course.assessments.every((assessment) => assessment.questions.length === 0) || exportJob?.phase === "work"} onClick={() => void exportFromServer("gift", () => exportCourseGift(course))}>
-                GIFT
-              </button>
-              <button type="button" disabled={course.assessments.every((assessment) => assessment.questions.length === 0) || exportJob?.phase === "work"} onClick={() => void exportFromServer("csv", () => exportCourseCsv(course))}>
-                CSV
-              </button>
+            <div className="export-menu-panel">
+              <div className="export-group">
+                <p className="export-group-label">Пакет</p>
+                <button
+                  type="button"
+                  disabled={isCourseEmpty(course) || exportJob?.phase === "work"}
+                  onClick={() => void exportFromServer("zip")}
+                >
+                  {exportJob?.phase === "work" && exportJob.kind === "zip" ? "Собираю архив…" : "Архив"}
+                </button>
+              </div>
+              <div className="export-group">
+                <p className="export-group-label">Документы</p>
+                <button type="button" disabled={isCourseEmpty(course) || exportJob?.phase === "work"} onClick={() => void exportFromServer("docx", () => exportCourseDocx(course))}>
+                  Программа
+                </button>
+                <button type="button" disabled={isCourseEmpty(course)} onClick={() => exportCourseMarkdown(course)}>
+                  Текст
+                </button>
+                <button type="button" disabled={isCourseEmpty(course)} onClick={() => exportCourseAudit(course)}>
+                  Отчёт
+                </button>
+                <button type="button" disabled={isCourseEmpty(course) || exportJob?.phase === "work"} onClick={() => void exportFromServer("json", () => exportCourseJson(course))}>
+                  Данные
+                </button>
+              </div>
+              <div className="export-group">
+                <p className="export-group-label">Лекции</p>
+                <button type="button" disabled={course.lectures.length === 0 || exportJob?.phase === "work"} onClick={() => void exportFromServer("pptx", () => exportCoursePptx(course))}>
+                  Презентация
+                </button>
+                <button type="button" disabled={course.lectures.length === 0 || exportJob?.phase === "work"} onClick={() => void exportFromServer("html", () => exportLectureHtml(course))}>
+                  Слайды
+                </button>
+              </div>
+              <div className="export-group">
+                <p className="export-group-label">Тесты</p>
+                <button type="button" disabled={course.assessments.every((assessment) => assessment.questions.length === 0) || exportJob?.phase === "work"} onClick={() => void exportFromServer("moodle", () => exportCourseMoodle(course))}>
+                  Moodle
+                </button>
+                <button type="button" disabled={course.assessments.every((assessment) => assessment.questions.length === 0) || exportJob?.phase === "work"} onClick={() => void exportFromServer("gift", () => exportCourseGift(course))}>
+                  GIFT
+                </button>
+                <button type="button" disabled={course.assessments.every((assessment) => assessment.questions.length === 0) || exportJob?.phase === "work"} onClick={() => void exportFromServer("csv", () => exportCourseCsv(course))}>
+                  CSV
+                </button>
+              </div>
             </div>
           </details>
           {course.frameworkApproved ? (

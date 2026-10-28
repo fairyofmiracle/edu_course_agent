@@ -20,11 +20,20 @@ function tone(hit: StackHit) {
 export function StackFreshnessPanel({ course }: { course: CourseDocument }) {
   const texts = stackTexts(course);
   const key = texts.join("\n");
-  const [report, setReport] = useState<StackFreshness>({ state: "empty" });
+  const [report, setReport] = useState<StackFreshness | { state: "pending" }>(
+    () => (key ? { state: "pending" } : { state: "empty" }),
+  );
 
   useEffect(() => {
     const nextTexts = key ? key.split("\n") : [];
     let active = true;
+    if (!key) {
+      setReport({ state: "empty" });
+      return () => {
+        active = false;
+      };
+    }
+    setReport({ state: "pending" });
     void checkStack(nextTexts).then((next) => {
       if (active) setReport(next);
     });
@@ -35,11 +44,28 @@ export function StackFreshnessPanel({ course }: { course: CourseDocument }) {
 
   if (texts.length === 0 || report.state === "empty") return null;
 
+  const statusBadge =
+    report.state === "disabled" ? (
+      <span className="check-badge off">выключено</span>
+    ) : report.state === "pending" ? (
+      <span className="check-badge checking">на проверке</span>
+    ) : report.state === "ready" ? (
+      <span className="check-badge ready">готово</span>
+    ) : report.state === "down" ? (
+      <span className="check-badge empty">нет связи</span>
+    ) : null;
+
   return (
-    <article>
-      <h3>Сроки поддержки инструментов</h3>
+    <article className={`stack-check${report.state === "disabled" ? " disabled" : ""}`}>
+      <h3>
+        Сроки поддержки инструментов
+        {statusBadge}
+      </h3>
+      {report.state === "pending" ? (
+        <p className="muted-disabled">Проверяю сроки поддержки…</p>
+      ) : null}
       {report.state === "disabled" ? (
-        <p className="muted">Проверка сроков выключена: не задан адрес Python API.</p>
+        <p className="muted-disabled">Проверка сроков выключена: не задан адрес Python API. Это не ошибка — блок просто не активен без бэкенда.</p>
       ) : null}
       {report.state === "down" ? <p className="muted">{report.message}</p> : null}
       {report.state === "ready" ? (

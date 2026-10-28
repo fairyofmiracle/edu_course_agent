@@ -40,7 +40,9 @@ function formatSeen(iso: string) {
 
 export function SourceChecks({ course }: { course: CourseDocument }) {
   const cacheKey = sourceProbeRequest(course).cacheKey;
-  const [check, setCheck] = useState<SourceCheck>({ state: "empty" });
+  const [check, setCheck] = useState<SourceCheck | { state: "pending" }>(
+    () => (cacheKey ? { state: "pending" } : { state: "empty" }),
+  );
   const [stamps, setStamps] = useState<Record<string, SourceStamp>>(() =>
     typeof window === "undefined" ? {} : readStamps(window.localStorage),
   );
@@ -48,6 +50,13 @@ export function SourceChecks({ course }: { course: CourseDocument }) {
   useEffect(() => {
     const { urls, expect } = parseSourceProbeKey(cacheKey);
     let active = true;
+    if (!cacheKey) {
+      setCheck({ state: "empty" });
+      return () => {
+        active = false;
+      };
+    }
+    setCheck({ state: "pending" });
     void checkSources(urls, { expect }).then((next) => {
       if (active) setCheck(next);
     });
@@ -86,14 +95,33 @@ export function SourceChecks({ course }: { course: CourseDocument }) {
     setStamps((current) => ({ ...current, [result.url]: stamp }));
   }
 
+  const statusBadge =
+    check.state === "disabled" ? (
+      <span className="check-badge off">выключено</span>
+    ) : check.state === "pending" ? (
+      <span className="check-badge checking">на проверке</span>
+    ) : check.state === "empty" ? (
+      <span className="check-badge empty">пусто</span>
+    ) : check.state === "ready" ? (
+      <span className="check-badge ready">готово</span>
+    ) : check.state === "down" ? (
+      <span className="check-badge empty">нет связи</span>
+    ) : null;
+
   return (
-    <article>
-      <h3>Ссылки на приказы</h3>
+    <article className={`source-check${check.state === "disabled" ? " disabled" : ""}`}>
+      <h3>
+        Ссылки на приказы
+        {statusBadge}
+      </h3>
       {check.state === "empty" ? (
-        <p className="muted">В источниках нет http-ссылки. Файл методиста остаётся в программе, сайт по нему не открывается.</p>
+        <p className="muted-disabled">В источниках нет http-ссылки. Файл методиста остаётся в программе, сайт по нему не открывается.</p>
+      ) : null}
+      {check.state === "pending" ? (
+        <p className="muted-disabled">Проверяю доступность ссылок…</p>
       ) : null}
       {check.state === "disabled" ? (
-        <p className="muted">Проверка сайта выключена: не задан адрес Python API. Документы по ссылкам не подтверждены.</p>
+        <p className="muted-disabled">Проверка сайта выключена: не задан адрес Python API. Это не ошибка — документы по ссылкам просто не подтверждаются автоматически.</p>
       ) : null}
       {check.state === "down" ? <p className="muted">{check.message}</p> : null}
       {check.state === "ready" ? (

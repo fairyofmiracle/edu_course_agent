@@ -35,6 +35,15 @@ const HOURS_FILTERS: { id: HoursFilter; label: string }[] = [
   { id: "gte72", label: "От 72 ч" },
 ];
 
+function programWord(count: number) {
+  const n = Math.abs(count) % 100;
+  const n1 = n % 10;
+  if (n > 10 && n < 20) return "программ";
+  if (n1 === 1) return "программа";
+  if (n1 >= 2 && n1 <= 4) return "программы";
+  return "программ";
+}
+
 function asUiMessages(value: unknown): UIMessage[] {
   if (!Array.isArray(value)) return [];
   const messages: UIMessage[] = [];
@@ -202,6 +211,7 @@ export function CourseCatalog() {
   return (
     <SiteFrame
       title="Мои курсы"
+      subtitle={`${items.length} ${programWord(items.length)}`}
       actions={() => (
         <>
           <Link href="/courses" aria-current="page">
@@ -216,7 +226,18 @@ export function CourseCatalog() {
       )}
     >
       <section className="catalog-page">
-        <p className="kicker">{note}</p>
+        <div className="catalog-count-row" aria-live="polite">
+          <p className="catalog-count">
+            <strong>{items.length}</strong> {programWord(items.length)}
+            {needle || hoursFilter !== "all" ? (
+              <span className="catalog-count-filtered">
+                {" "}
+                · в списке {visible.length}
+              </span>
+            ) : null}
+          </p>
+          {note ? <p className="kicker catalog-note">{note}</p> : null}
+        </div>
         <div className="catalog-filters">
           <input
             className="catalog-search"

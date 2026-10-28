@@ -3,15 +3,15 @@
 :root {
   --ink: #f4efe6;
   --ink-soft: #d8d2c6;
-  --paper: #141311;
-  --panel: #1c1b18;
-  --chat: #1c1b18;
-  --chat-soft: #242320;
-  --line: #3d3a34;
+  --paper: #16140f;
+  --panel: #1e1c17;
+  --chat: #1e1c17;
+  --chat-soft: #26241e;
+  --line: #3f3b34;
   --accent: #44eb99;
-  --accent-2: #8ee0b4;
-  --warn: #8ee0b4;
-  --on-accent: #141311;
+  --accent-2: #2bbf7a;
+  --warn: #d4a24c;
+  --on-accent: #16140f;
   --soft: #2a2824;
   --menu: #242320;
   --shell: var(--paper);
@@ -38,14 +38,14 @@
 html[data-theme="light"] {
   --ink: #111111;
   --ink-soft: #3f3f48;
-  --paper: #f8f8fa;
+  --paper: #f6f3ee;
   --panel: #ffffff;
   --chat: #ffffff;
-  --chat-soft: #f3f4f6;
-  --line: #e6e6ea;
+  --chat-soft: #f3f0ea;
+  --line: #e4dfd6;
   --accent: #44eb99;
   --accent-2: #0c7a4b;
-  --warn: #111111;
+  --warn: #b45309;
   --on-accent: #111111;
   --soft: #f3f4f6;
   --menu: #ffffff;
@@ -236,10 +236,10 @@ html[data-theme="light"] .boot-nib {
   display: flex;
   flex-direction: column;
   overflow: visible;
-  background-color: color-mix(in srgb, var(--accent) 5%, var(--paper));
+  background-color: color-mix(in srgb, var(--accent) 3%, var(--paper));
   background-image:
-    radial-gradient(70% 46% at 0% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 62%),
-    radial-gradient(55% 40% at 100% 100%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 58%);
+    radial-gradient(70% 46% at 0% 0%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 62%),
+    radial-gradient(55% 40% at 100% 100%, color-mix(in srgb, var(--accent) 4%, transparent), transparent 58%);
 }
 
 .studio-main {
@@ -416,10 +416,10 @@ html[data-theme="light"] .nav-burger span {
   gap: 18px;
   padding: 18px 12px 14px;
   overflow: hidden;
-  background-color: color-mix(in srgb, var(--accent) 8%, var(--menu));
+  background-color: color-mix(in srgb, var(--accent) 4%, var(--menu));
   background-image:
-    radial-gradient(130% 70% at 0% -8%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 58%),
-    radial-gradient(90% 46% at 110% 112%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 52%);
+    radial-gradient(130% 70% at 0% -8%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 58%),
+    radial-gradient(90% 46% at 110% 112%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 52%);
   border-right: 1px solid var(--shell-line);
 }
 
@@ -1227,6 +1227,36 @@ button.primary {
 }
 
 
+
+.catalog-count-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin: 0 0 14px;
+}
+.catalog-count {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.catalog-count strong {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.catalog-count-filtered {
+  color: var(--ink-soft);
+  font-size: 14px;
+  font-weight: 400;
+}
+.catalog-note {
+  margin: 0;
+}
+
 .catalog-page {
   flex: 1;
   min-height: 0;
@@ -1652,19 +1682,41 @@ button.primary {
   display: none;
 }
 
-.export-menu[open] > div {
+.export-menu[open] > div,
+.export-menu[open] > .export-menu-panel {
   position: absolute;
   z-index: 10;
   top: calc(100% + 4px);
   right: 0;
-  width: 280px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  padding: 8px;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
   border: 1px solid var(--line);
   background: var(--menu);
   box-shadow: 0 10px 24px rgb(0 0 0 / 10%);
+}
+
+.export-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.export-group-label {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 0 2px;
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.export-group button {
+  min-height: var(--touch-min);
 }
 
 .export-tests {
@@ -4153,12 +4205,21 @@ button,
   text-transform: lowercase;
 }
 .check-badge.ready {
-  background: color-mix(in srgb, #1f7a3f 18%, transparent);
-  color: #1f7a3f;
+  background: color-mix(in srgb, var(--accent-2) 18%, transparent);
+  color: var(--accent-2);
 }
 .check-badge.empty {
-  background: color-mix(in srgb, #8a1f1f 14%, transparent);
-  color: #8a1f1f;
+  background: color-mix(in srgb, var(--ink-soft) 16%, transparent);
+  color: var(--ink-soft);
+}
+.check-badge.checking {
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+  color: var(--warn);
+}
+.check-badge.off {
+  background: color-mix(in srgb, var(--ink-soft) 12%, transparent);
+  color: var(--ink-soft);
+  border: 1px dashed color-mix(in srgb, var(--ink-soft) 40%, transparent);
 }
 
 .framework-compact .compact-checks {
@@ -4307,13 +4368,68 @@ button,
 /* Disabled / empty audit should not look broken */
 .audit-card.disabled,
 .audit-card.empty,
-.source-check.disabled {
-  opacity: 0.85;
-  border-style: dashed;
+.source-check.disabled,
+.stack-check.disabled {
+  opacity: 1;
+  border: 1px dashed var(--line);
+  background: color-mix(in srgb, var(--chat-soft) 70%, transparent);
+  box-shadow: none;
 }
-.audit .muted-disabled {
+.source-check,
+.stack-check {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.source-check.disabled h3,
+.stack-check.disabled h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.audit .muted-disabled,
+.source-check .muted-disabled,
+.stack-check .muted-disabled {
   color: var(--ink-soft);
   font-size: 13px;
+  margin: 6px 0 0;
+}
+
+/* Week plan denseness */
+.week-plan-clear {
+  margin-bottom: 16px;
+}
+.week-plan-clear .week-plan-head {
+  align-items: flex-start;
+  margin-bottom: 8px;
+  gap: 12px;
+}
+.week-plan-clear .week-board {
+  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+.week-plan-clear .week-card {
+  padding: 8px 10px 4px;
+}
+.week-plan-clear .week-card li {
+  padding: 5px 0;
+}
+.week-hours-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 160px;
+}
+.week-hours-control input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent-2);
+}
+.week-hours-control .week-hours-value {
+  font-size: 13px;
+  color: var(--ink-soft);
 }
 
 

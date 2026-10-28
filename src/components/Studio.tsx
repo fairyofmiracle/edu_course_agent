@@ -639,6 +639,9 @@ function StudioSession({
               <span className="export-summary-icon" aria-hidden="true">↓</span>
             </summary>
             <div className="export-menu-panel">
+              {isCourseEmpty(course) ? (
+                <p className="export-empty-hint">Сначала соберите бриф в чате — тогда откроется выгрузка.</p>
+              ) : null}
               <div className="export-group">
                 <p className="export-group-label">Пакет</p>
                 <button
@@ -705,7 +708,11 @@ function StudioSession({
             >
               Собрать каркас
             </button>
-          ) : null}
+          ) : (
+            <span className="framework-brief-hint" title="Допишите бриф в чате">
+              В брифе не хватает: {briefGaps(course).join(", ") || "данных"}
+            </span>
+          )}
         </>
       }
       actions={() => (

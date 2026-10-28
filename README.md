@@ -162,9 +162,13 @@ Compose поднимает `db`, `redis`, `api`, `worker`, `web`.
 
 ### Health и логи
 
-- Health: `GET http://localhost:8000/backend/health` (прокси web → api `/health`)
-- Логи: `docker compose logs -f --tail=200 api worker web`
-- Статус: `docker compose ps` — `api` и `web` должны быть healthy; `worker` — Up
+- Health: GET http://localhost:8000/backend/health (прокси web → api /health)
+- Логи: docker compose logs -f --tail=200 api worker web
+- Статус: docker compose ps — pi, web и worker должны быть healthy (у worker — celery inspect ping)
+
+### Что проверяет код, а что — человек
+
+Код валидирует часы и суммы, покрытие результатов, источники/ссылки и шаблонность («Смысл»). Целиком смысл программы и применимость норм подтверждает методист — студия не подписывает за него.
 
 ### После стоп-кода
 
@@ -172,7 +176,7 @@ Compose поднимает `db`, `redis`, `api`, `worker`, `web`.
 
 ### Next 2 спринта
 
-S3 для артефактов; non-root в `api`/`worker`; healthcheck у `worker`.
+S3 для артефактов; non-root в pi/worker; метрики токенов на боевых прогонах.
 
 ## Сценарий на техничке
 

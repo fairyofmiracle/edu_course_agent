@@ -356,7 +356,12 @@ export function RequestComposer({
 
   const sendFree = () => {
     const text = input.trim();
-    if (!text || pending) return;
+    if (pending) return;
+    if (!text) {
+      setFormError("Напишите запрос: тема, часы и аудитория — или откройте шаблон.");
+      return;
+    }
+    setFormError("");
     onSend(text);
     setInput("");
   };
@@ -496,7 +501,7 @@ export function RequestComposer({
         </div>
       ) : null}
 
-      {formError && mode === "template" ? <p className="chat-error">{formError}</p> : null}
+      {formError ? <p className="chat-error" role="status">{formError}</p> : null}
 
       <div className="chat-dock">
         {mode === "free" ? (
@@ -516,9 +521,10 @@ export function RequestComposer({
               value={input}
               onChange={(event) => {
                 setInput(event.target.value);
+                if (formError) setFormError("");
                 growField(event.currentTarget);
               }}
-              placeholder="Сообщение"
+              placeholder="Тема, часы, аудитория — или откройте шаблон"
               rows={1}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {

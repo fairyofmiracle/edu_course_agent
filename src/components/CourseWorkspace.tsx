@@ -517,6 +517,7 @@ function Overview({
   return (
     <div className="overview">
       {isBlank ? (
+        <>
         <section className="about-card passport-stub">
           <p className="passport-kicker">Паспорт-заготовка</p>
           <h2>О программе</h2>
@@ -553,6 +554,7 @@ function Overview({
               ) : null}
             </div>
           ) : null}
+        </>
       ) : (
       <>
       {!brief.title && course.modules.length === 0 && gaps.length > 0 ? (

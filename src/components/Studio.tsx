@@ -811,6 +811,7 @@ function StudioSession({
               send(refreshOutdatedPrompt(labels));
             }}
             onOpenChat={() => setChatOpen(true)}
+            onGoPlan={() => setTab("structure")}
             onFillInChat={() => {
               setChatOpen(true);
               setComposerMode("free");

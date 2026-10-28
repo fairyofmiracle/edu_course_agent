@@ -1,6 +1,7 @@
 "use client";
 
 import { displayServicePrompt } from "@/lib/agent/service-prompts";
+import { uniqueLabels } from "@/lib/session-log";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { RequestComposer } from "@/components/RequestComposer";
@@ -235,9 +236,11 @@ export function ChatPanel({
             const asking = texts.some((part) => isIntakeAsk(part.text));
             const wrote = asking
               ? []
-              : tools
-                  .filter((part) => part.state !== "output-error")
-                  .map((part) => TOOL_LABELS[getToolName(part)] ?? getToolName(part));
+              : uniqueLabels(
+                  tools
+                    .filter((part) => part.state !== "output-error")
+                    .map((part) => TOOL_LABELS[getToolName(part)] ?? getToolName(part)),
+                );
             const failed = tools.filter((part) => part.state === "output-error");
             if (texts.length === 0 && tools.length === 0 && failed.length === 0) return null;
             return (

@@ -44,9 +44,93 @@ def _copy_title(title: str) -> str:
     return f"{base} — копия"[:180]
 
 
+
+def _kit_count(payload: dict[str, Any]) -> dict[str, Any]:
+    modules = payload.get("modules") if isinstance(payload.get("modules"), list) else []
+    lectures = payload.get("lectures") if isinstance(payload.get("lectures"), list) else []
+    seminars = payload.get("seminars") if isinstance(payload.get("seminars"), list) else []
+    assessments = payload.get("assessments") if isinstance(payload.get("assessments"), list) else []
+
+    def mid(row: Any) -> str:
+        return str(row.get("moduleId") or "") if isinstance(row, dict) else ""
+
+    need_lecture = 0
+    for module in modules:
+        if not isinstance(module, dict):
+            continue
+        try:
+            if float(module.get("lectureHours") or 0) > 0:
+                need_lecture += 1
+        except (TypeError, ValueError):
+            pass
+    need_seminar = len([m for m in modules if isinstance(m, dict)])
+    need_test = need_seminar
+
+    have_lecture = 0
+    have_seminar = 0
+    have_test = 0
+    for module in modules:
+        if not isinstance(module, dict):
+            continue
+        module_id = str(module.get("id") or "")
+        if any(mid(row) == module_id and isinstance(row, dict) and row.get("slides") for row in lectures):
+            have_lecture += 1
+        if any(mid(row) == module_id and isinstance(row, dict) and row.get("tasks") for row in seminars):
+            have_seminar += 1
+        if any(mid(row) == module_id and isinstance(row, dict) and row.get("questions") for row in assessments):
+            have_test += 1
+
+    return {
+        "lecture": {"have": have_lecture, "need": need_lecture},
+        "seminar": {"have": have_seminar, "need": need_seminar},
+        "test": {"have": have_test, "need": need_test},
+    }
+
+
+def _stage_from_kit(kit: dict[str, Any]) -> str:
+    parts = [kit["lecture"], kit["seminar"], kit["test"]]
+    need = sum(int(p["need"]) for p in parts)
+    have = sum(int(p["have"]) for p in parts)
+    if need <= 0 or have <= 0:
+        return "empty"
+    if have >= need:
+        return "ready"
+    return "partial"
+
+
+def _readiness(payload: dict[str, Any]) -> dict[str, Any]:
+    modules = payload.get("modules") if isinstance(payload.get("modules"), list) else []
+    kit = _kit_count(payload)
+    materials = _stage_from_kit(kit)
+    approved = bool(payload.get("frameworkApproved"))
+    if approved:
+        framework = "ready"
+    elif modules:
+        framework = "partial"
+    else:
+        framework = "empty"
+    if not modules:
+        checks = "empty"
+    elif materials == "ready" and approved:
+        checks = "pass"
+    elif materials == "empty":
+        checks = "empty"
+    elif materials == "partial":
+        checks = "warning"
+    else:
+        checks = "warning"
+    return {
+        "framework": framework,
+        "materials": materials,
+        "checks": checks,
+        "kit": kit,
+    }
+
+
 def _summary(record: CourseRecord, version: CourseVersion | None) -> dict[str, Any]:
     brief = (version.payload or {}).get("brief") if version else {}
     brief = brief if isinstance(brief, dict) else {}
+    payload = version.payload if version and isinstance(version.payload, dict) else {}
     return {
         "id": record.id,
         "title": record.title or str(brief.get("title") or ""),
@@ -56,6 +140,7 @@ def _summary(record: CourseRecord, version: CourseVersion | None) -> dict[str, A
         "attestationHours": brief.get("attestationHours") or 0,
         "version": record.current_version,
         "updatedAt": record.updated_at.isoformat(),
+        "readiness": _readiness(payload),
     }
 
 

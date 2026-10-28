@@ -4,6 +4,7 @@ import {
   isCourseEmpty,
   type CourseDocument,
 } from "@/lib/course-schema";
+import { courseReadiness, type CourseReadiness } from "@/lib/course-readiness";
 import type { UIMessage } from "ai";
 
 export const LIBRARY_KEY = "edu-course-agent:library";
@@ -21,6 +22,7 @@ export type CourseSummary = {
   durationHours: number;
   attestationHours: number;
   updatedAt: string;
+  readiness?: CourseReadiness;
 };
 
 export type CopyAdaptation = {
@@ -223,6 +225,7 @@ export function listLibrary(
       durationHours: course.brief.durationHours,
       attestationHours: course.brief.attestationHours,
       updatedAt: course.updatedAt,
+      readiness: courseReadiness(course),
     }))
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 }

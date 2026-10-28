@@ -62,6 +62,16 @@ export type SavedCourseSummary = {
   attestationHours: number;
   version: number;
   updatedAt: string;
+  readiness?: {
+    framework: "ready" | "partial" | "empty";
+    materials: "ready" | "partial" | "empty";
+    checks: "pass" | "warning" | "fail" | "empty";
+    kit: {
+      lecture: { have: number; need: number };
+      seminar: { have: number; need: number };
+      test: { have: number; need: number };
+    };
+  };
 };
 
 export async function listCoursesFromBackend() {

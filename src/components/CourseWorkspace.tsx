@@ -7,7 +7,7 @@ import { StackFreshnessPanel } from "@/components/StackFreshness";
 import { findOutdated } from "@/lib/outdated";
 import { LectureDeck } from "@/components/LectureDeck";
 import { MermaidBlock } from "@/components/MermaidBlock";
-import { auditCourse, type AuditStatus } from "@/lib/course-audit";
+import { auditCourse, type AuditSection, type AuditStatus } from "@/lib/course-audit";
 import { isOfficialPublication } from "@/lib/legal-basis";
 import { isHttpSource } from "@/lib/verbatim";
 import { exportAssessmentDocx, exportSeminarDocx } from "@/lib/export-docx";
@@ -283,79 +283,173 @@ function ReferenceList({
   );
 }
 
+const AUDIT_TOPICS: { section: AuditSection; title: string }[] = [
+  { section: "framework", title: "Каркас и часы" },
+  { section: "content", title: "Покрытие тестами" },
+  { section: "sources", title: "Нормативка" },
+  { section: "freshness", title: "Технологии" },
+];
+
+function topicStatus(items: { status: AuditStatus }[]): AuditStatus | "empty" {
+  if (items.length === 0) return "empty";
+  if (items.some((item) => item.status === "fail")) return "fail";
+  if (items.some((item) => item.status === "warning")) return "warning";
+  return "pass";
+}
+
+function statusBadge(status: AuditStatus | "empty") {
+  if (status === "pass") return { className: "ready", label: "готово" };
+  if (status === "warning") return { className: "partial", label: "вручную" };
+  if (status === "fail") return { className: "empty", label: "ошибки" };
+  return { className: "empty", label: "пусто" };
+}
+
+function VoiceErrorChips({ text }: { text: string }) {
+  const parts = text
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length <= 1) return <p className="voice-error">{text}</p>;
+  return (
+    <div className="voice-error-chips" role="status">
+      {parts.map((part) => (
+        <span key={part} className="voice-error-chip">
+          {part}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function AuditPanel({ course, onRefreshOutdated }: { course: CourseDocument; onRefreshOutdated?: (labels: string[]) => void }) {
   const report = auditCourse(course);
-  const groups: { status: AuditStatus; title: string }[] = [
+  const counts: { status: AuditStatus; title: string }[] = [
     { status: "fail", title: "Не выполнено" },
     { status: "warning", title: "Вручную" },
     { status: "pass", title: "Пройдено" },
   ];
+  const outdatedHits = findOutdated(course);
+  const outdatedLabels = [...new Set(outdatedHits.map((hit) => hit.label))];
+
+  const bySection = (section: AuditSection) =>
+    report.items.filter((entry) => entry.section === section);
+
+  const openDefaults = new Set(
+    AUDIT_TOPICS.filter((topic) => topicStatus(bySection(topic.section)) === "fail").map(
+      (topic) => topic.section,
+    ),
+  );
+  // If nothing failed, open the first non-empty topic so the tab is not blank.
+  if (openDefaults.size === 0) {
+    const first = AUDIT_TOPICS.find((topic) => bySection(topic.section).length > 0);
+    if (first) openDefaults.add(first.section);
+  }
+
   return (
-    <div className="audit">
-      <FrameworkCheck course={course} />
+    <div className="audit audit-accordion">
       <div className="audit-counts">
-        {groups.map((group) => (
+        {counts.map((group) => (
           <p key={group.status} className={`audit-count ${group.status}`}>
             <strong>{report.summary[group.status]}</strong>
             <span>{group.title}</span>
           </p>
         ))}
       </div>
-      {groups.map((group) => {
-        const items = report.items.filter((entry) => entry.status === group.status);
-        if (items.length === 0 || group.status === "pass") return null;
+
+      {AUDIT_TOPICS.map((topic) => {
+        const items = bySection(topic.section);
+        const status = topicStatus(items);
+        const badge = statusBadge(status);
+        const failCount = items.filter((item) => item.status === "fail").length;
+        const warnCount = items.filter((item) => item.status === "warning").length;
+        const countLabel =
+          failCount > 0
+            ? `${failCount} ошиб.`
+            : warnCount > 0
+              ? `${warnCount} вручную`
+              : items.length
+                ? `${items.length}`
+                : "нет";
         return (
-          <section key={group.status} className="audit-group">
-            {items.map((entry) => (
-              <article key={entry.id} className={`audit-card ${entry.status}`}>
-                <h3>{entry.label}</h3>
-                {entry.details ? <span>{entry.details}</span> : null}
-              </article>
-            ))}
-          </section>
+          <details
+            key={topic.section}
+            className="materials-block audit-topic"
+            open={openDefaults.has(topic.section)}
+          >
+            <summary className="materials-summary">
+              <span className="audit-topic-title">
+                <span className={`check-badge ${badge.className}`}>{badge.label}</span>
+                {topic.title}
+              </span>
+              <span className="materials-count">{countLabel}</span>
+            </summary>
+
+            {topic.section === "framework" ? <FrameworkCheck course={course} /> : null}
+
+            {items.length === 0 ? (
+              <p className="muted">Замечаний нет.</p>
+            ) : (
+              <div className="audit-topic-body">
+                {items
+                  .filter((entry) => entry.status !== "pass")
+                  .map((entry) => (
+                    <article key={entry.id} className={`audit-card ${entry.status}`}>
+                      <h3>{entry.label}</h3>
+                      {entry.details ? <span>{entry.details}</span> : null}
+                    </article>
+                  ))}
+                <details className="audit-passed">
+                  <summary>
+                    Пройдено: {items.filter((entry) => entry.status === "pass").length}
+                  </summary>
+                  {items
+                    .filter((entry) => entry.status === "pass")
+                    .map((entry) => (
+                      <p key={entry.id}>{entry.label}</p>
+                    ))}
+                </details>
+              </div>
+            )}
+
+            {topic.section === "sources" ? (
+              <>
+                <ReferenceList references={course.brief.references} title="Источники" />
+                <SourceChecks course={course} />
+              </>
+            ) : null}
+
+            {topic.section === "freshness" ? (
+              <>
+                {outdatedHits.length > 0 ? (
+                  <article className="outdated-panel">
+                    <h3>Устаревшие технологии</h3>
+                    <ul className="audit-list">
+                      {outdatedHits.map((hit) => (
+                        <li key={`${hit.id}:${hit.place}`} className="warning">
+                          <strong>{hit.label}:</strong> {hit.note}
+                          <span>{hit.place}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {onRefreshOutdated ? (
+                      <div className="pane-actions" style={{ marginTop: 8 }}>
+                        <button
+                          type="button"
+                          title="Заменить устаревшие технологии в каркасе через чат"
+                          onClick={() => onRefreshOutdated(outdatedLabels)}
+                        >
+                          Обновить устаревшее
+                        </button>
+                      </div>
+                    ) : null}
+                  </article>
+                ) : null}
+                <StackFreshnessPanel course={course} />
+              </>
+            ) : null}
+          </details>
         );
       })}
-      <details className="audit-passed">
-        <summary>Пройдено: {report.summary.pass}</summary>
-        {report.items
-          .filter((entry) => entry.status === "pass")
-          .map((entry) => (
-            <p key={entry.id}>{entry.label}</p>
-          ))}
-      </details>
-      <ReferenceList references={course.brief.references} title="Источники" />
-      <SourceChecks course={course} />
-      
-      {(() => {
-        const hits = findOutdated(course);
-        if (hits.length === 0) return null;
-        const labels = [...new Set(hits.map((h) => h.label))];
-        return (
-          <article className="outdated-panel">
-            <h3>Устаревшие технологии</h3>
-            <ul className="audit-list">
-              {hits.map((hit) => (
-                <li key={`${hit.id}:${hit.place}`} className="warning">
-                  <strong>{hit.label}:</strong> {hit.note}
-                  <span>{hit.place}</span>
-                </li>
-              ))}
-            </ul>
-            {onRefreshOutdated ? (
-              <div className="pane-actions" style={{ marginTop: 8 }}>
-                <button
-                  type="button"
-                  title="Заменить устаревшие технологии в каркасе через чат"
-                  onClick={() => onRefreshOutdated(labels)}
-                >
-                  Обновить устаревшее
-                </button>
-              </div>
-            ) : null}
-          </article>
-        );
-      })()}
-      <StackFreshnessPanel course={course} />
     </div>
   );
 }
@@ -376,14 +470,16 @@ function FrameworkCheck({ course }: { course: CourseDocument }) {
         ))}
       </ul>
       {course.assessments.length > 0 && gaps.length > 0 ? (
-        <p className="voice-error">
-          Вопросы не закрывают компетенции: {gaps.join(", ")}
-        </p>
+        <>
+          <p className="muted">Вопросы не закрывают компетенции:</p>
+          <VoiceErrorChips text={gaps.join(", ")} />
+        </>
       ) : null}
       {course.assessments.length > 0 && outcomeGaps(course).length > 0 ? (
-        <p className="voice-error">
-          Нет вопроса на результат: {outcomeGaps(course).join("; ")}
-        </p>
+        <>
+          <p className="muted">Нет вопроса на результат:</p>
+          <VoiceErrorChips text={outcomeGaps(course).join(", ")} />
+        </>
       ) : null}
       {course.brief.durationHours > 0 && course.modules.length > 0 && (
         <div>

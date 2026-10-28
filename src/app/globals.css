@@ -5059,3 +5059,162 @@ button,
   }
 }
 
+/* === UX package: audit / catalog readiness / cabinet === */
+.audit-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.audit-accordion .audit-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.audit-topic {
+  margin: 0;
+}
+
+.audit-topic-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.audit-topic-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0 8px;
+}
+
+.audit-passed {
+  margin-top: 4px;
+}
+
+.audit-passed summary {
+  cursor: pointer;
+  color: var(--ink-soft);
+  font-size: 13px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+}
+
+.voice-error-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.voice-error-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #c44 14%, var(--panel));
+  border: 1px solid color-mix(in srgb, #c44 35%, var(--line));
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.catalog-readiness {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.catalog-stage-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+
+.catalog-stage {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.catalog-stage-label {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.catalog-stage-fail .check-badge,
+.check-badge.fail {
+  background: color-mix(in srgb, #c44 18%, var(--panel));
+  color: #a33;
+  border-color: color-mix(in srgb, #c44 40%, var(--line));
+}
+
+.catalog-kit-legend {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.nav-avatar-initials {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 22%, var(--panel));
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.cabinet-profile-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+}
+
+.cabinet-avatar {
+  width: 44px;
+  height: 44px;
+  font-size: 14px;
+  flex: 0 0 auto;
+}
+
+.cabinet-profile-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cabinet-profile-text strong {
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.cabinet-profile-text span {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 720px) {
+  .catalog-stage-row {
+    gap: 6px;
+  }
+  .cabinet-profile-head {
+    align-items: flex-start;
+  }
+}
+

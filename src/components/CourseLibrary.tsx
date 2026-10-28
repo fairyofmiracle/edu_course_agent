@@ -24,6 +24,12 @@ import {
   type HoursFilter,
 } from "@/lib/course-library";
 import { courseDocumentSchema, displayCourseTitle, DEFAULT_COURSE_TITLE } from "@/lib/course-schema";
+import {
+  CHECKS_LABEL,
+  STAGE_LABEL,
+  formatKitLegend,
+  type CourseReadiness,
+} from "@/lib/course-readiness";
 import { dropStoredCourse, newSessionId, saveCourse } from "@/lib/storage";
 import type { UIMessage } from "ai";
 
@@ -71,6 +77,51 @@ function CopyIcon() {
 
 function TrashIcon() {
   return <span className="nav-glyph" style={{ ["--glyph" as string]: "url(/icons/trash.png)" }} aria-hidden="true" />;
+}
+
+
+function CatalogReadiness({ readiness }: { readiness?: CourseReadiness }) {
+  if (!readiness) return null;
+  const stages: { key: string; label: string; tone: string; text: string }[] = [
+    {
+      key: "framework",
+      label: "каркас",
+      tone: readiness.framework,
+      text: STAGE_LABEL[readiness.framework],
+    },
+    {
+      key: "materials",
+      label: "материалы",
+      tone: readiness.materials,
+      text: STAGE_LABEL[readiness.materials],
+    },
+    {
+      key: "checks",
+      label: "проверка",
+      tone:
+        readiness.checks === "pass"
+          ? "ready"
+          : readiness.checks === "warning"
+            ? "partial"
+            : readiness.checks === "fail"
+              ? "fail"
+              : "empty",
+      text: CHECKS_LABEL[readiness.checks],
+    },
+  ];
+  return (
+    <div className="catalog-readiness">
+      <div className="catalog-stage-row">
+        {stages.map((stage) => (
+          <span key={stage.key} className={`catalog-stage catalog-stage-${stage.tone}`}>
+            <span className="catalog-stage-label">{stage.label}</span>
+            <span className={`check-badge ${stage.tone}`}>{stage.text}</span>
+          </span>
+        ))}
+      </div>
+      <p className="catalog-kit-legend kit-legend">{formatKitLegend(readiness.kit)}</p>
+    </div>
+  );
 }
 
 export function CourseCatalog() {
@@ -288,6 +339,7 @@ export function CourseCatalog() {
                               <span className="catalog-audience">
                                 {item.audience.trim() || "Аудитория не указана"}
                               </span>
+                              <CatalogReadiness readiness={item.readiness} />
                             </button>
                             <span className="library-actions catalog-tools">
                               <button

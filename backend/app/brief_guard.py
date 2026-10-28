@@ -19,6 +19,58 @@ VOLUME = re.compile(
     r"(?:часов|часа|час\b|ч(?![а-яё]))",
     re.IGNORECASE,
 )
+
+EXPLICIT_DURATION = re.compile(
+    r"(?:"
+    r"\b(?:курс|программа|обучение)\b"
+    r"(?:\s+[^\W\d_][\w-]*){0,5}?"
+    r"\s+на\s+"
+    r"|"
+    r"\b(?:общ(?:ий|ая|ее|его)\s+)?"
+    r"(?:объ[её]м|продолжительность)\b"
+    r"\s*(?:курса|программы)?\s*[:—-]?\s*"
+    r"|"
+    r"\bвсего\s+"
+    r")"
+    r"(\d+)\s*"
+    r"(?:(?:академическ\w*|учебн\w*)\s+|ак\.?\s*)?"
+    r"(?:часов|часа|час\b|ч(?![а-яё]))",
+    re.IGNORECASE,
+)
+
+DURATION_HOURS_FIRST = re.compile(
+    r"(\d+)\s*"
+    r"(?:(?:академическ\w*|учебн\w*)\s+|ак\.?\s*)?"
+    r"(?:часов|часа|час\b|ч(?![а-яё]))"
+    r"\s+(?:на|для)\s+"
+    r"(?:всей\s+)?(?:программ\w*|курс\w*|обучени\w*)\b",
+    re.IGNORECASE,
+)
+
+KIND_HOURS_CONTEXT = re.compile(
+    r"(?:"
+    r"практик\w*|практическ\w*|"
+    r"лекци\w*|лекционн\w*|"
+    r"лабораторн\w*|"
+    r"самостоятельн\w*"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _is_kind_hours(text: str, match: re.Match[str]) -> bool:
+    """Проверяет, относятся ли указанные часы к отдельному виду занятий."""
+
+    before = text[max(0, match.start() - 55):match.start()]
+    after = text[match.end():match.end() + 25]
+
+    # Ограничиваем контекст текущей частью предложения.
+    # Запятая разделяет независимые требования к часам.
+    before = re.split(r"[,;.!?\n]", before)[-1]
+    after = re.split(r"[,;.!?\n]", after)[0]
+
+    return bool(KIND_HOURS_CONTEXT.search(before + " " + after))
+
 SERVICE_PROMPT = re.compile(r"^(Собери |Каркас утверждён)")
 LEAD = re.compile(
     r"^(?:сделайте|сделаем|делаем|давайте|давай|хочу|нужна|нужен|нужно|прошу)\s+",
@@ -301,32 +353,77 @@ def attestation_hours_from_text(texts: list[str]) -> float | None:
 
 
 def volume_from_text(texts: list[str]) -> int | None:
+    # 1. Ищем явно указанную общую продолжительность
     for text in reversed(texts):
-        match = VOLUME.search(text)
-        if not match:
-            continue
-        start, end = match.span()
-        window = text[max(0, start - 28) : min(len(text), end + 28)]
-        if SAMPLE_NEAR.search(window):
-            continue
-        before = text[max(0, start - 24) : start]
-        if re.search(r"аттестац", before, re.IGNORECASE):
-            continue
-        return int(match.group(1))
+        for pattern in (EXPLICIT_DURATION, DURATION_HOURS_FIRST):
+            for match in pattern.finditer(text):
+                start, end = match.span()
+
+                window = text[
+                    max(0, start - 28):min(len(text), end + 28)
+                ]
+
+                if SAMPLE_NEAR.search(window):
+                    continue
+
+                before = text[max(0, start - 24):start]
+
+                if re.search(r"аттестац", before, re.IGNORECASE):
+                    continue
+
+                return int(match.group(1))
+
+    # 2. Проверяем существующий шаблон продолжительности
+    for text in reversed(texts):
+        for match in VOLUME.finditer(text):
+            if _is_kind_hours(text, match):
+                continue
+
+            start, end = match.span()
+            window = text[max(0, start - 28):min(len(text), end + 28)]
+
+            if SAMPLE_NEAR.search(window):
+                continue
+
+            before = text[max(0, start - 24):start]
+
+            if re.search(r"аттестац", before, re.IGNORECASE):
+                continue
+
+            return int(match.group(1))
+
+    # Если явный объём не найден, используем резервный поиск
     ranked: list[tuple[int, int]] = []
+
     for text in reversed(texts):
         for match in HOURS.finditer(text):
             value = _hour_hit(text, match)
+
             if value is None or value < 8:
                 continue
-            before = text[max(0, match.start() - 24) : match.start()]
+
+            # Не принимаем часы отдельных видов занятий за общий объём
+            if _is_kind_hours(text, match):
+                continue
+
+            before = text[max(0, match.start() - 24):match.start()]
+
             if re.search(r"аттестац", before, re.IGNORECASE):
                 continue
-            around = text[max(0, match.start() - 40) : match.end() + 16]
-            score = 2 if re.search(r"программ|курс|объ[её]м", around, re.IGNORECASE) else 0
+
+            around = text[max(0, match.start() - 40):match.end() + 16]
+
+            score = (
+                2
+                if re.search(r"программ|курс|объ[её]м", around, re.IGNORECASE)
+                else 0
+            )
+
             ranked.append((score, value))
+
     if not ranked:
         return None
+
     ranked.sort()
     return ranked[-1][1]
 
@@ -719,11 +816,21 @@ def guard_brief(
             asked_hours = int(float(brief["durationHours"]))
         except (TypeError, ValueError):
             asked_hours = None
-        earlier = {hour for text in texts for hour in mentioned_hours(text)}
+        earlier = {
+            volume
+            for text in texts
+            if (volume := volume_from_text([text])) is not None
+        }
+
+        last_volume = volume_from_text([last])
+
         allowed = (
             form.get("durationHours") == brief["durationHours"]
-            or asked_hours in mentioned_hours(last)
-            or (current.get("durationHours", 0) <= 0 and asked_hours in earlier)
+            or asked_hours == last_volume
+            or (
+                current.get("durationHours", 0) <= 0
+                and asked_hours in earlier
+            )
         )
         if not allowed:
             brief.pop("durationHours")

@@ -679,3 +679,63 @@ def test_max_tokens_match_step_kind() -> None:
     assert max_tokens_for_step({"kind": "tool", "tool": "set_assessment"}) == 2400
     assert max_tokens_for_step({"kind": "tool", "tool": "set_lecture"}) == 2400
     assert max_tokens_for_step({"kind": "tool", "tool": "update_brief"}) == 280
+
+
+def test_chat_turn_returns_422_on_invalid_hour_constraints(monkeypatch):
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    import app.agent_api as agent_api
+
+    async def fake_run_turn(*args, **kwargs):
+        raise ValueError(
+            "Некорректные ограничения часов: "
+            "минимум практики превышает доступные часы программы"
+        )
+
+    # Находим зарегистрированный обработчик маршрута.
+    route = next(
+        route
+        for route in app.routes
+        if getattr(route, "path", None) == "/api/chat/turn"
+        and "POST" in getattr(route, "methods", set())
+    )
+
+    # Подменяем run_turn в глобальном пространстве
+    # именно зарегистрированной функции.
+    monkeypatch.setitem(
+        route.endpoint.__globals__,
+        "run_turn",
+        fake_run_turn,
+    )
+
+    monkeypatch.setitem(
+        route.endpoint.__globals__,
+        "submit_chat_job",
+        lambda payload: None,
+    )
+
+    course = empty_course()
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/chat/turn",
+            json={
+                "course": course.as_api(),
+                "userTexts": [
+                    "Практики должно быть не менее 25 часов"
+                ],
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Практики должно быть не менее 25 часов",
+                    }
+                ],
+            },
+        )
+
+    assert response.status_code == 422
+    assert (
+        "Некорректные ограничения часов"
+        in response.json()["detail"]
+    )

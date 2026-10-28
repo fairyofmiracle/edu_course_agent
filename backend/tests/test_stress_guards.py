@@ -157,6 +157,36 @@ def test_profanity_refused_mid_dialog_run_turn():
     assert result["course"].brief.title == title_before
 
 
+def test_profanity_does_not_stick_from_earlier_turn():
+    """Earlier swear in history must not block a clean follow-up reply."""
+    import asyncio
+
+    from backend.app.agent import run_turn
+    from backend.app.brief_guard import PROFANITY_REPLY
+    from backend.app.models import empty_course
+
+    course = empty_course()
+    course.brief.title = "Python для аналитиков"
+    course.brief.duration_hours = 72
+
+    result = asyncio.run(
+        run_turn(
+            course,
+            user_texts=["хуй", "до"],
+            model_messages=[
+                {"role": "user", "content": "хуй"},
+                {"role": "assistant", "content": PROFANITY_REPLY},
+                {"role": "user", "content": "до"},
+            ],
+            client=type("NoCloud", (), {"api_key": None, "usage": None, "begin_turn": lambda self: None})(),
+        )
+    )
+    assert result["steps"] != ["profanity_refuse"]
+    assert result["assistant"] != PROFANITY_REPLY
+
+
+
+
 def test_guard_brief_keeps_established_title_on_later_offtopic():
     """Later offtopic turn must not wipe an already good title."""
     from backend.app.brief_guard import guard_brief

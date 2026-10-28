@@ -526,6 +526,7 @@ function StudioSession({
         },
       },
     );
+    setExtraReferences("");
   };
 
   const reset = () => {
@@ -622,6 +623,32 @@ function StudioSession({
     const next = applyPatch(latest, {
       type: "update_brief",
       brief: { references: [...latest.brief.references, withStatus].slice(-20) },
+    });
+    courseRef.current = next;
+    setStoredCourse(next);
+  };
+
+  const removeReference = (target: { title: string; source?: string; index?: number }) => {
+    const latest = courseRef.current;
+    const source = target.source?.trim() ?? "";
+    const references =
+      typeof target.index === "number" &&
+      target.index >= 0 &&
+      target.index < latest.brief.references.length
+        ? latest.brief.references.filter((_, index) => index !== target.index)
+        : latest.brief.references.filter((item) => {
+            const itemSource = item.source?.trim() ?? "";
+            if (source && (itemSource === source || item.title === source)) return false;
+            if (!source && item.title === target.title) return false;
+            if (source && item.title === target.title && (!itemSource || itemSource === source)) {
+              return false;
+            }
+            return true;
+          });
+    if (references.length === latest.brief.references.length) return;
+    const next = applyPatch(latest, {
+      type: "update_brief",
+      brief: { references },
     });
     courseRef.current = next;
     setStoredCourse(next);
@@ -798,6 +825,7 @@ function StudioSession({
           onComposerModeChange={setComposerMode}
           onReferencesChange={setExtraReferences}
           onReferenceAdd={addReference}
+          onReferenceRemove={removeReference}
           onSend={send}
           onStop={() => stop()}
           onRetry={() => {
@@ -828,6 +856,7 @@ function StudioSession({
             tab={tab}
             frameworkReady={frameworkReady}
             onConfirmReference={confirmReference}
+            onRemoveReference={removeReference}
             onApproveFramework={approveFramework}
             onGoApprove={() => {
               setTab("overview");

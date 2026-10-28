@@ -58,6 +58,7 @@ type CourseWorkspaceProps = {
   onRefreshOutdated?: (labels: string[]) => void;
   onGoPlan?: () => void;
   onConfirmReference?: (reference: { title: string; source?: string; index: number }) => void;
+  onRemoveReference?: (reference: { title: string; source?: string; index: number }) => void;
 };
 
 function TabEmpty({
@@ -126,6 +127,7 @@ export function CourseWorkspace({
   onOpenChat,
   onGoPlan,
   onConfirmReference,
+  onRemoveReference,
 }: CourseWorkspaceProps) {
   const contentOpen = isFrameworkApproved(course) || hasBuiltMaterials(course);
   const locked = CONTENT_TABS.includes(tab) && !contentOpen;
@@ -143,7 +145,7 @@ export function CourseWorkspace({
           />
         ) : (
           <>
-            {tab === "overview" ? <Overview course={course} onConfirmReference={onConfirmReference} /> : null}
+            {tab === "overview" ? <Overview course={course} onConfirmReference={onConfirmReference} onRemoveReference={onRemoveReference} /> : null}
             {tab === "structure" ? (
               course.modules.length === 0 ? (
                 <TabEmpty
@@ -251,10 +253,12 @@ function ReferenceList({
   references,
   title,
   onConfirmReference,
+  onRemoveReference,
 }: {
   references: CourseDocument["brief"]["references"];
   title: string;
   onConfirmReference?: (reference: { title: string; source?: string; index: number }) => void;
+  onRemoveReference?: (reference: { title: string; source?: string; index: number }) => void;
 }) {
   const count = references.length;
   return (
@@ -291,6 +295,16 @@ function ReferenceList({
                     }
                   >
                     Принять
+                  </button>
+                ) : null}
+                {onRemoveReference ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onRemoveReference({ title: item.title, source: item.source, index })
+                    }
+                  >
+                    Убрать
                   </button>
                 ) : null}
               </li>
@@ -757,9 +771,11 @@ function kitOf(course: CourseDocument, moduleId: string) {
 function Overview({
   course,
   onConfirmReference,
+  onRemoveReference,
 }: {
   course: CourseDocument;
   onConfirmReference?: (reference: { title: string; source?: string; index: number }) => void;
+  onRemoveReference?: (reference: { title: string; source?: string; index: number }) => void;
 }) {
   const { brief } = course;
   const gaps = briefGaps(course);
@@ -897,7 +913,7 @@ function Overview({
         </article>
       </div>
 
-      <ReferenceList references={brief.references} title="Материалы" onConfirmReference={onConfirmReference} />
+      <ReferenceList references={brief.references} title="Материалы" onConfirmReference={onConfirmReference} onRemoveReference={onRemoveReference} />
     </div>
   );
 }

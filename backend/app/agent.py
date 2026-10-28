@@ -300,22 +300,10 @@ async def run_turn(
         client.begin_turn()
     user_texts = [repair_typos(text) for text in user_texts]
     last_text = user_texts[-1] if user_texts else ""
-    # Refuse on ANY user text in this turn (not only intake / first brief).
-    # Mid-dialog swear must not reach the model or mutate title/goals/modules.
-    turn_blob = "\n".join(t for t in user_texts if t)
-    if model_messages:
-        latest = model_messages[-1]
-        if isinstance(latest, dict) and latest.get("role") == "user":
-            content = latest.get("content")
-            if isinstance(content, str):
-                turn_blob = f"{turn_blob}\n{content}"
-            elif isinstance(content, list):
-                turn_blob = f"{turn_blob}\n" + "\n".join(
-                    str(part.get("text") or "")
-                    for part in content
-                    if isinstance(part, dict)
-                )
-    if turn_blob and contains_profanity(turn_blob):
+    # Soft refuse only for the CURRENT user reply.
+    # Full chat history often still contains an earlier swear; checking the whole
+    # blob made every later turn ("до", нормальный запрос) reply with PROFANITY_REPLY.
+    if last_text and contains_profanity(last_text):
         return {
             "course": course,
             "assistant": PROFANITY_REPLY,

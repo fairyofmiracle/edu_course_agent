@@ -18,7 +18,7 @@ import { userFacingError } from "@/lib/user-error";
 
 type Mode = "free" | "template";
 type ProgramKind = "general" | "qualification";
-type Material = { label: string; body: string };
+type Material = { label: string; body: string; source?: string };
 
 type TemplateFields = {
   programKind: ProgramKind;
@@ -102,7 +102,8 @@ type RequestComposerProps = {
   mode: Mode;
   onModeChange: (mode: Mode) => void;
   onReferencesChange: (value: string) => void;
-  onReferenceAdd: (reference: CourseBrief["references"][number]) => void;
+  onReferenceAdd?: (reference: CourseBrief["references"][number]) => void;
+  onReferenceRemove?: (reference: { title: string; source?: string }) => void;
   onSend: (text: string, brief?: Partial<CourseBrief>) => void;
   onStop: () => void;
 };
@@ -116,7 +117,7 @@ export function RequestComposer({
   mode,
   onModeChange,
   onReferencesChange,
-  onReferenceAdd,
+  onReferenceRemove,
   onSend,
   onStop,
 }: RequestComposerProps) {
@@ -302,14 +303,11 @@ export function RequestComposer({
       if (!response.ok) throw new Error(payload.error || "Не удалось прочитать файл");
       const label = file.name;
       const body = `[${payload.title || file.name}]\n${payload.text ?? ""}`;
-      const next = [...materials, { label, body }];
+      // Материал остаётся во вложении чата (extraReferences). В brief.references
+      // не кладём сами — иначе файл сразу «падает» в Источники без действия методиста.
+      const next = [...materials, { label, body, source: file.name }];
       setMaterials(next);
       publishMaterials(next, materialNote);
-      onReferenceAdd({
-        title: payload.title || file.name,
-        source: file.name,
-        note: "Файл загружен методистом",
-      });
       setShowRefs(true);
       setFileNote(`Готово: ${label}`);
     } catch (err) {
@@ -335,14 +333,9 @@ export function RequestComposer({
       if (!response.ok) throw new Error(payload.error || "Не удалось скачать страницу");
       const label = payload.title?.trim() || url;
       const body = `[${label} | ${url}]\n${payload.text ?? ""}`;
-      const next = [...materials, { label, body }];
+      const next = [...materials, { label, body, source: url }];
       setMaterials(next);
       publishMaterials(next, materialNote);
-      onReferenceAdd({
-        title: label,
-        source: url,
-        note: "Ссылка добавлена методистом",
-      });
       setShowRefs(true);
       setShowLink(false);
       setLinkUrl("");
@@ -356,14 +349,20 @@ export function RequestComposer({
 
   const sendFree = () => {
     const text = input.trim();
+    const hasMaterials = Boolean(extraReferences.trim()) || materials.length > 0;
     if (pending) return;
-    if (!text) {
-      setFormError("Напишите запрос: тема, часы и аудитория — или откройте шаблон.");
+    if (!text && !hasMaterials) {
+      setFormError("Напишите запрос: тема, часы и аудитория — или приложите файл/ссылку.");
       return;
     }
     setFormError("");
-    onSend(text);
+    onSend(text || "Учти приложенные материалы при сборке программы.");
     setInput("");
+    // Вложение ушло с ходом — очищаем локальный список (родитель сбросит extraReferences).
+    setMaterials([]);
+    setMaterialNote("");
+    publishMaterials([], "");
+    setShowRefs(false);
   };
 
   const templateHours = Number(fields.durationHours);
@@ -593,7 +592,7 @@ export function RequestComposer({
               className="dock-send dock-send-label"
               aria-label="Отправить"
               title="Отправить"
-              disabled={recording || !input.trim()}
+              disabled={recording || (!input.trim() && !extraReferences.trim() && materials.length === 0)}
             >
               <SendIcon />
               <span>Отправить</span>
@@ -650,9 +649,16 @@ export function RequestComposer({
                   <button
                     type="button"
                     onClick={() => {
+                      const removed = materials[index];
                       const next = materials.filter((_, itemIndex) => itemIndex !== index);
                       setMaterials(next);
                       publishMaterials(next, materialNote);
+                      if (removed) {
+                        onReferenceRemove?.({
+                          title: removed.label,
+                          source: removed.source ?? removed.label,
+                        });
+                      }
                     }}
                   >
                     Убрать

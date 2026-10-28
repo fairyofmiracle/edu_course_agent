@@ -90,7 +90,8 @@ type ChatPanelProps = {
   composerMode?: ComposerMode;
   onComposerModeChange?: (mode: ComposerMode) => void;
   onReferencesChange: (value: string) => void;
-  onReferenceAdd: (reference: CourseBrief["references"][number]) => void;
+  onReferenceAdd?: (reference: CourseBrief["references"][number]) => void;
+  onReferenceRemove?: (reference: { title: string; source?: string }) => void;
   onSend: (text: string, brief?: Partial<CourseBrief>) => void;
   onStop: () => void;
   onRetry?: () => void;
@@ -109,6 +110,7 @@ export function ChatPanel({
   onComposerModeChange,
   onReferencesChange,
   onReferenceAdd,
+  onReferenceRemove,
   onSend,
   onStop,
   onRetry,
@@ -411,6 +413,7 @@ export function ChatPanel({
         onModeChange={setComposerMode}
         onReferencesChange={onReferencesChange}
         onReferenceAdd={onReferenceAdd}
+        onReferenceRemove={onReferenceRemove}
         onSend={(text, brief) => {
           onSend(text, brief);
           if (composerMode === "template") setComposerMode("free");

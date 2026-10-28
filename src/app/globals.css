@@ -1,4 +1,4 @@
-@import "tailwindcss";
+import "tailwindcss";
 
 :root {
   --ink: #f4efe6;
@@ -1351,25 +1351,25 @@ button.primary {
 
 
 
+/* Card flip retired: catalog uses expand panel (.catalog-card / .is-open).
+   Keep face layout helpers without 3D rotate so touch never flips. */
 .card-flip {
   position: relative;
   height: 100%;
   min-height: 220px;
-  transform-style: preserve-3d;
-  transition: transform 0.55s ease;
+  transform: none !important;
+  transform-style: flat;
+  transition: none;
 }
 
-.catalog-list li:hover:not(.is-flipped) .card-flip {
-  transform: translateY(-2px);
-}
-
+.catalog-list li:hover .card-flip,
 .catalog-list li.is-flipped .card-flip {
-  transform: rotateY(180deg);
+  transform: none !important;
 }
 
 .card-face {
-  position: absolute;
-  inset: 0;
+  position: relative;
+  inset: auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -1377,7 +1377,7 @@ button.primary {
   border: 1px solid var(--line);
   border-radius: 20px;
   background: var(--panel);
-  backface-visibility: hidden;
+  backface-visibility: visible;
 }
 
 .card-front:hover {
@@ -1385,8 +1385,14 @@ button.primary {
 }
 
 .card-back {
-  transform: rotateY(180deg);
+  transform: none;
   overflow: auto;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .catalog-list li:hover .catalog-card {
+    border-color: color-mix(in srgb, var(--ink) 35%, var(--line));
+  }
 }
 
 .catalog-list .catalog-tools button {
@@ -5360,4 +5366,84 @@ button,
     align-items: flex-start;
   }
 }
+/* === Mobile touch targets >=44px (catalog / chat / header / FAB / tabs / checks) === */
+@media (max-width: 720px), (pointer: coarse) {
+  .top-actions a,
+  .top-actions button,
+  .pane-actions button,
+  .site-tools button,
+  .composer-row button,
+  .deck-nav button,
+  .nav-help,
+  .side-tab-back,
+  .catalog-hours-filter button,
+  .start-chip,
+  .chat-collapse,
+  .ask-send,
+  .chat-retry,
+  .composer-mode button,
+  .export-menu summary,
+  .card-back .library-actions button,
+  .catalog-card-panel .library-actions button,
+  .audit-passed summary,
+  .audit-meaning-head button,
+  .doc-tabs .journal-tab,
+  .journal-tabs .journal-tab,
+  .passport-actions button,
+  .passport-secondary,
+  .framework-action,
+  .site-tools-header .framework-action,
+  .site-tools-header .export-menu summary {
+    min-height: var(--touch-min, 44px);
+    min-width: var(--touch-min, 44px);
+    box-sizing: border-box;
+  }
 
+  .chat-help-mark {
+    width: var(--touch-min, 44px);
+    height: var(--touch-min, 44px);
+    min-width: var(--touch-min, 44px);
+    min-height: var(--touch-min, 44px);
+  }
+
+  .dock-icon,
+  .dock-send {
+    width: var(--touch-min, 44px);
+    height: var(--touch-min, 44px);
+    min-width: var(--touch-min, 44px);
+    min-height: var(--touch-min, 44px);
+  }
+
+  .dock-send.dock-send-label {
+    width: auto;
+    min-width: var(--touch-min, 44px);
+    height: auto;
+    min-height: var(--touch-min, 44px);
+    padding: 0 14px 0 12px;
+  }
+
+  .nav-avatar,
+  .nav-avatar-initials {
+    width: var(--touch-min, 44px);
+    height: var(--touch-min, 44px);
+    min-width: var(--touch-min, 44px);
+    min-height: var(--touch-min, 44px);
+  }
+
+  .site-nav .top-actions a,
+  .site-nav .top-actions button,
+  .site-nav .nav-sections .journal-tab {
+    min-height: var(--touch-min, 44px);
+  }
+
+  .audit-stage-head {
+    min-height: var(--touch-min, 44px);
+  }
+
+  /* No 3D flip on touch / narrow viewports */
+  .card-flip,
+  .catalog-list li.is-flipped .card-flip,
+  .catalog-list li:hover .card-flip {
+    transform: none !important;
+  }
+}

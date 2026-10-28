@@ -14,6 +14,7 @@ import {
 
 import { KIT_PROMPT } from "@/lib/agent/service-prompts";
 import { appendTranscript } from "@/lib/transcript";
+import { materialToReference } from "@/lib/material-attachments";
 import { userFacingError } from "@/lib/user-error";
 
 type Mode = "free" | "template";
@@ -117,6 +118,7 @@ export function RequestComposer({
   mode,
   onModeChange,
   onReferencesChange,
+  onReferenceAdd,
   onReferenceRemove,
   onSend,
   onStop,
@@ -167,6 +169,20 @@ export function RequestComposer({
   const publishMaterials = (next: Material[], note: string) => {
     const chunks = [...next.map((item) => item.body), note.trim()].filter(Boolean);
     onReferencesChange(chunks.join("\n\n"));
+  };
+
+  /** After send: put pending chat files into course Materials (brief.references). Not on attach. */
+  const commitMaterialsToCourse = (items: Material[]) => {
+    for (const item of items) {
+      onReferenceAdd?.(materialToReference(item));
+    }
+  };
+
+  const clearPendingMaterials = () => {
+    setMaterials([]);
+    setMaterialNote("");
+    publishMaterials([], "");
+    setShowRefs(false);
   };
 
   useEffect(() => {
@@ -356,13 +372,12 @@ export function RequestComposer({
       return;
     }
     setFormError("");
+    const pendingMaterials = [...materials];
     onSend(text || "Учти приложенные материалы при сборке программы.");
     setInput("");
-    // Вложение ушло с ходом — очищаем локальный список (родитель сбросит extraReferences).
-    setMaterials([]);
-    setMaterialNote("");
-    publishMaterials([], "");
-    setShowRefs(false);
+    // Attach stays chat-only until send; on send -> course Materials.
+    commitMaterialsToCourse(pendingMaterials);
+    clearPendingMaterials();
   };
 
   const templateHours = Number(fields.durationHours);
@@ -382,7 +397,10 @@ export function RequestComposer({
       return;
     }
     setFormError("");
+    const pendingMaterials = [...materials];
     onSend(templatePrompt(fields), fieldsToBrief(fields));
+    commitMaterialsToCourse(pendingMaterials);
+    if (pendingMaterials.length) clearPendingMaterials();
   };
 
   const submit = (event: FormEvent) => {

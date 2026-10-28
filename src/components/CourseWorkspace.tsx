@@ -292,10 +292,10 @@ const AUDIT_TOPICS: { section: AuditSection; title: string }[] = [
 ];
 
 const SECTION_FIX_HINT: Partial<Record<AuditSection, string>> = {
-  framework: "План",
+  framework: "Обзор",
   content: "Тесты / Лекции / Семинары",
   sources: "Обзор",
-  freshness: "План",
+  freshness: "Обзор",
   meaning: "Лекции / Семинары",
 };
 
@@ -324,21 +324,32 @@ function statusBadge(status: AuditStatus | "empty") {
 function topicCountLabel(items: { status: AuditStatus }[]) {
   const failCount = items.filter((item) => item.status === "fail").length;
   const warnCount = items.filter((item) => item.status === "warning").length;
-  if (failCount > 0) return `${failCount} ошиб.`;
+  if (failCount > 0) return `${failCount} ош.`;
   if (warnCount > 0) return `${warnCount} вним.`;
   if (items.some((item) => item.status === "pass")) return "ок";
   if (items.length === 0) return "нет";
   return `${items.length}`;
 }
 
-function consoleSummary(summary: Record<AuditStatus, number>) {
-  const fail = summary.fail;
-  const warn = summary.warning;
-  if (fail === 0 && warn === 0) return "Всё зелёное";
-  const parts: string[] = [];
-  if (fail > 0) parts.push(`${fail} ${fail === 1 ? "ошибка" : fail < 5 ? "ошибки" : "ошибок"}`);
-  if (warn > 0) parts.push(`${warn} ${warn === 1 ? "внимание" : "внимания"}`);
-  return parts.join(" · ");
+function pluralBlockers(n: number) {
+  const mod100 = n % 100;
+  const mod10 = n % 10;
+  if (mod100 > 10 && mod100 < 20) return "блокеров";
+  if (mod10 === 1) return "блокер";
+  if (mod10 >= 2 && mod10 <= 4) return "блокера";
+  return "блокеров";
+}
+
+/** One-line verdict under the console tiles — not an export CTA. */
+function consoleVerdict(
+  summary: Record<AuditStatus, number>,
+  course: CourseDocument,
+): string {
+  const hasFramework = (course.modules?.length ?? 0) > 0 && isFrameworkApproved(course);
+  if (!hasFramework) return "Сначала каркас";
+  if (summary.fail > 0) return `${summary.fail} ${pluralBlockers(summary.fail)}`;
+  if (summary.warning > 0) return "Можно идти к выгрузке — есть внимание";
+  return "Можно идти к выгрузке";
 }
 
 function AuditPanel({
@@ -361,6 +372,7 @@ function AuditPanel({
     AUDIT_TOPICS[0].section;
 
   const [openOverride, setOpenOverride] = useState<AuditSection | null>(null);
+  const [tileFilter, setTileFilter] = useState<AuditStatus | null>(null);
   const openSection = openOverride ?? defaultOpen;
 
   const counts: { status: AuditStatus; title: string }[] = [
@@ -372,22 +384,48 @@ function AuditPanel({
   const moduleTitle = (moduleId?: string) =>
     moduleId ? course.modules.find((module) => module.id === moduleId)?.title : undefined;
 
+  function openFromTile(status: AuditStatus) {
+    if (status === "pass") {
+      setTileFilter(null);
+      return;
+    }
+    setTileFilter((prev) => (prev === status ? null : status));
+    const match = AUDIT_TOPICS.find((topic) => {
+      const items = bySection(topic.section).filter((entry) =>
+        topic.section === "meaning" ? entry.id !== "meaning.llm" : true,
+      );
+      return items.some((entry) => entry.status === status);
+    });
+    if (match) setOpenOverride(match.section);
+  }
+
   return (
     <div className="audit audit-stages">
       <div className="audit-console" role="status">
         <div className="audit-counts">
           {counts.map((group) => (
-            <p key={group.status} className={`audit-count ${group.status}`}>
+            <button
+              key={group.status}
+              type="button"
+              className={`audit-count ${group.status}${tileFilter === group.status ? " is-active" : ""}`}
+              onClick={() => openFromTile(group.status)}
+              aria-pressed={tileFilter === group.status}
+              title={
+                group.status === "pass"
+                  ? "Сбросить фильтр"
+                  : `Открыть этап с «${group.title}»`
+              }
+            >
               <strong>{report.summary[group.status]}</strong>
               <span>{group.title}</span>
-            </p>
+            </button>
           ))}
         </div>
-        <p className="audit-console-summary">{consoleSummary(report.summary)}</p>
+        <p className="audit-console-summary">{consoleVerdict(report.summary, course)}</p>
       </div>
 
-      <div className="audit-stage-list">
-        {AUDIT_TOPICS.map((topic) => {
+      <div className="audit-stage-list" role="list">
+        {AUDIT_TOPICS.map((topic, index) => {
           const rawItems = bySection(topic.section);
           // meaning.llm is rendered inside MeaningReview — hide the disabled stub card
           const items =
@@ -397,16 +435,20 @@ function AuditPanel({
           const status = topicStatus(items.length ? items : rawItems);
           const badge = statusBadge(status);
           const isOpen = openSection === topic.section;
-          const problems = items.filter(
-            (entry) => entry.status === "fail" || entry.status === "warning",
-          );
+          const problems = items.filter((entry) => {
+            if (entry.status !== "fail" && entry.status !== "warning") return false;
+            if (tileFilter && entry.status !== tileFilter) return false;
+            return true;
+          });
           const passCount = items.filter((entry) => entry.status === "pass").length;
+          const stageDone = status === "pass" || status === "disabled";
 
           return (
             <section
               key={topic.section}
-              className={`audit-stage${isOpen ? " is-open" : ""}`}
+              className={`audit-stage${isOpen ? " is-open" : ""}${stageDone ? " is-done" : ""}`}
               data-section={topic.section}
+              role="listitem"
             >
               <button
                 type="button"
@@ -414,6 +456,9 @@ function AuditPanel({
                 aria-expanded={isOpen}
                 onClick={() => setOpenOverride(topic.section)}
               >
+                <span className="audit-stage-index" aria-hidden="true">
+                  {index + 1}
+                </span>
                 <span className="audit-topic-title">
                   <span className={`check-badge ${badge.className}`}>{badge.label}</span>
                   <span className="audit-stage-name">{topic.title}</span>
@@ -423,7 +468,10 @@ function AuditPanel({
 
               {isOpen ? (
                 <div className="audit-stage-body">
-                  {problems.length === 0 && topic.section !== "sources" && topic.section !== "freshness" && topic.section !== "meaning" ? (
+                  {problems.length === 0 &&
+                  topic.section !== "sources" &&
+                  topic.section !== "freshness" &&
+                  topic.section !== "meaning" ? (
                     <p className="muted">Замечаний нет.</p>
                   ) : null}
 
@@ -493,7 +541,13 @@ function AuditPanel({
                   ) : null}
 
                   {topic.section === "meaning" ? (
-                    <MeaningReview course={course} checklistEmpty={problems.length === 0 && passCount > 0} />
+                    <MeaningReview
+                      course={course}
+                      hits={items.filter(
+                        (entry) => entry.status === "fail" || entry.status === "warning",
+                      )}
+                      passCount={passCount}
+                    />
                   ) : null}
                 </div>
               ) : null}
@@ -507,10 +561,12 @@ function AuditPanel({
 
 function MeaningReview({
   course,
-  checklistEmpty,
+  hits,
+  passCount,
 }: {
   course: CourseDocument;
-  checklistEmpty: boolean;
+  hits: { id: string; status: AuditStatus; label: string; details?: string; moduleId?: string }[];
+  passCount: number;
 }) {
   const [state, setState] = useState<
     | { status: "idle" }
@@ -552,21 +608,18 @@ function MeaningReview({
     } catch (error) {
       setState({
         status: "error",
-        details: error instanceof Error ? error.message : "Сеть недоступна",
+        details: error instanceof Error ? error.message : "Сбой недоступен",
       });
     }
   }, [course]);
 
   return (
     <article className="audit-meaning-block">
-      {checklistEmpty ? (
-        <p className="muted">Чеклист: пустых и шаблонных блоков не найдено.</p>
-      ) : null}
       <div className="audit-meaning-head">
         <div>
           <h3>Ревью смысла</h3>
           <p className="muted">
-            Чеклист выше ловит пустое, шаблон и дубли. LLM — кратко: связность с ЦА, пробелы,
+            Чеклист ловит пустое, шаблон и дубли. LLM — кратко: связность с ЦА, пробелы,
             противоречия. Без ключа шлюза кнопка вернёт «выкл.» и не блокирует выгрузку.
           </p>
         </div>
@@ -574,6 +627,22 @@ function MeaningReview({
           {state.status === "loading" ? "Ревью…" : "Запросить LLM-ревью"}
         </button>
       </div>
+
+      {hits.length === 0 && passCount > 0 ? (
+        <p className="muted">Чеклист: пустых и шаблонных блоков не найдено.</p>
+      ) : null}
+
+      {hits.length > 0 ? (
+        <ul className="audit-list audit-meaning-hits">
+          {hits.map((entry) => (
+            <li key={entry.id} className={entry.status}>
+              <strong>{entry.label}</strong>
+              {entry.details ? <span>{entry.details}</span> : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
       {state.status === "disabled" ? <p className="muted">{state.details}</p> : null}
       {state.status === "error" ? <p className="voice-error">{state.details}</p> : null}
       {state.status === "pass" || state.status === "warning" || state.status === "fail" ? (

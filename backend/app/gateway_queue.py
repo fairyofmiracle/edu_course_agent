@@ -16,7 +16,9 @@ from celery.signals import worker_ready
 from .cloud import CloudRuClient, TurnStopped, configured, setting
 from .models import CourseDocument
 from .public_errors import public_error_text
+from .logging_setup import configure_logging, job_id_var
 
+configure_logging()
 log = logging.getLogger("studio.queue")
 
 WAIT_KEY = "studio:wait"
@@ -139,7 +141,7 @@ class MemoryGateway:
         with self._lock:
             job = self.jobs.get(job_id)
             self.running.discard(job_id)
-            if job is None or job["status"] in {"cancelled", "error"}:
+            if job is None or job["status"] in {"cancelled", "error", "done"}:
                 self._maybe_reset()
                 return
             job["status"] = "done"
@@ -278,8 +280,13 @@ class RedisGateway:
         return public_job(job, position, with_result=with_result)
 
     def begin(self, job_id: str) -> bool:
+        # Атомарный claim: SET NX — повторная доставка / второй worker не стартует turn.
+        lock_key = f"studio:begin:{job_id}"
+        if not self.redis.set(lock_key, "1", nx=True, ex=STALE_SECONDS):
+            return False
         job = self._read(job_id)
         if job is None or job["status"] != "queued":
+            self.redis.delete(lock_key)
             return False
         job["status"] = "running"
         job["startedAt"] = time.time()
@@ -291,7 +298,7 @@ class RedisGateway:
     def finish(self, job_id: str, result: dict[str, Any]) -> None:
         job = self._read(job_id)
         self.redis.srem(RUNNING_KEY, job_id)
-        if job is None or job["status"] in {"cancelled", "error"}:
+        if job is None or job["status"] in {"cancelled", "error", "done"}:
             self._maybe_reset()
             return
         job["status"] = "done"
@@ -413,7 +420,8 @@ celery_app.conf.update(
     accept_content=["json"],
     result_serializer="json",
     worker_prefetch_multiplier=1,
-    task_acks_late=False,
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
     broker_connection_retry_on_startup=True,
 )
 
@@ -453,29 +461,38 @@ def execute_chat_job(job_id: str, payload: dict[str, Any], store: GatewayState |
     from .agent import run_turn
 
     queue = store or get_store()
-    if not queue.begin(job_id):
-        return
+    token = job_id_var.set(job_id)
     try:
-        course = CourseDocument.model_validate(payload["course"])
-        client = CloudRuClient()
-        client.gate = ModelGate(queue, job_id, client.token_budget, timeout=180)
-        result = asyncio.run(
-            run_turn(
-                course,
-                user_texts=list(payload.get("userTexts") or []),
-                model_messages=list(payload.get("messages") or []),
-                references=payload.get("extraReferences"),
-                form_brief=payload.get("formBrief"),
-                client=client,
+        if not queue.begin(job_id):
+            log.info("job skip: already claimed or not queued")
+            return
+        log.info("job begin")
+        try:
+            course = CourseDocument.model_validate(payload["course"])
+            client = CloudRuClient()
+            client.gate = ModelGate(queue, job_id, client.token_budget, timeout=180)
+            result = asyncio.run(
+                run_turn(
+                    course,
+                    user_texts=list(payload.get("userTexts") or []),
+                    model_messages=list(payload.get("messages") or []),
+                    references=payload.get("extraReferences"),
+                    form_brief=payload.get("formBrief"),
+                    client=client,
+                )
             )
-        )
-        result["course"] = result["course"].as_api()
-        queue.finish(job_id, result)
-    except TurnStopped:
-        queue.cancel(job_id)
-    except Exception as error:
-        log.warning("ход %s не собран", job_id, exc_info=True)
-        queue.fail(job_id, public_error_text(error))
+            result["course"] = result["course"].as_api()
+            queue.finish(job_id, result)
+            log.info("job done")
+        except TurnStopped:
+            queue.cancel(job_id)
+            log.info("job cancelled")
+        except Exception as error:
+            log.warning("job failed", exc_info=True)
+            queue.fail(job_id, public_error_text(error))
+    finally:
+        job_id_var.reset(token)
+
 
 
 @celery_app.task(name="studio.chat_turn")

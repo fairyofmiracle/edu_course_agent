@@ -169,6 +169,16 @@ Compose поднимает `db`, `redis`, `api`, `worker`, `web`.
 - Узкий E2E smoke (без UI-логина): `npm run smoke:e2e` → `scripts/smoke-e2e.py` — health → brief (fixture) → audit → export json/docx через `http://localhost:8000/backend`. Auth stub не gate.
 - Если smoke красный: `docker compose ps` (api/web/worker healthy), затем `docker compose logs --tail=100 api web`; проверьте `STUDIO_API_TOKEN` в `.env` (токен прокси, не логин методиста).
 
+
+### Архитектура (проверка без авторизации)
+
+Логин/SSO не нужны — заглушки на будущее. Проверка по Docker и pytest:
+
+1. Non-root api/worker: `docker compose exec api id` и `docker compose exec worker id` — пользователь `app`, uid `10001` (не root).
+2. JSON-логи: `LOG_FORMAT=json` (по умолчанию в Compose). `docker compose logs --tail=30 api` — строки JSON с `time`, `level`, `service`, `requestId` или `jobId`; токены и текст брифа в лог не пишутся.
+3. Идемпотентность очереди: `python -m pytest backend/tests/test_gateway_queue.py -k idempotent -q` — повтор `execute_chat_job` не вызывает `run_turn` дважды. В Redis `begin` через `SET NX`; Celery `task_acks_late` и `task_reject_on_worker_lost`.
+
+
 ### Что проверяет код, а что — человек
 
 Код валидирует часы и суммы, покрытие результатов, источники/ссылки и шаблонность («Смысл»). Целиком смысл программы и применимость норм подтверждает методист — студия не подписывает за него.
@@ -179,7 +189,7 @@ Compose поднимает `db`, `redis`, `api`, `worker`, `web`.
 
 ### Next 2 спринта
 
-S3 для артефактов; non-root в api/worker; метрики токенов на боевых прогонах.
+S3 для артефактов; метрики токенов на боевых прогонах.
 
 ## Сценарий на техничке
 

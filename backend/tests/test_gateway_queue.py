@@ -172,3 +172,42 @@ def test_chat_turn_returns_429_when_queue_full(monkeypatch: pytest.MonkeyPatch) 
         )
         assert response.status_code == 429
         assert "переполнена" in response.json()["detail"]
+
+
+
+def test_execute_chat_job_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Повтор execute_chat_job не гоняет run_turn: begin только из queued."""
+    store = MemoryGateway()
+    job_id = store.enqueue()
+    course = empty_course()
+    calls: list[int] = []
+
+    async def fake_run(course, **_kwargs):
+        calls.append(1)
+        return {
+            "course": course,
+            "assistant": "готово",
+            "mode": "ask",
+            "steps": [],
+            "patches": [],
+            "calls": [],
+            "modelMessages": [],
+            "usage": None,
+            "gatewayRetries": [],
+        }
+
+    monkeypatch.setattr(agent_module, "run_turn", fake_run)
+    payload = {"course": course.as_api(), "userTexts": ["привет"], "messages": []}
+    execute_chat_job(job_id, payload, store)
+    execute_chat_job(job_id, payload, store)
+    assert len(calls) == 1
+    assert store.snapshot(job_id)["status"] == "done"
+
+
+def test_finish_does_not_overwrite_done_result() -> None:
+    store = MemoryGateway()
+    job_id = store.enqueue()
+    assert store.begin(job_id)
+    store.finish(job_id, {"assistant": "первый"})
+    store.finish(job_id, {"assistant": "второй"})
+    assert store.snapshot(job_id)["result"]["assistant"] == "первый"

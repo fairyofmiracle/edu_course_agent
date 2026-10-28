@@ -16,7 +16,6 @@ from .curriculum_rules.validator import (
     validate_allocated_hours,
 )
 from .curriculum_rules.profiles import get_workload_weights
-from .curriculum_rules.regulations import load_regulation_constraints
 
 KIND_KEYS = ("lectureHours", "practiceHours", "labHours", "selfStudyHours")
 PATCH_TYPES = {
@@ -411,16 +410,7 @@ def _apply_hour_constraints(value: dict[str, Any]) -> None:
 
     brief = value["brief"]
 
-    # Требования методиста хранятся в Brief.
-    methodist_constraints = brief.get("hourConstraints") or []
-
-    # Нормативы загружаются отдельно и не изменяют Brief.
-    regulation_constraints = load_regulation_constraints(
-        program_kind=brief.get("programKind"),
-    )
-
-    # При распределении учитываем оба источника.
-    constraints = methodist_constraints + regulation_constraints
+    constraints = brief.get("hourConstraints") or []
 
     if not constraints:
         return
@@ -488,12 +478,7 @@ def rebalance_course(course: CourseDocument) -> CourseDocument:
     # Итоговая проверка после всех перераспределений часов.
     brief = value["brief"]
 
-    effective_constraints = (
-        (brief.get("hourConstraints") or [])
-        + load_regulation_constraints(
-            program_kind=brief.get("programKind"),
-        )
-    )
+    effective_constraints = brief.get("hourConstraints") or []
 
     errors = validate_allocated_hours(
         constraints=effective_constraints,

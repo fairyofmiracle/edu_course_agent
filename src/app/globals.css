@@ -5059,6 +5059,149 @@ button,
   }
 }
 
+
+/* === Audit stages UX (пульт + карточки этапов) === */
+.audit-stages {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.audit-console {
+  margin: 0 0 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, #44eb99 8%, var(--panel));
+}
+
+.audit-console .audit-counts {
+  margin: 0 0 8px;
+}
+
+.audit-console-summary {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.audit-stage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.audit-stage {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.audit-stage.is-open {
+  border-color: color-mix(in srgb, #44eb99 42%, var(--line));
+  box-shadow: 0 0 0 1px color-mix(in srgb, #44eb99 18%, transparent);
+}
+
+.audit-stage-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin: 0;
+  padding: 12px 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-height: 48px;
+}
+
+.audit-stage-head:hover {
+  background: color-mix(in srgb, #44eb99 6%, transparent);
+}
+
+.audit-stage-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.audit-stage-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--line);
+}
+
+.audit-stage-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.audit-passed-line {
+  margin: 0;
+  font-size: 13px;
+}
+
+.audit-fix {
+  display: block;
+  margin-top: 8px;
+  color: color-mix(in srgb, #44eb99 55%, var(--ink-soft));
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.audit-meaning-block {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, #44eb99 5%, var(--panel));
+}
+
+.audit-meaning-block h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.audit-meaning-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.audit-meaning-head button {
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  .audit-console .audit-counts {
+    grid-template-columns: 1fr;
+  }
+
+  .audit-stage-head {
+    min-height: 44px;
+    padding: 10px 12px;
+  }
+
+  .audit-meaning-head {
+    flex-direction: column;
+  }
+
+  .audit-meaning-head button {
+    width: 100%;
+  }
+}
+
 /* === UX package: audit / catalog readiness / cabinet === */
 .audit-accordion {
   display: flex;

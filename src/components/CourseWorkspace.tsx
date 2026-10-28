@@ -11,10 +11,10 @@ import { auditCourse, type AuditSection, type AuditStatus } from "@/lib/course-a
 import { isOfficialPublication } from "@/lib/legal-basis";
 import { isHttpSource } from "@/lib/verbatim";
 import { exportAssessmentDocx, exportSeminarDocx } from "@/lib/export-docx";
-import { briefGaps, moduleKindsGap, programBalanceNote, validateCourseHours } from "@/lib/course-validation";
+import { briefGaps, moduleKindsGap, programBalanceNote } from "@/lib/course-validation";
 import { moduleFlowChart } from "@/lib/presentation/course-to-presentation";
 import { calendarPace } from "@/lib/week-plan";
-import { contentGaps, frameworkItems, hasBuiltMaterials, isFrameworkApproved, outcomeGaps } from "@/lib/framework-check";
+import { hasBuiltMaterials, isFrameworkApproved } from "@/lib/framework-check";
 import {
   BLOOM_LABELS,
   FORMAT_LABELS,
@@ -285,18 +285,29 @@ function ReferenceList({
 
 const AUDIT_TOPICS: { section: AuditSection; title: string }[] = [
   { section: "framework", title: "Каркас и часы" },
-  { section: "content", title: "Покрытие тестами" },
-  { section: "sources", title: "Нормативка" },
-  { section: "freshness", title: "Технологии" },
+  { section: "content", title: "Материалы и тесты" },
+  { section: "sources", title: "Документы и ссылки" },
+  { section: "freshness", title: "Актуальность" },
   { section: "meaning", title: "Смысл" },
 ];
+
+const SECTION_FIX_HINT: Partial<Record<AuditSection, string>> = {
+  framework: "План",
+  content: "Тесты / Лекции / Семинары",
+  sources: "Обзор",
+  freshness: "План",
+  meaning: "Лекции / Семинары",
+};
 
 function topicStatus(items: { status: AuditStatus }[]): AuditStatus | "empty" {
   if (items.length === 0) return "empty";
   if (items.some((item) => item.status === "fail")) return "fail";
   if (items.some((item) => item.status === "warning")) return "warning";
   if (items.every((item) => item.status === "disabled")) return "disabled";
-  if (items.some((item) => item.status === "disabled") && items.every((item) => item.status === "pass" || item.status === "disabled")) {
+  if (
+    items.some((item) => item.status === "disabled") &&
+    items.every((item) => item.status === "pass" || item.status === "disabled")
+  ) {
     return "pass";
   }
   return "pass";
@@ -304,167 +315,203 @@ function topicStatus(items: { status: AuditStatus }[]): AuditStatus | "empty" {
 
 function statusBadge(status: AuditStatus | "empty") {
   if (status === "pass") return { className: "ready", label: "готово" };
-  if (status === "warning") return { className: "partial", label: "вручную" };
+  if (status === "warning") return { className: "partial", label: "внимание" };
   if (status === "fail") return { className: "empty", label: "ошибки" };
   if (status === "disabled") return { className: "partial", label: "выкл." };
   return { className: "empty", label: "пусто" };
 }
 
-function VoiceErrorChips({ text }: { text: string }) {
-  const parts = text
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean);
-  if (parts.length <= 1) return <p className="voice-error">{text}</p>;
-  return (
-    <div className="voice-error-chips" role="status">
-      {parts.map((part) => (
-        <span key={part} className="voice-error-chip">
-          {part}
-        </span>
-      ))}
-    </div>
-  );
+function topicCountLabel(items: { status: AuditStatus }[]) {
+  const failCount = items.filter((item) => item.status === "fail").length;
+  const warnCount = items.filter((item) => item.status === "warning").length;
+  if (failCount > 0) return `${failCount} ошиб.`;
+  if (warnCount > 0) return `${warnCount} вним.`;
+  if (items.some((item) => item.status === "pass")) return "ок";
+  if (items.length === 0) return "нет";
+  return `${items.length}`;
 }
 
-function AuditPanel({ course, onRefreshOutdated }: { course: CourseDocument; onRefreshOutdated?: (labels: string[]) => void }) {
+function consoleSummary(summary: Record<AuditStatus, number>) {
+  const fail = summary.fail;
+  const warn = summary.warning;
+  if (fail === 0 && warn === 0) return "Всё зелёное";
+  const parts: string[] = [];
+  if (fail > 0) parts.push(`${fail} ${fail === 1 ? "ошибка" : fail < 5 ? "ошибки" : "ошибок"}`);
+  if (warn > 0) parts.push(`${warn} ${warn === 1 ? "внимание" : "внимания"}`);
+  return parts.join(" · ");
+}
+
+function AuditPanel({
+  course,
+  onRefreshOutdated,
+}: {
+  course: CourseDocument;
+  onRefreshOutdated?: (labels: string[]) => void;
+}) {
   const report = auditCourse(course);
-  const counts: { status: AuditStatus; title: string }[] = [
-    { status: "fail", title: "Не выполнено" },
-    { status: "warning", title: "Вручную" },
-    { status: "pass", title: "Пройдено" },
-  ];
   const outdatedHits = findOutdated(course);
   const outdatedLabels = [...new Set(outdatedHits.map((hit) => hit.label))];
 
   const bySection = (section: AuditSection) =>
     report.items.filter((entry) => entry.section === section);
 
-  const openDefaults = new Set(
-    AUDIT_TOPICS.filter((topic) => topicStatus(bySection(topic.section)) === "fail").map(
-      (topic) => topic.section,
-    ),
-  );
-  // If nothing failed, open the first non-empty topic so the tab is not blank.
-  if (openDefaults.size === 0) {
-    const first = AUDIT_TOPICS.find((topic) => bySection(topic.section).length > 0);
-    if (first) openDefaults.add(first.section);
-  }
+  const defaultOpen =
+    AUDIT_TOPICS.find((topic) => topicStatus(bySection(topic.section)) === "fail")?.section ??
+    AUDIT_TOPICS.find((topic) => topicStatus(bySection(topic.section)) === "warning")?.section ??
+    AUDIT_TOPICS[0].section;
+
+  const [openOverride, setOpenOverride] = useState<AuditSection | null>(null);
+  const openSection = openOverride ?? defaultOpen;
+
+  const counts: { status: AuditStatus; title: string }[] = [
+    { status: "fail", title: "ошибки" },
+    { status: "warning", title: "внимание" },
+    { status: "pass", title: "пройдено" },
+  ];
+
+  const moduleTitle = (moduleId?: string) =>
+    moduleId ? course.modules.find((module) => module.id === moduleId)?.title : undefined;
 
   return (
-    <div className="audit audit-accordion">
-      <div className="audit-counts">
-        {counts.map((group) => (
-          <p key={group.status} className={`audit-count ${group.status}`}>
-            <strong>{report.summary[group.status]}</strong>
-            <span>{group.title}</span>
-          </p>
-        ))}
+    <div className="audit audit-stages">
+      <div className="audit-console" role="status">
+        <div className="audit-counts">
+          {counts.map((group) => (
+            <p key={group.status} className={`audit-count ${group.status}`}>
+              <strong>{report.summary[group.status]}</strong>
+              <span>{group.title}</span>
+            </p>
+          ))}
+        </div>
+        <p className="audit-console-summary">{consoleSummary(report.summary)}</p>
       </div>
 
-      {AUDIT_TOPICS.map((topic) => {
-        const items = bySection(topic.section);
-        const status = topicStatus(items);
-        const badge = statusBadge(status);
-        const failCount = items.filter((item) => item.status === "fail").length;
-        const warnCount = items.filter((item) => item.status === "warning").length;
-        const countLabel =
-          failCount > 0
-            ? `${failCount} ошиб.`
-            : warnCount > 0
-              ? `${warnCount} вручную`
-              : items.length
-                ? `${items.length}`
-                : "нет";
-        return (
-          <details
-            key={topic.section}
-            className="materials-block audit-topic"
-            open={openDefaults.has(topic.section)}
-          >
-            <summary className="materials-summary">
-              <span className="audit-topic-title">
-                <span className={`check-badge ${badge.className}`}>{badge.label}</span>
-                {topic.title}
-              </span>
-              <span className="materials-count">{countLabel}</span>
-            </summary>
+      <div className="audit-stage-list">
+        {AUDIT_TOPICS.map((topic) => {
+          const rawItems = bySection(topic.section);
+          // meaning.llm is rendered inside MeaningReview — hide the disabled stub card
+          const items =
+            topic.section === "meaning"
+              ? rawItems.filter((entry) => entry.id !== "meaning.llm")
+              : rawItems;
+          const status = topicStatus(items.length ? items : rawItems);
+          const badge = statusBadge(status);
+          const isOpen = openSection === topic.section;
+          const problems = items.filter(
+            (entry) => entry.status === "fail" || entry.status === "warning",
+          );
+          const passCount = items.filter((entry) => entry.status === "pass").length;
 
-            {topic.section === "framework" ? <FrameworkCheck course={course} /> : null}
+          return (
+            <section
+              key={topic.section}
+              className={`audit-stage${isOpen ? " is-open" : ""}`}
+              data-section={topic.section}
+            >
+              <button
+                type="button"
+                className="audit-stage-head"
+                aria-expanded={isOpen}
+                onClick={() => setOpenOverride(topic.section)}
+              >
+                <span className="audit-topic-title">
+                  <span className={`check-badge ${badge.className}`}>{badge.label}</span>
+                  <span className="audit-stage-name">{topic.title}</span>
+                </span>
+                <span className="materials-count">{topicCountLabel(items)}</span>
+              </button>
 
-            {items.length === 0 ? (
-              <p className="muted">Замечаний нет.</p>
-            ) : (
-              <div className="audit-topic-body">
-                {items
-                  .filter((entry) => entry.status !== "pass")
-                  .map((entry) => (
-                    <article key={entry.id} className={`audit-card ${entry.status}`}>
-                      <h3>{entry.label}</h3>
-                      {entry.details ? <span>{entry.details}</span> : null}
-                    </article>
-                  ))}
-                <details className="audit-passed">
-                  <summary>
-                    Пройдено: {items.filter((entry) => entry.status === "pass").length}
-                  </summary>
-                  {items
-                    .filter((entry) => entry.status === "pass")
-                    .map((entry) => (
-                      <p key={entry.id}>{entry.label}</p>
-                    ))}
-                </details>
-              </div>
-            )}
+              {isOpen ? (
+                <div className="audit-stage-body">
+                  {problems.length === 0 && topic.section !== "sources" && topic.section !== "freshness" && topic.section !== "meaning" ? (
+                    <p className="muted">Замечаний нет.</p>
+                  ) : null}
 
-            {topic.section === "sources" ? (
-              <>
-                <ReferenceList references={course.brief.references} title="Источники" />
-                <SourceChecks course={course} />
-              </>
-            ) : null}
+                  {problems.length > 0 ? (
+                    <div className="audit-topic-body">
+                      {problems.map((entry) => {
+                        const modTitle = moduleTitle(entry.moduleId);
+                        const fixHint = SECTION_FIX_HINT[topic.section];
+                        return (
+                          <article key={entry.id} className={`audit-card ${entry.status}`}>
+                            <h3>{entry.label}</h3>
+                            {entry.details ? <span>{entry.details}</span> : null}
+                            {entry.moduleId || fixHint ? (
+                              <span className="audit-fix">
+                                Где править
+                                {modTitle ? `: «${modTitle}»` : ""}
+                                {fixHint ? ` · ${fixHint}` : ""}
+                              </span>
+                            ) : null}
+                          </article>
+                        );
+                      })}
+                    </div>
+                  ) : null}
 
-            
-            {topic.section === "meaning" ? <MeaningLlmReview course={course} /> : null}
+                  {passCount > 0 ? (
+                    <p className="audit-passed-line muted">Пройдено: {passCount}</p>
+                  ) : null}
 
-            {topic.section === "freshness" ? (
-              <>
-                {outdatedHits.length > 0 ? (
-                  <article className="outdated-panel">
-                    <h3>Устаревшие технологии</h3>
-                    <ul className="audit-list">
-                      {outdatedHits.map((hit) => (
-                        <li key={`${hit.id}:${hit.place}`} className="warning">
-                          <strong>{hit.label}:</strong> {hit.note}
-                          <span>{hit.place}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    {onRefreshOutdated ? (
-                      <div className="pane-actions" style={{ marginTop: 8 }}>
-                        <button
-                          type="button"
-                          title="Заменить устаревшие технологии в каркасе через чат"
-                          onClick={() => onRefreshOutdated(outdatedLabels)}
-                        >
-                          Обновить устаревшее
-                        </button>
-                      </div>
-                    ) : null}
-                  </article>
-                ) : null}
-                <StackFreshnessPanel course={course} />
-              </>
-            ) : null}
-          </details>
-        );
-      })}
+                  {topic.section === "sources" ? (
+                    <div className="audit-stage-extra">
+                      <ReferenceList references={course.brief.references} title="Источники" />
+                      <SourceChecks course={course} />
+                    </div>
+                  ) : null}
+
+                  {topic.section === "freshness" ? (
+                    <div className="audit-stage-extra">
+                      {outdatedHits.length > 0 ? (
+                        <article className="outdated-panel">
+                          <h3>Устаревшие технологии</h3>
+                          <ul className="audit-list">
+                            {outdatedHits.map((hit) => (
+                              <li key={`${hit.id}:${hit.place}`} className="warning">
+                                <strong>{hit.label}:</strong> {hit.note}
+                                <span>{hit.place}</span>
+                              </li>
+                            ))}
+                          </ul>
+                          {onRefreshOutdated ? (
+                            <div className="pane-actions" style={{ marginTop: 8 }}>
+                              <button
+                                type="button"
+                                title="Заменить устаревшие технологии в каркасе через чат"
+                                onClick={() => onRefreshOutdated(outdatedLabels)}
+                              >
+                                Обновить
+                              </button>
+                            </div>
+                          ) : null}
+                        </article>
+                      ) : (
+                        <p className="muted">Устаревших меток не найдено.</p>
+                      )}
+                      <StackFreshnessPanel course={course} />
+                    </div>
+                  ) : null}
+
+                  {topic.section === "meaning" ? (
+                    <MeaningReview course={course} checklistEmpty={problems.length === 0 && passCount > 0} />
+                  ) : null}
+                </div>
+              ) : null}
+            </section>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-
-function MeaningLlmReview({ course }: { course: CourseDocument }) {
+function MeaningReview({
+  course,
+  checklistEmpty,
+}: {
+  course: CourseDocument;
+  checklistEmpty: boolean;
+}) {
   const [state, setState] = useState<
     | { status: "idle" }
     | { status: "loading" }
@@ -491,7 +538,10 @@ function MeaningLlmReview({ course }: { course: CourseDocument }) {
         details?: string;
       };
       if (data.status === "disabled") {
-        setState({ status: "disabled", details: data.details || "LLM недоступен — ревью пропущено." });
+        setState({
+          status: "disabled",
+          details: data.details || "LLM недоступен — ревью пропущено.",
+        });
         return;
       }
       setState({
@@ -508,12 +558,18 @@ function MeaningLlmReview({ course }: { course: CourseDocument }) {
   }, [course]);
 
   return (
-    <article className="audit-card warning" style={{ marginTop: 8 }}>
-      <h3>LLM-ревью смысла</h3>
-      <p className="muted">
-        Кратко: связность с ЦА, пробелы, противоречия. Без ключа шлюза — disabled, выгрузку не блокирует.
-      </p>
-      <div className="pane-actions" style={{ marginTop: 8 }}>
+    <article className="audit-meaning-block">
+      {checklistEmpty ? (
+        <p className="muted">Чеклист: пустых и шаблонных блоков не найдено.</p>
+      ) : null}
+      <div className="audit-meaning-head">
+        <div>
+          <h3>Ревью смысла</h3>
+          <p className="muted">
+            Чеклист выше ловит пустое, шаблон и дубли. LLM — кратко: связность с ЦА, пробелы,
+            противоречия. Без ключа шлюза кнопка вернёт «выкл.» и не блокирует выгрузку.
+          </p>
+        </div>
         <button type="button" onClick={() => void run()} disabled={state.status === "loading"}>
           {state.status === "loading" ? "Ревью…" : "Запросить LLM-ревью"}
         </button>
@@ -529,58 +585,6 @@ function MeaningLlmReview({ course }: { course: CourseDocument }) {
           ))}
         </ul>
       ) : null}
-    </article>
-  );
-}
-
-function FrameworkCheck({ course }: { course: CourseDocument }) {
-  const items = frameworkItems(course);
-  const gaps = contentGaps(course);
-  const hourErrors = validateCourseHours(course);
-  return (
-    <article>
-      <h3>Проверка каркаса</h3>
-      <ul className="check-list">
-        {items.map((item) => (
-          <li key={item.id} className={item.ok ? "ok" : "bad"}>
-            <span className={`check-badge ${item.ok ? "ready" : "empty"}`}>{item.ok ? "готово" : "пусто"}</span>
-            {item.label}
-          </li>
-        ))}
-      </ul>
-      {course.assessments.length > 0 && gaps.length > 0 ? (
-        <>
-          <p className="muted">Вопросы не закрывают компетенции:</p>
-          <VoiceErrorChips text={gaps.join(", ")} />
-        </>
-      ) : null}
-      {course.assessments.length > 0 && outcomeGaps(course).length > 0 ? (
-        <>
-          <p className="muted">Нет вопроса на результат:</p>
-          <VoiceErrorChips text={outcomeGaps(course).join(", ")} />
-        </>
-      ) : null}
-      {course.brief.durationHours > 0 && course.modules.length > 0 && (
-        <div>
-          <h4>Проверка учебных часов</h4>
-
-          {hourErrors.length === 0 ? (
-            <p className="muted">
-              ✓ Баланс учебных часов соблюдён.
-            </p>
-          ) : (
-            <ul className="check-list">
-              {hourErrors.map((error, index) => (
-                <li key={`${index}-${error}`} className="bad">
-                  {error}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-
-
     </article>
   );
 }

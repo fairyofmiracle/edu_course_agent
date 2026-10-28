@@ -668,27 +668,6 @@ function StudioSession({
           ) : null}
         </>
       }
-      note={
-        exportJob?.phase === "work"
-          ? exportWaitLabel(exportJob.kind, exportElapsed, exportJob.place)
-          : exportJob?.phase === "done"
-            ? exportDoneLabel(exportJob.kind)
-            : exportJob?.phase === "error"
-              ? "Выгрузка не собралась"
-              : storageNote
-                ? storageNote
-                : localNotice
-                  ? localNotice
-                  : sourceLine
-                    ? sourceLine
-                    : saveState === "conflict"
-                      ? "Курс уже сохранила другая вкладка. Обновите страницу, чтобы не затереть её правку."
-                      : saveState === "synced"
-                        ? "Сохранено"
-                        : saveState === "saving"
-                          ? "Сохраняю…"
-                          : "Сохранено на этом компьютере"
-      }
       actions={() => (
         <>
           <a href="/courses">

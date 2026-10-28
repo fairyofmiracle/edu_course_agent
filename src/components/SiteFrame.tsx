@@ -303,9 +303,6 @@ function SideTab({
   return (
     <section className="side-tab side-tab-overlay" role="dialog" aria-modal="true">
       <div className="side-tab-bar">
-        <button type="button" className="side-tab-back" onClick={() => onPanel(null)}>
-          К программе
-        </button>
         <nav className="journal-tabs" aria-label="Инструкция и настройки">
           <button
             type="button"

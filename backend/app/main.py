@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import os
+import uuid
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
@@ -9,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .access import access_denied, request_allowed
+from .logging_setup import configure_logging, request_id_var
 from .agent_api import router as agent_router
 from .export_api import router as export_router
 from .identity import router as identity_router
@@ -30,6 +32,8 @@ from .contracts import (
 )
 from .source_probe import probe_url, probe_urls
 from .stack_freshness import check_stack
+
+configure_logging()
 
 try:
     from .database import init_database
@@ -112,7 +116,14 @@ def cors_origins() -> list[str]:
 async def studio_network_gate(request, call_next):
     if not request_allowed(request):
         return access_denied()
-    return await call_next(request)
+    rid = request.headers.get("x-request-id") or str(uuid.uuid4())
+    token = request_id_var.set(rid)
+    try:
+        response = await call_next(request)
+        response.headers["x-request-id"] = rid
+        return response
+    finally:
+        request_id_var.reset(token)
 
 
 app.add_middleware(
@@ -120,7 +131,7 @@ app.add_middleware(
     allow_origins=cors_origins(),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_headers=["Content-Type", "Authorization", "X-Request-Id"],
 )
 if courses_router is not None:
     app.include_router(courses_router)

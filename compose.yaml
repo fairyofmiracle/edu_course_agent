@@ -55,6 +55,8 @@ services:
       GATEWAY_CONCURRENCY: ${GATEWAY_CONCURRENCY:-2}
       GATEWAY_MAX_QUEUE: ${GATEWAY_MAX_QUEUE:-40}
       LLM_TOKEN_BUDGET: ${LLM_TOKEN_BUDGET:-25000}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      STUDIO_SERVICE: api
     expose:
       - "8000"
     depends_on:
@@ -97,6 +99,8 @@ services:
       GATEWAY_CONCURRENCY: ${GATEWAY_CONCURRENCY:-2}
       GATEWAY_MAX_QUEUE: ${GATEWAY_MAX_QUEUE:-40}
       LLM_TOKEN_BUDGET: ${LLM_TOKEN_BUDGET:-25000}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      STUDIO_SERVICE: worker
     depends_on:
       db:
         condition: service_healthy

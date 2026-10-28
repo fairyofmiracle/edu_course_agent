@@ -164,6 +164,26 @@ export function ChatPanel({
           <h2>Методий</h2>
           {progress ? <p className="work-caption">{progress.label}</p> : null}
         </div>
+        <div className="composer-mode chat-head-mode" role="tablist" aria-label="Режим запроса">
+          <button
+            type="button"
+            role="tab"
+            className={composerMode === "free" ? "active" : undefined}
+            aria-selected={composerMode === "free"}
+            onClick={() => setComposerMode("free")}
+          >
+            Чат
+          </button>
+          <button
+            type="button"
+            role="tab"
+            className={composerMode === "template" ? "active" : undefined}
+            aria-selected={composerMode === "template"}
+            onClick={() => setComposerMode("template")}
+          >
+            Шаблон
+          </button>
+        </div>
       </header>
 
       <div className="messages" aria-live="polite">

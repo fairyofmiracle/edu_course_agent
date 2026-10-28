@@ -99,8 +99,8 @@ type RequestComposerProps = {
   kitComplete: boolean;
   stage: "ask" | "framework" | "kit";
   pending: boolean;
-  mode?: Mode;
-  onModeChange?: (mode: Mode) => void;
+  mode: Mode;
+  onModeChange: (mode: Mode) => void;
   onReferencesChange: (value: string) => void;
   onReferenceAdd: (reference: CourseBrief["references"][number]) => void;
   onSend: (text: string, brief?: Partial<CourseBrief>) => void;
@@ -113,19 +113,16 @@ export function RequestComposer({
   kitComplete,
   stage,
   pending,
-  mode: modeProp,
+  mode,
   onModeChange,
   onReferencesChange,
   onReferenceAdd,
   onSend,
   onStop,
 }: RequestComposerProps) {
-  const [modeState, setModeState] = useState<Mode>("free");
-  const mode = modeProp ?? modeState;
   const setMode = (next: Mode | ((value: Mode) => Mode)) => {
     const resolved = typeof next === "function" ? next(mode) : next;
-    if (onModeChange) onModeChange(resolved);
-    else setModeState(resolved);
+    onModeChange(resolved);
   };
   const [input, setInput] = useState("");
   const [fields, setFields] = useState<TemplateFields>(emptyTemplate);
@@ -392,26 +389,6 @@ export function RequestComposer({
 
   return (
     <form className="composer" onSubmit={submit}>
-      <div className="composer-mode" role="tablist" aria-label="Режим запроса">
-        <button
-          type="button"
-          role="tab"
-          className={mode === "free" ? "active" : undefined}
-          aria-selected={mode === "free"}
-          onClick={() => setMode("free")}
-        >
-          Чат
-        </button>
-        <button
-          type="button"
-          role="tab"
-          className={mode === "template" ? "active" : undefined}
-          aria-selected={mode === "template"}
-          onClick={() => setMode("template")}
-        >
-          Шаблон
-        </button>
-      </div>
       {mode === "template" ? (
         <div className="template-grid">
           <label>

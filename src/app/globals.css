@@ -3643,6 +3643,14 @@ html[data-theme="light"] .hours-gap {
   background: color-mix(in srgb, var(--accent) 10%, var(--panel));
 }
 
+
+.chat-head .composer-mode,
+.composer-mode.chat-head-mode {
+  margin: 0;
+  flex-shrink: 0;
+  align-self: center;
+}
+
 .composer-mode {
   display: inline-flex;
   align-items: center;

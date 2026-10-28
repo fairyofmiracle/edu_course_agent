@@ -131,3 +131,27 @@ def test_program_duration_without_punctuation():
 )
 def test_duration_hours_first(text, expected):
     assert volume_from_text([text]) == expected
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("измени часы на 67", 67),
+        ("Измени часы на 67", 67),
+        ("поменяй часы на 24", 24),
+        ("увеличь часы до 80", 80),
+        ("поставь часы на 40", 40),
+        ("часы на 67", 67),
+    ],
+)
+def test_hours_named_edit_phrases(text, expected):
+    assert volume_from_text([text]) == expected
+
+
+def test_guard_allows_hours_named_duration_change():
+    current = {"durationHours": 36, "programKind": "general", "title": "X"}
+    patch = {"durationHours": 67}
+    guarded, dropped = guard_brief(patch, current, ["измени часы на 67"])
+    assert guarded.get("durationHours") == 67
+    assert "durationHours" not in dropped
+

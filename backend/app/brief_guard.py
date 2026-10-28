@@ -517,6 +517,19 @@ def volume_from_text(texts: list[str]) -> int | None:
 
             return int(match.group(1))
 
+    # 3. «измени часы на 67» / «увеличь часы до 80» — единица перед числом
+    for text in reversed(texts):
+        for match in HOURS_NAMED.finditer(text):
+            value = _hour_hit(text, match)
+            if value is None:
+                continue
+            if _is_kind_hours(text, match):
+                continue
+            before = text[max(0, match.start() - 24) : match.start()]
+            if re.search(r"аттестац", before, re.IGNORECASE):
+                continue
+            return value
+
     # Если явный объём не найден, используем резервный поиск
     ranked: list[tuple[int, int]] = []
 

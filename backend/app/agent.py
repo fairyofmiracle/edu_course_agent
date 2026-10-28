@@ -4,7 +4,7 @@ import json
 import time
 from typing import Any
 
-from .brief_guard import contains_profanity, is_offtopic_request, PROFANITY_REPLY, repair_typos, volume_from_text, strip_assistant_text
+from .brief_guard import contains_profanity, is_offtopic_request, PROFANITY_REPLY, repair_typos, mentioned_hours, volume_from_text, strip_assistant_text
 from .cloud import CloudRuClient, TurnStopped
 from .domain import apply_patch, framework_fingerprint, framework_items, rebalance_course
 from .catalog import (
@@ -397,6 +397,9 @@ async def run_turn(
             local_hours = None
             if is_duration_edit_request(last_text):
                 local_hours = volume_from_text([last_text])
+                if local_hours is None:
+                    named = mentioned_hours(last_text)
+                    local_hours = named[-1] if named else None
                 arguments = {"durationHours": local_hours} if local_hours else {}
             elif skip_brief_extraction:
                 arguments = {}

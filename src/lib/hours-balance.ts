@@ -382,11 +382,13 @@ type HourConstraint = {
 };
 
 /**
- * Применяет ограничения по видам учебной нагрузки.
+ * Применяет ограничения к видам учебной нагрузки.
  *
- * Сохраняет общую продолжительность модулей.
- * Перераспределяет часы с шагом 0.5.
- * Синхронизирует тематические планы.
+ * - Сохраняет часы каждого модуля.
+ * - Сохраняет общую продолжительность курса.
+ * - Распределяет часы с шагом 0.5.
+ * - Не нарушает ограничения других видов нагрузки.
+ * - Обновляет тематические планы.
  */
 export function applyHourConstraints(
   modules: CourseModule[],
@@ -398,97 +400,149 @@ export function applyHourConstraints(
 
   const next = modules.map((module) => ({ ...module }));
 
-  // Собираем ограничения для каждого вида нагрузки.
-  const bounds = new Map<
-    KindKey,
-    { min: number; max: number }
-  >();
+  const bounds = new Map<KindKey, { min: number; max: number }>();
 
   for (const key of KIND_KEYS) {
     bounds.set(key, { min: 0, max: Infinity });
   }
 
+  // Формируем ограничения в единицах по 0.5 часа.
   for (const constraint of constraints) {
     const bound = bounds.get(constraint.field);
     if (!bound) continue;
 
-    const value = Math.round(constraint.value * 2) / 2;
+    const units = constraint.value * 2;
+
+    if (!Number.isFinite(units) || units < 0) {
+      throw new Error(`Некорректное ограничение: ${constraint.field}`);
+    }
+
+    const minimum = Math.ceil(units);
+    const maximum = Math.floor(units);
 
     if (constraint.operator === "min") {
-      bound.min = Math.max(bound.min, value);
+      bound.min = Math.max(bound.min, minimum);
     } else if (constraint.operator === "max") {
-      bound.max = Math.min(bound.max, value);
+      bound.max = Math.min(bound.max, maximum);
     } else {
-      bound.min = value;
-      bound.max = value;
+      if (!Number.isInteger(units)) {
+        throw new Error(
+          `Точное значение ${constraint.field} должно быть кратно 0.5`,
+        );
+      }
+
+      bound.min = Math.max(bound.min, units);
+      bound.max = Math.min(bound.max, units);
     }
   }
 
-  const total = (key: KindKey) =>
-    next.reduce((sum, module) => sum + module[key], 0);
+  const targetUnits = Math.round(
+    next.reduce((sum, module) => sum + module.hours, 0) * 2,
+  );
 
-  // Переносим часы между видами нагрузки.
+  const minimumSum = KIND_KEYS.reduce(
+    (sum, key) => sum + bounds.get(key)!.min,
+    0,
+  );
+
+  const maximumSum = KIND_KEYS.reduce(
+    (sum, key) => sum + bounds.get(key)!.max,
+    0,
+  );
+
+  if (
+    KIND_KEYS.some((key) => {
+      const bound = bounds.get(key)!;
+      return bound.min > bound.max;
+    }) ||
+    minimumSum > targetUnits ||
+    maximumSum < targetUnits
+  ) {
+    throw new Error(
+      "Ограничения учебной нагрузки несовместимы с продолжительностью курса",
+    );
+  }
+
+  const totalUnits = (key: KindKey) =>
+    Math.round(
+      next.reduce((sum, module) => sum + module[key], 0) * 2,
+    );
+
+  /**
+   * Переносит часы внутри модулей.
+   * Возвращает количество фактически перенесённых единиц.
+   */
   const transfer = (
     from: KindKey,
     to: KindKey,
-    amount: number,
-  ) => {
-    let remaining = amount;
+    requestedUnits: number,
+  ): number => {
+    let remaining = requestedUnits;
 
     for (const module of next) {
       if (remaining <= 0) break;
 
-      const available = module[from];
+      const available = Math.round(module[from] * 2);
       const moved = Math.min(available, remaining);
 
-      module[from] -= moved;
-      module[to] += moved;
+      if (moved <= 0) continue;
+
+      module[from] -= moved / 2;
+      module[to] += moved / 2;
 
       remaining -= moved;
     }
 
-    return remaining;
+    return requestedUnits - remaining;
   };
 
-  // Сначала обеспечиваем минимумы.
-  for (const key of KIND_KEYS) {
-    const bound = bounds.get(key)!;
-    let deficit = bound.min - total(key);
-
-    if (deficit <= 0) continue;
-
-    for (const donor of KIND_KEYS) {
-      if (donor === key || deficit <= 0) continue;
-
-      const donorBound = bounds.get(donor)!;
-      const available = Math.max(
-        0,
-        total(donor) - donorBound.min,
-      );
-
-      const amount = Math.min(deficit, available);
-      deficit = transfer(donor, key, amount);
-    }
-  }
-
-  // Затем обеспечиваем максимумы.
-  for (const key of KIND_KEYS) {
-    const bound = bounds.get(key)!;
-    let excess = total(key) - bound.max;
+  // Сначала устраняем превышения максимумов.
+  for (const from of KIND_KEYS) {
+    const fromBound = bounds.get(from)!;
+    let excess = totalUnits(from) - fromBound.max;
 
     if (excess <= 0) continue;
 
-    for (const recipient of KIND_KEYS) {
-      if (recipient === key || excess <= 0) continue;
+    for (const to of KIND_KEYS) {
+      if (from === to || excess <= 0) continue;
 
-      const recipientBound = bounds.get(recipient)!;
+      const toBound = bounds.get(to)!;
       const capacity = Math.max(
         0,
-        recipientBound.max - total(recipient),
+        toBound.max - totalUnits(to),
       );
 
-      const amount = Math.min(excess, capacity);
-      excess = transfer(key, recipient, amount);
+      const moved = transfer(from, to, Math.min(excess, capacity));
+      excess -= moved;
+    }
+
+    if (excess > 0) {
+      throw new Error(`Не удалось уменьшить ${from}`);
+    }
+  }
+
+  // Затем обеспечиваем минимумы.
+  for (const to of KIND_KEYS) {
+    const toBound = bounds.get(to)!;
+    let deficit = toBound.min - totalUnits(to);
+
+    if (deficit <= 0) continue;
+
+    for (const from of KIND_KEYS) {
+      if (from === to || deficit <= 0) continue;
+
+      const fromBound = bounds.get(from)!;
+      const available = Math.max(
+        0,
+        totalUnits(from) - fromBound.min,
+      );
+
+      const moved = transfer(from, to, Math.min(deficit, available));
+      deficit -= moved;
+    }
+
+    if (deficit > 0) {
+      throw new Error(`Не удалось увеличить ${to}`);
     }
   }
 

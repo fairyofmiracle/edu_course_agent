@@ -221,6 +221,7 @@ export function createEmptyCourse(): CourseDocument {
       attestationForm: "",
       goals: [],
       constraints: [],
+      hourConstraints: [],
       references: [],
     },
     competencies: { nodes: [], edges: [] },
